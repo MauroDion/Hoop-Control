@@ -2,31 +2,37 @@
 
 import type { Club } from '@/types';
 import { db } from '@/lib/firebase/client';
-import { collection, getDocs, query, where } from 'firebase/firestore';
+import { collection, getDocs, query, where, orderBy } from 'firebase/firestore';
 
-// In a real application, these clubs would be managed in Firestore by a super_admin.
-const MOCK_CLUBS: Club[] = [
-  { id: 'club_alpha', name: 'Club Alpha', approved: true },
-  { id: 'club_beta', name: 'Club Beta', approved: true },
-  { id: 'club_gamma', name: 'Club Gamma', approved: true },
-  { id: 'club_delta', name: 'Club Delta (Pending)', approved: false }, // Example of a non-approved club
-];
+// No longer using MOCK_CLUBS
+// const MOCK_CLUBS: Club[] = [
+//   { id: 'club_alpha', name: 'Club Alpha', approved: true },
+//   { id: 'club_beta', name: 'Club Beta', approved: true },
+//   { id: 'club_gamma', name: 'Club Gamma', approved: true },
+//   { id: 'club_delta', name: 'Club Delta (Pending)', approved: false },
+// ];
 
 export async function getApprovedClubs(): Promise<Club[]> {
-  // Simulate fetching from Firestore for now.
-  // Replace with actual Firestore query when club management is implemented.
   try {
-    // This is how you would fetch approved clubs from Firestore:
-    // const clubsCollectionRef = collection(db, 'clubs');
-    // const q = query(clubsCollectionRef, where('approved', '==', true));
-    // const querySnapshot = await getDocs(q);
-    // const approvedClubs = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Club));
-    // return approvedClubs;
-
-    // For now, return mock data:
-    return MOCK_CLUBS.filter(club => club.approved);
+    const clubsCollectionRef = collection(db, 'clubs');
+    // Query for clubs that are approved and order them by name
+    const q = query(clubsCollectionRef, where('approved', '==', true), orderBy('name', 'asc'));
+    const querySnapshot = await getDocs(q);
+    
+    const approvedClubs = querySnapshot.docs.map(doc => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        name: data.name,
+        approved: data.approved,
+        // Add other fields from Club type if they exist in Firestore
+        // createdAt: data.createdAt, 
+      } as Club;
+    });
+    
+    return approvedClubs;
   } catch (error) {
-    console.error('Error fetching approved clubs:', error);
+    console.error('Error fetching approved clubs from Firestore:', error);
     return []; // Return empty array on error
   }
 }
