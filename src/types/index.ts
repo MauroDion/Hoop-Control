@@ -28,3 +28,30 @@ export interface BcsjdApiDataItem {
   category: string;
   lastUpdated: string; // ISO date string
 }
+
+// New types for User Profile and Approval Flow
+export type UserProfileStatus = 'pending_approval' | 'approved' | 'rejected';
+export type ProfileType = 'club_admin' | 'coach' | 'player' | 'parent_guardian' | 'other';
+
+export interface UserFirestoreProfile {
+  uid: string;
+  email: string | null;
+  displayName: string | null;
+  photoURL?: string | null;
+  profileType: ProfileType;
+  selectedClubId: string;
+  status: UserProfileStatus;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+  // roles?: string[]; // Future: for super_admin, etc.
+}
+
+export interface Club {
+  id: string;
+  name: string;
+  // Add other relevant club details here if needed
+  // e.g., address, contactInfo, etc.
+  // For now, keeping it simple for selection.
+  approved?: boolean; // For super_admin to manage club visibility/availability
+  createdAt?: Timestamp;
+}
