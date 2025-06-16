@@ -2,37 +2,32 @@
 
 import type { Club } from '@/types';
 import { db } from '@/lib/firebase/client';
-import { collection, getDocs, query, where, orderBy } from 'firebase/firestore';
-
-// No longer using MOCK_CLUBS
-// const MOCK_CLUBS: Club[] = [
-//   { id: 'club_alpha', name: 'Club Alpha', approved: true },
-//   { id: 'club_beta', name: 'Club Beta', approved: true },
-//   { id: 'club_gamma', name: 'Club Gamma', approved: true },
-//   { id: 'club_delta', name: 'Club Delta (Pending)', approved: false },
-// ];
+import { collection, getDocs, query, orderBy } from 'firebase/firestore';
 
 export async function getApprovedClubs(): Promise<Club[]> {
   try {
     const clubsCollectionRef = collection(db, 'clubs');
-    // Query for clubs that are approved and order them by name
-    const q = query(clubsCollectionRef, where('approved', '==', true), orderBy('name', 'asc'));
+    // Query for all clubs and order them by name
+    // The filter "where('approved', '==', true)" has been removed to fetch all clubs.
+    const q = query(clubsCollectionRef, orderBy('name', 'asc'));
     const querySnapshot = await getDocs(q);
     
-    const approvedClubs = querySnapshot.docs.map(doc => {
+    const allClubs = querySnapshot.docs.map(doc => {
       const data = doc.data();
       return {
         id: doc.id,
         name: data.name,
-        approved: data.approved,
+        // The 'approved' field for a club itself (if it exists in your Firestore model for clubs)
+        // is distinct from user profile approval. We include it here if it's part of your Club type.
+        approved: data.approved, 
         // Add other fields from Club type if they exist in Firestore
         // createdAt: data.createdAt, 
       } as Club;
     });
     
-    return approvedClubs;
+    return allClubs;
   } catch (error) {
-    console.error('Error fetching approved clubs from Firestore:', error);
+    console.error('Error fetching clubs from Firestore:', error);
     return []; // Return empty array on error
   }
 }
