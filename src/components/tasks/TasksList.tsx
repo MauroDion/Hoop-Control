@@ -1,0 +1,200 @@
+"use client";
+
+import type { Task } from "@/types";
+import Link from "next/link";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Edit, Eye, Trash2, PlusCircle, AlertTriangle, ListFilter, CalendarDays } from "lucide-react";
+import { useState, useMemo } from "react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { deleteTask } from "@/app/tasks/actions";
+import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
+import { useRouter } from "next/navigation"; // Corrected import for App Router
+import { Timestamp } from "firebase/firestore";
+import { format } from "date-fns";
+
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+
+interface TasksListProps {
+  tasks: Task[];
+}
+
+const statusColors: Record<Task['status'], string> = {
+  todo: "border-yellow-400 bg-yellow-50 text-yellow-700 hover:bg-yellow-100",
+  inprogress: "border-blue-400 bg-blue-50 text-blue-700 hover:bg-blue-100",
+  done: "border-green-400 bg-green-50 text-green-700 hover:bg-green-100",
+};
+
+const priorityText: Record<Task['priority'], string> = {
+  low: "Low",
+  medium: "Medium",
+  high: "High",
+};
+
+const formatDate = (timestamp?: Timestamp | null) => {
+  if (!timestamp) return 'N/A';
+  return format(timestamp.toDate(), 'MMM d, yyyy');
+};
+
+export function TasksList({ tasks }: TasksListProps) {
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState<Task['status'] | "all">("all");
+  const [priorityFilter, setPriorityFilter] = useState<Task['priority'] | "all">("all");
+  const { toast } = useToast();
+  const { user } = useAuth();
+  const router = useRouter();
+
+  const filteredTasks = useMemo(() => {
+    return tasks.filter(task => {
+      const matchesSearch = task.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                            task.description?.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesStatus = statusFilter === "all" || task.status === statusFilter;
+      const matchesPriority = priorityFilter === "all" || task.priority === priorityFilter;
+      return matchesSearch && matchesStatus && matchesPriority;
+    }).sort((a, b) => (a.createdAt?.toMillis() || 0) - (b.createdAt?.toMillis() || 0)); // Sort by creation date
+  }, [tasks, searchTerm, statusFilter, priorityFilter]);
+
+  const handleDelete = async (taskId: string, taskTitle: string) => {
+    if (!user) {
+        toast({variant: "destructive", title: "Error", description: "You must be logged in."});
+        return;
+    }
+    const result = await deleteTask(taskId, user.uid);
+    if (result.success) {
+      toast({ title: "Task Deleted", description: `Task "${taskTitle}" has been deleted.` });
+      router.refresh(); // Re-fetch tasks by refreshing the page server-side data
+    } else {
+      toast({ variant: "destructive", title: "Deletion Failed", description: result.error });
+    }
+  };
+
+  if (tasks.length === 0 && searchTerm === "" && statusFilter === "all" && priorityFilter === "all") {
+    return (
+      <div className="text-center py-10">
+        <ListFilter className="mx-auto h-16 w-16 text-muted-foreground mb-4" />
+        <h2 className="text-2xl font-semibold mb-2">No tasks yet!</h2>
+        <p className="text-muted-foreground mb-4">Get started by creating your first task.</p>
+        <Button asChild>
+          <Link href="/tasks/new"><PlusCircle className="mr-2 h-4 w-4" /> Create Task</Link>
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <Card className="shadow-md">
+        <CardHeader className="border-b">
+          <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+            <CardTitle className="text-2xl font-headline">Task Filters</CardTitle>
+            <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
+              <Input 
+                placeholder="Search tasks..." 
+                value={searchTerm} 
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full md:w-auto"
+              />
+              <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as Task['status'] | "all")}>
+                <SelectTrigger className="w-full md:w-[180px]">
+                  <SelectValue placeholder="Filter by status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Statuses</SelectItem>
+                  <SelectItem value="todo">To Do</SelectItem>
+                  <SelectItem value="inprogress">In Progress</SelectItem>
+                  <SelectItem value="done">Done</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={priorityFilter} onValueChange={(value) => setPriorityFilter(value as Task['priority'] | "all")}>
+                <SelectTrigger className="w-full md:w-[180px]">
+                  <SelectValue placeholder="Filter by priority" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Priorities</SelectItem>
+                  <SelectItem value="low">Low</SelectItem>
+                  <SelectItem value="medium">Medium</SelectItem>
+                  <SelectItem value="high">High</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </CardHeader>
+      </Card>
+
+      {filteredTasks.length === 0 ? (
+        <div className="text-center py-10 border-2 border-dashed rounded-lg">
+          <AlertTriangle className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+          <h3 className="text-xl font-semibold">No tasks match your filters.</h3>
+          <p className="text-muted-foreground">Try adjusting your search or filter criteria.</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filteredTasks.map((task) => (
+            <Card key={task.id} className={`shadow-lg hover:shadow-xl transition-shadow duration-300 flex flex-col justify-between ${statusColors[task.status]}`}>
+              <CardHeader>
+                <div className="flex justify-between items-start">
+                  <CardTitle className="text-xl font-semibold mb-1 text-primary-foreground group-hover:text-primary transition-colors">
+                     <Link href={`/tasks/${task.id}`} className="hover:underline">{task.title}</Link>
+                  </CardTitle>
+                  <Badge variant={task.priority === 'high' ? 'destructive' : task.priority === 'medium' ? 'secondary' : 'outline'} className="capitalize shrink-0">
+                    {priorityText[task.priority]}
+                  </Badge>
+                </div>
+                {task.description && <CardDescription className="text-sm text-foreground/80 line-clamp-2">{task.description}</CardDescription>}
+              </CardHeader>
+              <CardContent className="flex-grow">
+                 <div className="text-xs text-muted-foreground flex items-center">
+                   <CalendarDays className="mr-1.5 h-3.5 w-3.5" />
+                   Due: {formatDate(task.dueDate)}
+                 </div>
+                 <div className="text-xs text-muted-foreground mt-1">
+                   Created: {formatDate(task.createdAt)}
+                 </div>
+              </CardContent>
+              <CardFooter className="border-t pt-4 flex justify-end space-x-2">
+                <Button variant="outline" size="sm" asChild>
+                  <Link href={`/tasks/${task.id}`}><Eye className="mr-1 h-4 w-4" /> View</Link>
+                </Button>
+                <Button variant="outline" size="sm" asChild>
+                  <Link href={`/tasks/${task.id}/edit`}><Edit className="mr-1 h-4 w-4" /> Edit</Link>
+                </Button>
+                 <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="destructive" size="sm"><Trash2 className="mr-1 h-4 w-4" /> Delete</Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        This action cannot be undone. This will permanently delete the task "{task.title}".
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction onClick={() => handleDelete(task.id, task.title)} className="bg-destructive hover:bg-destructive/90">
+                        Delete
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </CardFooter>
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
