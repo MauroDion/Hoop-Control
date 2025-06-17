@@ -47,7 +47,7 @@ const formSchema = z.object({
 export function RegisterForm() {
   const { toast } = useToast();
   const router = useRouter();
-  const [clubs, setClubs] = useState<Club[]>([]); // Initialize as empty array
+  const [clubs, setClubs] = useState<Club[]>([]);
   const [loadingClubs, setLoadingClubs] = useState(true);
 
   useEffect(() => {
@@ -251,7 +251,7 @@ export function RegisterForm() {
                     { loadingClubs ? (
                        <div className="p-2 text-sm text-muted-foreground text-center">Loading clubs...</div>
                     ) : clubs.length === 0 ? (
-                      <div className="p-2 text-sm text-muted-foreground text-center">No clubs found. Ensure clubs exist and are readable in Firestore.</div>
+                      <div className="p-2 text-sm text-muted-foreground text-center">No clubs found. Check Firestore (collection 'clubs', field 'name', indexes, rules) or terminal logs for errors.</div>
                     ) : (
                       clubs.map((club, index) => {
                          console.log("RegisterForm: Rendering club SelectItem", index, "ID:", club.id, "Name:", club.name);
@@ -277,3 +277,5 @@ export function RegisterForm() {
     </>
   );
 }
+
+    
