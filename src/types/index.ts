@@ -1,3 +1,4 @@
+
 import type { Timestamp } from 'firebase/firestore';
 
 export interface Task {
@@ -54,4 +55,10 @@ export interface Club {
   // For now, keeping it simple for selection.
   approved?: boolean; // For super_admin to manage club visibility/availability
   createdAt?: Timestamp;
+}
+
+// Option for profile type select dropdown, loaded from Firestore
+export interface ProfileTypeOption {
+  id: ProfileType; // Ensures the ID matches one of the allowed ProfileType values
+  label: string;
 }

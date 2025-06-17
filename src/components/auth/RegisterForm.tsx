@@ -23,23 +23,18 @@ import { auth } from "@/lib/firebase/client";
 import { useRouter } from "next/navigation";
 import { createUserFirestoreProfile } from "@/app/users/actions";
 import { getApprovedClubs } from "@/app/clubs/actions";
-import type { Club, ProfileType } from "@/types";
+import { getProfileTypeOptions } from "@/app/profile-types/actions"; // Import new action
+import type { Club, ProfileType, ProfileTypeOption, UserProfileStatus } from "@/types"; // Import ProfileTypeOption
 import { Loader2 } from "lucide-react";
 
-const profileTypes: { value: ProfileType; label: string }[] = [
-  { value: "club_admin", label: "Club Admin" },
-  { value: "coach", label: "Coach" },
-  { value: "player", label: "Player" },
-  { value: "parent_guardian", label: "Parent/Guardian" },
-  { value: "other", label: "Other" },
-];
-
+// Schema uses explicit enum values from ProfileType for validation
+// This ensures that even if data comes from DB, it matches expected types
 const formSchema = z.object({
   name: z.string().min(2, { message: "Name must be at least 2 characters." }),
   email: z.string().email({ message: "Invalid email address." }),
   password: z.string().min(6, { message: "Password must be at least 6 characters." }),
-  profileType: z.custom<ProfileType>((val) => profileTypes.map(pt => pt.value).includes(val as ProfileType), {
-    message: "Please select a valid profile type.",
+  profileType: z.enum(['club_admin', 'coach', 'player', 'parent_guardian', 'other'], {
+    errorMap: () => ({ message: "Please select a valid profile type." })
   }),
   selectedClubId: z.string().min(1, { message: "Please select a club." }),
 });
@@ -49,41 +44,52 @@ export function RegisterForm() {
   const router = useRouter();
   const [clubs, setClubs] = useState<Club[]>([]);
   const [loadingClubs, setLoadingClubs] = useState(true);
+  const [profileTypeOptions, setProfileTypeOptions] = useState<ProfileTypeOption[]>([]);
+  const [loadingProfileTypes, setLoadingProfileTypes] = useState(true);
 
   useEffect(() => {
-    async function fetchClubs() {
+    async function fetchData() {
+      // Fetch Clubs
       console.log("RegisterForm: useEffect fetchClubs - START");
       setLoadingClubs(true);
       try {
         const fetchedClubs = await getApprovedClubs();
         console.log("RegisterForm: useEffect fetchClubs - Raw fetched clubs data from action:", fetchedClubs);
-        
-        if (Array.isArray(fetchedClubs)) {
-          setClubs(fetchedClubs);
-          console.log(`RegisterForm: useEffect fetchClubs - Set ${fetchedClubs.length} clubs.`);
-        } else {
-          console.error("RegisterForm: useEffect fetchClubs - Fetched clubs is not an array or is null/undefined:", fetchedClubs);
-          setClubs([]); // Fallback to empty array
-           toast({
-            variant: "destructive",
-            title: "Error Loading Clubs",
-            description: "Received invalid data format for clubs. Please contact support.",
-          });
+        setClubs(Array.isArray(fetchedClubs) ? fetchedClubs : []);
+        if (!Array.isArray(fetchedClubs)) {
+          console.warn("RegisterForm: Fetched clubs is not an array:", fetchedClubs);
+           toast({ variant: "destructive", title: "Error Loading Clubs", description: "Received invalid data format for clubs."});
         }
       } catch (error: any) {
         console.error("RegisterForm: useEffect fetchClubs - Failed to fetch clubs:", error);
-        toast({
-          variant: "destructive",
-          title: "Error Loading Clubs",
-          description: error.message || "Could not load the list of clubs. Please try refreshing the page.",
-        });
-        setClubs([]); // Fallback to empty array on error
+        toast({ variant: "destructive", title: "Error Loading Clubs", description: error.message || "Could not load clubs."});
+        setClubs([]);
       } finally {
         setLoadingClubs(false);
         console.log("RegisterForm: useEffect fetchClubs - FINISHED. loadingClubs state: false");
       }
+
+      // Fetch Profile Types
+      console.log("RegisterForm: useEffect fetchProfileTypes - START");
+      setLoadingProfileTypes(true);
+      try {
+        const fetchedProfileTypes = await getProfileTypeOptions();
+        console.log("RegisterForm: useEffect fetchProfileTypes - Raw fetched profile types data from action:", fetchedProfileTypes);
+        setProfileTypeOptions(Array.isArray(fetchedProfileTypes) ? fetchedProfileTypes : []);
+         if (!Array.isArray(fetchedProfileTypes)) {
+          console.warn("RegisterForm: Fetched profile types is not an array:", fetchedProfileTypes);
+           toast({ variant: "destructive", title: "Error Loading Profile Types", description: "Received invalid data format for profile types."});
+        }
+      } catch (error: any) {
+        console.error("RegisterForm: useEffect fetchProfileTypes - Failed to fetch profile types:", error);
+        toast({ variant: "destructive", title: "Error Loading Profile Types", description: error.message || "Could not load profile types."});
+        setProfileTypeOptions([]);
+      } finally {
+        setLoadingProfileTypes(false);
+        console.log("RegisterForm: useEffect fetchProfileTypes - FINISHED. loadingProfileTypes state: false");
+      }
     }
-    fetchClubs();
+    fetchData();
   }, [toast]);
 
   const form = useForm<z.infer<typeof formSchema>>({
@@ -92,7 +98,7 @@ export function RegisterForm() {
       name: "",
       email: "",
       password: "",
-      // profileType and selectedClubId will be undefined initially, Zod handles this
+      // profileType and selectedClubId will be undefined initially
     },
   });
 
@@ -114,7 +120,7 @@ export function RegisterForm() {
       const profileResult = await createUserFirestoreProfile(user.uid, {
         email: user.email,
         displayName: values.name,
-        profileType: values.profileType,
+        profileType: values.profileType, // This now comes from the form, validated against the enum
         selectedClubId: values.selectedClubId,
         photoURL: user.photoURL,
       });
@@ -140,7 +146,7 @@ export function RegisterForm() {
     }
   }
   
-  console.log("RegisterForm: Rendering component. loadingClubs:", loadingClubs, "Clubs count:", clubs.length, "ProfileTypes count:", profileTypes.length);
+  console.log("RegisterForm: Rendering component. loadingClubs:", loadingClubs, "Clubs count:", clubs.length, "loadingProfileTypes:", loadingProfileTypes, "ProfileTypeOptions count:", profileTypeOptions.length);
 
   return (
     <>
@@ -148,8 +154,10 @@ export function RegisterForm() {
         <p><strong>DEBUG INFO (Remove Later):</strong></p>
         <p>Loading Clubs: {loadingClubs.toString()}</p>
         <p>Clubs Loaded: {clubs.length}</p>
-        <p>Profile Types Available: {profileTypes.length}</p>
+        <p>Loading Profile Types: {loadingProfileTypes.toString()}</p>
+        <p>Profile Types Loaded: {profileTypeOptions.length}</p>
         {clubs.length > 0 && <p>First club name: {clubs[0].name}</p>}
+        {profileTypeOptions.length > 0 && <p>First profile type option: {profileTypeOptions[0].label} (ID: {profileTypeOptions[0].id})</p>}
       </div>
 
       <Form {...form}>
@@ -199,21 +207,38 @@ export function RegisterForm() {
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Profile Type</FormLabel>
-                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                <Select 
+                  onValueChange={field.onChange} 
+                  defaultValue={field.value}
+                  disabled={loadingProfileTypes || profileTypeOptions.length === 0}
+                >
                   <FormControl>
                     <SelectTrigger>
-                      <SelectValue placeholder="Select your profile type" />
+                      <SelectValue placeholder={
+                        loadingProfileTypes 
+                          ? "Loading profile types..." 
+                          : profileTypeOptions.length === 0 
+                            ? "No profile types found (check DB)" 
+                            : "Select your profile type"
+                        } />
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
-                    {profileTypes.length === 0 && <div className="p-2 text-sm text-muted-foreground text-center">No profile types available.</div>}
-                    {profileTypes.map((type, index) => {
-                      return (
-                        <SelectItem key={type.value} value={type.value}>
-                          {type.label}
-                        </SelectItem>
-                      );
-                    })}
+                    { console.log("RegisterForm: Rendering ProfileType Select. Items to render:", profileTypeOptions) }
+                    { loadingProfileTypes ? (
+                       <div className="p-2 text-sm text-muted-foreground text-center">Loading profile types...</div>
+                    ) : profileTypeOptions.length === 0 ? (
+                      <div className="p-2 text-sm text-muted-foreground text-center">No profile types found. Ensure 'profileTypes' collection exists in Firestore with 'id' and 'label' fields.</div>
+                    ) : (
+                      profileTypeOptions.map((type, index) => {
+                        console.log("RegisterForm: Rendering profile type SelectItem", index, type);
+                        return (
+                          <SelectItem key={type.id} value={type.id}>
+                            {type.label || `Unnamed Type ID: ${type.id}`}
+                          </SelectItem>
+                        );
+                      })
+                    )}
                   </SelectContent>
                 </Select>
                 <FormMessage />
@@ -238,19 +263,21 @@ export function RegisterForm() {
                           loadingClubs
                             ? "Loading clubs..."
                             : clubs.length === 0
-                            ? "No clubs available (check logs)"
+                            ? "No clubs available (check logs/DB)"
                             : "Select the club you belong to"
                         }
                       />
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
+                    { console.log("RegisterForm: Rendering Clubs Select. loadingClubs:", loadingClubs, "Clubs to render:", clubs) }
                     { loadingClubs ? (
                        <div className="p-2 text-sm text-muted-foreground text-center">Loading clubs...</div>
                     ) : clubs.length === 0 ? (
                       <div className="p-2 text-sm text-muted-foreground text-center">No clubs found. Check terminal logs for 'ClubActions' messages, Firestore collection 'clubs', its content (especially 'name' field), indexes, and security rules.</div>
                     ) : (
                       clubs.map((club, index) => {
+                         console.log("RegisterForm: Rendering club SelectItem", index, club);
                          return (
                            <SelectItem key={club.id} value={club.id}>
                              {club.name || `Unnamed Club ID: ${club.id}`}
@@ -264,8 +291,8 @@ export function RegisterForm() {
               </FormItem>
             )}
           />
-          <Button type="submit" className="w-full" disabled={form.formState.isSubmitting || loadingClubs}>
-            {form.formState.isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+          <Button type="submit" className="w-full" disabled={form.formState.isSubmitting || loadingClubs || loadingProfileTypes}>
+            {(form.formState.isSubmitting || loadingClubs || loadingProfileTypes) ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
             {form.formState.isSubmitting ? "Registering..." : "Create Account"}
           </Button>
         </form>
