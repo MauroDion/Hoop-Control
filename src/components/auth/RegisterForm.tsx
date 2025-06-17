@@ -56,23 +56,33 @@ export function RegisterForm() {
       setLoadingClubs(true);
       try {
         const fetchedClubs = await getApprovedClubs();
-        console.log("RegisterForm: Fetched clubs data:", fetchedClubs);
-        setClubs(fetchedClubs);
-      } catch (error) {
+        console.log("RegisterForm: Raw fetched clubs data from action:", fetchedClubs);
+        if (Array.isArray(fetchedClubs)) {
+          setClubs(fetchedClubs);
+        } else {
+          console.error("RegisterForm: Fetched clubs is not an array:", fetchedClubs);
+          setClubs([]);
+           toast({
+            variant: "destructive",
+            title: "Error Loading Clubs",
+            description: "Received invalid data for clubs. Please contact support.",
+          });
+        }
+      } catch (error: any) {
         console.error("RegisterForm: Failed to fetch clubs:", error);
         toast({
           variant: "destructive",
           title: "Error Loading Clubs",
-          description: "Could not load the list of clubs. Please try refreshing the page.",
+          description: error.message || "Could not load the list of clubs. Please try refreshing the page.",
         });
         setClubs([]);
       } finally {
         setLoadingClubs(false);
-        console.log("RegisterForm: Finished fetching clubs, loadingClubs state:", false);
+        console.log("RegisterForm: Finished fetching clubs. loadingClubs state:", false);
       }
     }
     fetchClubs();
-  }, [toast]);
+  }, [toast]); // Added toast to dependency array as it's used inside useEffect
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -80,8 +90,7 @@ export function RegisterForm() {
       name: "",
       email: "",
       password: "",
-      // profileType: undefined, // Zod handles initial undefined state
-      // selectedClubId: undefined, // Zod handles initial undefined state
+      // profileType and selectedClubId will be undefined initially, Zod handles this
     },
   });
 
@@ -123,6 +132,10 @@ export function RegisterForm() {
       });
     }
   }
+  
+  console.log("RegisterForm: Rendering. Clubs state:", clubs, "Loading clubs:", loadingClubs);
+  console.log("RegisterForm: Profile types to render:", profileTypes);
+
 
   return (
     <Form {...form}>
@@ -179,6 +192,7 @@ export function RegisterForm() {
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
+                  {profileTypes.length === 0 && <div className="p-2 text-sm text-muted-foreground text-center">No profile types available.</div>}
                   {profileTypes.map((type) => (
                     <SelectItem key={type.value} value={type.value}>
                       {type.label}
@@ -208,15 +222,15 @@ export function RegisterForm() {
                         loadingClubs
                           ? "Loading clubs..."
                           : clubs.length === 0
-                          ? "No clubs available"
+                          ? "No clubs available (check DB)"
                           : "Select the club you belong to"
                       }
                     />
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
-                  {!loadingClubs && clubs.length === 0 && (
-                    <div className="p-2 text-sm text-muted-foreground text-center">No clubs found in database.</div>
+                  { !loadingClubs && clubs.length === 0 && (
+                    <div className="p-2 text-sm text-muted-foreground text-center">No clubs found. Ensure clubs exist in Firestore and are readable.</div>
                   )}
                   {clubs.map((club) => (
                     <SelectItem key={club.id} value={club.id}>
@@ -230,10 +244,10 @@ export function RegisterForm() {
           )}
         />
         <Button type="submit" className="w-full" disabled={form.formState.isSubmitting || loadingClubs}>
+          {form.formState.isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
           {form.formState.isSubmitting ? "Registering..." : "Create Account"}
         </Button>
       </form>
     </Form>
   );
 }
-
