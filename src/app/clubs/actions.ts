@@ -17,7 +17,7 @@ export async function getApprovedClubs(): Promise<Club[]> {
     const querySnapshot = await getDocs(q);
 
     if (querySnapshot.empty) {
-      console.log("ClubActions: No documents found in 'clubs' collection or query returned empty (check indexes and rules).");
+      console.log("ClubActions: No documents found in 'clubs' collection or query returned empty (check indexes and Firestore rules).");
       return [];
     }
     
@@ -49,4 +49,3 @@ export async function getApprovedClubs(): Promise<Club[]> {
     return []; // Return empty array on error to prevent client-side crashes.
   }
 }
-
