@@ -47,20 +47,21 @@ const formSchema = z.object({
 export function RegisterForm() {
   const { toast } = useToast();
   const router = useRouter();
-  const [clubs, setClubs] = useState<Club[]>([]);
+  const [clubs, setClubs] = useState<Club[]>([]); // Initialize as empty array
   const [loadingClubs, setLoadingClubs] = useState(true);
 
   useEffect(() => {
     async function fetchClubs() {
-      console.log("RegisterForm: Fetching clubs...");
+      console.log("RegisterForm: useEffect fetchClubs - START");
       setLoadingClubs(true);
       try {
         const fetchedClubs = await getApprovedClubs();
-        console.log("RegisterForm: Raw fetched clubs data from action:", fetchedClubs);
+        console.log("RegisterForm: useEffect fetchClubs - Raw fetched clubs data from action:", fetchedClubs);
         if (Array.isArray(fetchedClubs)) {
           setClubs(fetchedClubs);
+          console.log(`RegisterForm: useEffect fetchClubs - Set ${fetchedClubs.length} clubs.`);
         } else {
-          console.error("RegisterForm: Fetched clubs is not an array:", fetchedClubs);
+          console.error("RegisterForm: useEffect fetchClubs - Fetched clubs is not an array:", fetchedClubs);
           setClubs([]);
            toast({
             variant: "destructive",
@@ -69,7 +70,7 @@ export function RegisterForm() {
           });
         }
       } catch (error: any) {
-        console.error("RegisterForm: Failed to fetch clubs:", error);
+        console.error("RegisterForm: useEffect fetchClubs - Failed to fetch clubs:", error);
         toast({
           variant: "destructive",
           title: "Error Loading Clubs",
@@ -78,7 +79,7 @@ export function RegisterForm() {
         setClubs([]);
       } finally {
         setLoadingClubs(false);
-        console.log("RegisterForm: Finished fetching clubs. loadingClubs state:", false);
+        console.log("RegisterForm: useEffect fetchClubs - FINISHED. loadingClubs state: false");
       }
     }
     fetchClubs();
@@ -95,13 +96,17 @@ export function RegisterForm() {
   });
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
+    console.log("RegisterForm: onSubmit - Values:", values);
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
       const user = userCredential.user;
+      console.log("RegisterForm: onSubmit - Firebase Auth user created:", user?.uid);
 
       if (user) {
         await updateFirebaseAuthProfile(user, { displayName: values.name });
+        console.log("RegisterForm: onSubmit - Firebase Auth profile updated with displayName.");
       } else {
+        console.error("RegisterForm: onSubmit - User creation failed in Firebase Auth (user object is null).");
         throw new Error("User creation failed in Firebase Auth.");
       }
 
@@ -112,6 +117,7 @@ export function RegisterForm() {
         selectedClubId: values.selectedClubId,
         photoURL: user.photoURL,
       });
+      console.log("RegisterForm: onSubmit - Firestore profile creation result:", profileResult);
 
       if (!profileResult.success) {
         throw new Error(profileResult.error || "Failed to create user profile data.");
@@ -124,7 +130,7 @@ export function RegisterForm() {
       });
       router.push("/login");
     } catch (error: any) {
-      console.error("Registration error: ", error);
+      console.error("RegisterForm: onSubmit - ERROR:", error);
       toast({
         variant: "destructive",
         title: "Registration Failed",
@@ -133,128 +139,141 @@ export function RegisterForm() {
     }
   }
   
-  console.log("RegisterForm: Rendering. Clubs state:", clubs, "Loading clubs:", loadingClubs);
-  console.log("RegisterForm: Profile types to render:", profileTypes);
-
+  console.log("RegisterForm: Rendering component. loadingClubs:", loadingClubs, "Clubs count:", clubs.length, "ProfileTypes count:", profileTypes.length);
 
   return (
-    <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-        <FormField
-          control={form.control}
-          name="name"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Full Name</FormLabel>
-              <FormControl>
-                <Input placeholder="John Doe" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="email"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Email</FormLabel>
-              <FormControl>
-                <Input placeholder="your@email.com" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="password"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Password</FormLabel>
-              <FormControl>
-                <Input type="password" placeholder="••••••••" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="profileType"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Profile Type</FormLabel>
-              <Select onValueChange={field.onChange} defaultValue={field.value}>
+    <>
+      {/* TEMPORARY DEBUG INFO - REMOVE LATER */}
+      <div className="p-2 mb-4 border border-dashed border-red-500 bg-red-50 text-red-700 text-xs">
+        <p><strong>DEBUG INFO (Remove Later):</strong></p>
+        <p>Loading Clubs: {loadingClubs.toString()}</p>
+        <p>Clubs Loaded: {clubs.length}</p>
+        <p>Profile Types Available: {profileTypes.length}</p>
+      </div>
+      {/* END TEMPORARY DEBUG INFO */}
+
+      <Form {...form}>
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+          <FormField
+            control={form.control}
+            name="name"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Full Name</FormLabel>
                 <FormControl>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select your profile type" />
-                  </SelectTrigger>
+                  <Input placeholder="John Doe" {...field} />
                 </FormControl>
-                <SelectContent>
-                  {profileTypes.length === 0 && <div className="p-2 text-sm text-muted-foreground text-center">No profile types available.</div>}
-                  {profileTypes.map((type, index) => {
-                    console.log("RegisterForm: Rendering profile type SelectItem", index, type);
-                    return (
-                      <SelectItem key={type.value} value={type.value}>
-                        {type.label}
-                      </SelectItem>
-                    );
-                  })}
-                </SelectContent>
-              </Select>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="selectedClubId"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Select Your Club</FormLabel>
-              <Select
-                onValueChange={field.onChange}
-                defaultValue={field.value}
-                disabled={loadingClubs || (!loadingClubs && clubs.length === 0)}
-              >
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="email"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Email</FormLabel>
                 <FormControl>
-                  <SelectTrigger>
-                    <SelectValue
-                      placeholder={
-                        loadingClubs
-                          ? "Loading clubs..."
-                          : clubs.length === 0
-                          ? "No clubs available" 
-                          : "Select the club you belong to"
-                      }
-                    />
-                  </SelectTrigger>
+                  <Input placeholder="your@email.com" {...field} />
                 </FormControl>
-                <SelectContent>
-                  { !loadingClubs && clubs.length === 0 && (
-                    <div className="p-2 text-sm text-muted-foreground text-center">No clubs found. Ensure clubs exist and are readable in Firestore.</div>
-                  )}
-                  {clubs.map((club, index) => {
-                     console.log("RegisterForm: Rendering club SelectItem", index, club);
-                     return (
-                       <SelectItem key={club.id} value={club.id}>
-                         {club.name || 'Unnamed Club'}
-                       </SelectItem>
-                     );
-                  })}
-                </SelectContent>
-              </Select>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <Button type="submit" className="w-full" disabled={form.formState.isSubmitting || loadingClubs}>
-          {form.formState.isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-          {form.formState.isSubmitting ? "Registering..." : "Create Account"}
-        </Button>
-      </form>
-    </Form>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="password"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Password</FormLabel>
+                <FormControl>
+                  <Input type="password" placeholder="••••••••" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="profileType"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Profile Type</FormLabel>
+                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select your profile type" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {profileTypes.length === 0 && <div className="p-2 text-sm text-muted-foreground text-center">No profile types available.</div>}
+                    {console.log("RegisterForm: Rendering ProfileType Select. Items to render:", profileTypes)}
+                    {profileTypes.map((type, index) => {
+                      console.log("RegisterForm: Rendering profile type SelectItem", index, type);
+                      return (
+                        <SelectItem key={type.value} value={type.value}>
+                          {type.label}
+                        </SelectItem>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="selectedClubId"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Select Your Club</FormLabel>
+                <Select
+                  onValueChange={field.onChange}
+                  defaultValue={field.value}
+                  disabled={loadingClubs || clubs.length === 0}
+                >
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue
+                        placeholder={
+                          loadingClubs
+                            ? "Loading clubs..."
+                            : clubs.length === 0
+                            ? "No clubs available" 
+                            : "Select the club you belong to"
+                        }
+                      />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {console.log("RegisterForm: Rendering Clubs Select. loadingClubs:", loadingClubs, "Clubs to render:", clubs)}
+                    { loadingClubs ? (
+                       <div className="p-2 text-sm text-muted-foreground text-center">Loading clubs...</div>
+                    ) : clubs.length === 0 ? (
+                      <div className="p-2 text-sm text-muted-foreground text-center">No clubs found. Ensure clubs exist and are readable in Firestore.</div>
+                    ) : (
+                      clubs.map((club, index) => {
+                         console.log("RegisterForm: Rendering club SelectItem", index, "ID:", club.id, "Name:", club.name);
+                         return (
+                           <SelectItem key={club.id} value={club.id}>
+                             {club.name || 'Unnamed Club'}
+                           </SelectItem>
+                         );
+                      })
+                    )}
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <Button type="submit" className="w-full" disabled={form.formState.isSubmitting || loadingClubs}>
+            {form.formState.isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+            {form.formState.isSubmitting ? "Registering..." : "Create Account"}
+          </Button>
+        </form>
+      </Form>
+    </>
   );
 }
-
