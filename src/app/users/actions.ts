@@ -1,3 +1,4 @@
+
 'use server';
 
 import { db } from '@/lib/firebase/client';
@@ -18,25 +19,7 @@ export async function createUserFirestoreProfile(
 ): Promise<{ success: boolean; error?: string }> {
   try {
     const userProfileRef = doc(db, 'users', uid);
-    const newUserProfile: Omit<UserFirestoreProfile, 'uid'> & { status: UserProfileStatus; createdAt: Timestamp; updatedAt: Timestamp } = {
-      email: data.email,
-      displayName: data.displayName,
-      photoURL: data.photoURL || null,
-      profileType: data.profileType,
-      selectedClubId: data.selectedClubId,
-      status: 'pending_approval', // Default status
-      createdAt: serverTimestamp() as Timestamp, // Will be set by Firestore
-      updatedAt: serverTimestamp() as Timestamp, // Will be set by Firestore
-    };
-
-    // Firestore `setDoc` will set the timestamps on the server.
-    // To avoid type errors with `serverTimestamp()` client-side, we cast to Timestamp for the type,
-    // but the actual value passed to Firestore is the serverTimestamp() function.
-    // However, for direct object creation where type checking is strict before sending to Firestore,
-    // it's often easier to let Firestore handle createdAt/updatedAt entirely via rules or server-side triggers if possible,
-    // or omit them from the strict client-side type if they are truly server-generated.
-    // For this action, we'll prepare the object and rely on setDoc with serverTimestamp.
-
+    
     const profileToSave = {
         email: data.email,
         displayName: data.displayName,
@@ -48,10 +31,22 @@ export async function createUserFirestoreProfile(
         updatedAt: serverTimestamp(),
     };
 
+    console.log(`UserActions: Attempting to create Firestore profile for UID: ${uid} with data:`, JSON.stringify(profileToSave, null, 2));
+
     await setDoc(userProfileRef, profileToSave);
+    console.log(`UserActions: Successfully created Firestore profile for UID: ${uid}`);
     return { success: true };
   } catch (error: any) {
-    console.error('Error creating user profile in Firestore:', error);
-    return { success: false, error: error.message || 'Failed to create user profile.' };
+    console.error(`UserActions: Error creating user profile in Firestore for UID ${uid}:`, error.message, error.code, error.stack);
+    // Extract a more specific error message if available, otherwise default
+    let errorMessage = 'Failed to create user profile.';
+    if (error.message) {
+        errorMessage = error.message;
+    }
+    if (error.code) {
+        errorMessage = `${error.code}: ${errorMessage}`;
+    }
+    return { success: false, error: errorMessage };
   }
 }
+
