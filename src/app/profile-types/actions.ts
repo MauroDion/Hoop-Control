@@ -20,7 +20,7 @@ export async function getProfileTypeOptions(): Promise<ProfileTypeOption[]> {
     const querySnapshot = await getDocs(q);
 
     if (querySnapshot.empty) {
-      console.warn("ProfileTypeActions: No documents found in 'profileTypes' collection. Ensure this collection exists and contains documents with 'id' (e.g., 'club_admin') and 'label' (e.g., 'Club Admin') fields. Check Firestore rules for read access.");
+      console.warn("ProfileTypeActions: No documents found in 'profileTypes' collection. Ensure this collection exists and contains documents with 'id' (e.g., 'club_admin') and 'label' (e.g., 'Club Admin') fields. Check Firestore rules for read access and ensure an index exists for ordering by 'label'.");
       return [];
     }
     
@@ -63,3 +63,4 @@ export async function getProfileTypeOptions(): Promise<ProfileTypeOption[]> {
     return []; // Return empty array on error
   }
 }
+

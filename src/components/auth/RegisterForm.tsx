@@ -214,7 +214,7 @@ export function RegisterForm() {
                 <FormLabel>Profile Type</FormLabel>
                 <Select 
                   onValueChange={field.onChange} 
-                  defaultValue={field.value} // This should be initially undefined or match a valid value
+                  defaultValue={field.value} 
                   disabled={loadingProfileTypes || profileTypeOptions.length === 0}
                 >
                   <FormControl>
@@ -233,7 +233,7 @@ export function RegisterForm() {
                     { loadingProfileTypes ? (
                        <div className="p-2 text-sm text-muted-foreground text-center">Loading profile types...</div>
                     ) : profileTypeOptions.length === 0 ? (
-                      <div className="p-2 text-sm text-muted-foreground text-center">No profile types found. Ensure 'profileTypes' collection exists in Firestore with 'id' and 'label' fields, and check server logs for 'ProfileTypeActions'.</div>
+                      <div className="p-2 text-sm text-muted-foreground text-center">No profile types found. Ensure 'profileTypes' collection exists in Firestore with 'id' and 'label' fields, and check server logs for 'ProfileTypeActions'. An index on 'label' is also required.</div>
                     ) : (
                       profileTypeOptions.map((type, index) => {
                         console.log("RegisterForm: Rendering profile type SelectItem", index, type);
@@ -258,7 +258,7 @@ export function RegisterForm() {
                 <FormLabel>Select Your Club</FormLabel>
                 <Select
                   onValueChange={field.onChange}
-                  defaultValue={field.value} // This should be initially undefined or match a valid value
+                  defaultValue={field.value}
                   disabled={loadingClubs || clubs.length === 0}
                 >
                   <FormControl>
@@ -279,7 +279,7 @@ export function RegisterForm() {
                     { loadingClubs ? (
                        <div className="p-2 text-sm text-muted-foreground text-center">Loading clubs...</div>
                     ) : clubs.length === 0 ? (
-                      <div className="p-2 text-sm text-muted-foreground text-center">No clubs found. Check server logs for 'ClubActions', Firestore collection 'clubs', its content (especially 'name' field), indexes, and security rules.</div>
+                      <div className="p-2 text-sm text-muted-foreground text-center">No clubs found. Check server logs for 'ClubActions', Firestore collection 'clubs', its content (especially 'name' field), and security rules.</div>
                     ) : (
                       clubs.map((club, index) => {
                          console.log("RegisterForm: Rendering club SelectItem", index, club);

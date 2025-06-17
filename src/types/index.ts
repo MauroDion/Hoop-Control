@@ -62,3 +62,4 @@ export interface ProfileTypeOption {
   id: ProfileType; // Ensures the ID matches one of the allowed ProfileType values
   label: string;
 }
+

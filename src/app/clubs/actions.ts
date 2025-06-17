@@ -43,3 +43,4 @@ export async function getApprovedClubs(): Promise<Club[]> {
     return []; // Return empty array on error
   }
 }
+
