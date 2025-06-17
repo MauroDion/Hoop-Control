@@ -57,16 +57,17 @@ export function RegisterForm() {
       try {
         const fetchedClubs = await getApprovedClubs();
         console.log("RegisterForm: useEffect fetchClubs - Raw fetched clubs data from action:", fetchedClubs);
+        
         if (Array.isArray(fetchedClubs)) {
           setClubs(fetchedClubs);
           console.log(`RegisterForm: useEffect fetchClubs - Set ${fetchedClubs.length} clubs.`);
         } else {
-          console.error("RegisterForm: useEffect fetchClubs - Fetched clubs is not an array:", fetchedClubs);
-          setClubs([]);
+          console.error("RegisterForm: useEffect fetchClubs - Fetched clubs is not an array or is null/undefined:", fetchedClubs);
+          setClubs([]); // Fallback to empty array
            toast({
             variant: "destructive",
             title: "Error Loading Clubs",
-            description: "Received invalid data for clubs. Please contact support.",
+            description: "Received invalid data format for clubs. Please contact support.",
           });
         }
       } catch (error: any) {
@@ -76,7 +77,7 @@ export function RegisterForm() {
           title: "Error Loading Clubs",
           description: error.message || "Could not load the list of clubs. Please try refreshing the page.",
         });
-        setClubs([]);
+        setClubs([]); // Fallback to empty array on error
       } finally {
         setLoadingClubs(false);
         console.log("RegisterForm: useEffect fetchClubs - FINISHED. loadingClubs state: false");
@@ -143,14 +144,13 @@ export function RegisterForm() {
 
   return (
     <>
-      {/* TEMPORARY DEBUG INFO - REMOVE LATER */}
       <div className="p-2 mb-4 border border-dashed border-red-500 bg-red-50 text-red-700 text-xs">
         <p><strong>DEBUG INFO (Remove Later):</strong></p>
         <p>Loading Clubs: {loadingClubs.toString()}</p>
         <p>Clubs Loaded: {clubs.length}</p>
         <p>Profile Types Available: {profileTypes.length}</p>
+        {clubs.length > 0 && <p>First club name: {clubs[0].name}</p>}
       </div>
-      {/* END TEMPORARY DEBUG INFO */}
 
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
@@ -207,9 +207,7 @@ export function RegisterForm() {
                   </FormControl>
                   <SelectContent>
                     {profileTypes.length === 0 && <div className="p-2 text-sm text-muted-foreground text-center">No profile types available.</div>}
-                    {console.log("RegisterForm: Rendering ProfileType Select. Items to render:", profileTypes)}
                     {profileTypes.map((type, index) => {
-                      console.log("RegisterForm: Rendering profile type SelectItem", index, type);
                       return (
                         <SelectItem key={type.value} value={type.value}>
                           {type.label}
@@ -240,24 +238,22 @@ export function RegisterForm() {
                           loadingClubs
                             ? "Loading clubs..."
                             : clubs.length === 0
-                            ? "No clubs available" 
+                            ? "No clubs available (check logs)"
                             : "Select the club you belong to"
                         }
                       />
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
-                    {console.log("RegisterForm: Rendering Clubs Select. loadingClubs:", loadingClubs, "Clubs to render:", clubs)}
                     { loadingClubs ? (
                        <div className="p-2 text-sm text-muted-foreground text-center">Loading clubs...</div>
                     ) : clubs.length === 0 ? (
-                      <div className="p-2 text-sm text-muted-foreground text-center">No clubs found. Check Firestore (collection 'clubs', field 'name', indexes, rules) or terminal logs for errors.</div>
+                      <div className="p-2 text-sm text-muted-foreground text-center">No clubs found. Check terminal logs for 'ClubActions' messages, Firestore collection 'clubs', its content (especially 'name' field), indexes, and security rules.</div>
                     ) : (
                       clubs.map((club, index) => {
-                         console.log("RegisterForm: Rendering club SelectItem", index, "ID:", club.id, "Name:", club.name);
                          return (
                            <SelectItem key={club.id} value={club.id}>
-                             {club.name || 'Unnamed Club'}
+                             {club.name || `Unnamed Club ID: ${club.id}`}
                            </SelectItem>
                          );
                       })
@@ -277,5 +273,3 @@ export function RegisterForm() {
     </>
   );
 }
-
-    
