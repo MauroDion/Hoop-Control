@@ -9,7 +9,8 @@ export async function getApprovedClubs(): Promise<Club[]> {
   console.log("ClubActions: Attempting to fetch clubs from Firestore (simplified query - no ordering).");
   try {
     const clubsCollectionRef = collection(db, 'clubs');
-    // Simplified query without orderBy for diagnostics
+    // Simplified query without orderBy for diagnostics, as per user request.
+    // Original: const q = query(clubsCollectionRef, orderBy('name', 'asc'));
     const q = query(clubsCollectionRef);
     const querySnapshot = await getDocs(q);
 
@@ -43,4 +44,3 @@ export async function getApprovedClubs(): Promise<Club[]> {
     return []; // Return empty array on error
   }
 }
-

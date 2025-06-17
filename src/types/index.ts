@@ -50,10 +50,7 @@ export interface UserFirestoreProfile {
 export interface Club {
   id: string;
   name: string;
-  // Add other relevant club details here if needed
-  // e.g., address, contactInfo, etc.
-  // For now, keeping it simple for selection.
-  approved?: boolean; // For super_admin to manage club visibility/availability
+  approved?: boolean; 
   createdAt?: Timestamp;
 }
 
@@ -62,4 +59,3 @@ export interface ProfileTypeOption {
   id: ProfileType; // Ensures the ID matches one of the allowed ProfileType values
   label: string;
 }
-

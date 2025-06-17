@@ -63,4 +63,3 @@ export async function getProfileTypeOptions(): Promise<ProfileTypeOption[]> {
     return []; // Return empty array on error
   }
 }
-
