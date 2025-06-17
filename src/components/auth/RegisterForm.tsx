@@ -82,7 +82,7 @@ export function RegisterForm() {
       }
     }
     fetchClubs();
-  }, [toast]); // Added toast to dependency array as it's used inside useEffect
+  }, [toast]);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -193,11 +193,14 @@ export function RegisterForm() {
                 </FormControl>
                 <SelectContent>
                   {profileTypes.length === 0 && <div className="p-2 text-sm text-muted-foreground text-center">No profile types available.</div>}
-                  {profileTypes.map((type) => (
-                    <SelectItem key={type.value} value={type.value}>
-                      {type.label}
-                    </SelectItem>
-                  ))}
+                  {profileTypes.map((type, index) => {
+                    console.log("RegisterForm: Rendering profile type SelectItem", index, type);
+                    return (
+                      <SelectItem key={type.value} value={type.value}>
+                        {type.label}
+                      </SelectItem>
+                    );
+                  })}
                 </SelectContent>
               </Select>
               <FormMessage />
@@ -222,7 +225,7 @@ export function RegisterForm() {
                         loadingClubs
                           ? "Loading clubs..."
                           : clubs.length === 0
-                          ? "No clubs available (check DB)"
+                          ? "No clubs available" 
                           : "Select the club you belong to"
                       }
                     />
@@ -230,13 +233,16 @@ export function RegisterForm() {
                 </FormControl>
                 <SelectContent>
                   { !loadingClubs && clubs.length === 0 && (
-                    <div className="p-2 text-sm text-muted-foreground text-center">No clubs found. Ensure clubs exist in Firestore and are readable.</div>
+                    <div className="p-2 text-sm text-muted-foreground text-center">No clubs found. Ensure clubs exist and are readable in Firestore.</div>
                   )}
-                  {clubs.map((club) => (
-                    <SelectItem key={club.id} value={club.id}>
-                      {club.name || 'Unnamed Club'}
-                    </SelectItem>
-                  ))}
+                  {clubs.map((club, index) => {
+                     console.log("RegisterForm: Rendering club SelectItem", index, club);
+                     return (
+                       <SelectItem key={club.id} value={club.id}>
+                         {club.name || 'Unnamed Club'}
+                       </SelectItem>
+                     );
+                  })}
                 </SelectContent>
               </Select>
               <FormMessage />
@@ -251,3 +257,4 @@ export function RegisterForm() {
     </Form>
   );
 }
+
