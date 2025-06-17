@@ -32,7 +32,17 @@ export interface BcsjdApiDataItem {
 
 // New types for User Profile and Approval Flow
 export type UserProfileStatus = 'pending_approval' | 'approved' | 'rejected';
-export type ProfileType = 'club_admin' | 'coach' | 'player' | 'parent_guardian' | 'other';
+
+// Updated to match Firestore document IDs from the image
+export type ProfileType = 
+  | 'club_admin' 
+  | 'coach' 
+  | 'coordinator' 
+  | 'parent_guardian' 
+  | 'player' 
+  | 'scorer' 
+  | 'super_admin' 
+  | 'user';
 
 export interface UserFirestoreProfile {
   uid: string;

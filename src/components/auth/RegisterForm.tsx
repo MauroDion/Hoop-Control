@@ -30,11 +30,21 @@ import { Loader2 } from "lucide-react";
 // Schema uses explicit enum values from ProfileType for validation
 // This ensures that even if data comes from DB (via `profileTypes` collection's `id` field),
 // it matches one of the expected types defined in src/types/index.ts.
+// This list MUST match the ProfileType definition in src/types/index.ts
 const formSchema = z.object({
   name: z.string().min(2, { message: "Name must be at least 2 characters." }),
   email: z.string().email({ message: "Invalid email address." }),
   password: z.string().min(6, { message: "Password must be at least 6 characters." }),
-  profileType: z.enum(['club_admin', 'coach', 'player', 'parent_guardian', 'other'], {
+  profileType: z.enum([
+    'club_admin', 
+    'coach', 
+    'coordinator', 
+    'parent_guardian', 
+    'player', 
+    'scorer', 
+    'super_admin', 
+    'user'
+    ], {
     errorMap: () => ({ message: "Please select a valid profile type." })
   }),
   selectedClubId: z.string().min(1, { message: "Please select a club." }),
@@ -125,7 +135,7 @@ export function RegisterForm() {
       const profileResult = await createUserFirestoreProfile(user.uid, {
         email: user.email,
         displayName: values.name,
-        profileType: values.profileType, // This now comes from the form, validated against the enum
+        profileType: values.profileType, 
         selectedClubId: values.selectedClubId,
         photoURL: user.photoURL,
       });
@@ -138,9 +148,9 @@ export function RegisterForm() {
       toast({
         title: "Registration Submitted",
         description: "Your account has been created. It may require admin approval before full access.",
-        duration: 7000, // Increased duration
+        duration: 7000, 
       });
-      router.push("/login"); // Redirect to login, then to dashboard after login
+      router.push("/login"); 
     } catch (error: any) {
       console.error("RegisterForm: onSubmit - ERROR:", error);
       toast({
@@ -151,7 +161,7 @@ export function RegisterForm() {
     }
   }
   
-  console.log("RegisterForm: Rendering component. loadingClubs:", loadingClubs, "Clubs count:", clubs.length, "loadingProfileTypes:", loadingProfileTypes, "ProfileTypeOptions count:", profileTypeOptions.length);
+  // console.log("RegisterForm: Rendering component. loadingClubs:", loadingClubs, "Clubs count:", clubs.length, "loadingProfileTypes:", loadingProfileTypes, "ProfileTypeOptions count:", profileTypeOptions.length);
 
   return (
     <>
@@ -161,8 +171,8 @@ export function RegisterForm() {
         <p>Clubs Loaded: {clubs.length}</p>
         <p>Loading Profile Types: {loadingProfileTypes.toString()}</p>
         <p>Profile Types Loaded: {profileTypeOptions.length}</p>
-        {clubs.length > 0 && <p>First club name: {clubs[0].name}</p>}
-        {profileTypeOptions.length > 0 && <p>First profile type option: {profileTypeOptions[0].label} (ID: {profileTypeOptions[0].id})</p>}
+        {/* {clubs.length > 0 && <p>First club name: {clubs[0].name}</p>}
+        {profileTypeOptions.length > 0 && <p>First profile type option: {profileTypeOptions[0].label} (ID: {profileTypeOptions[0].id})</p>} */}
       </div>
 
       <Form {...form}>
@@ -229,20 +239,18 @@ export function RegisterForm() {
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
-                    { console.log("RegisterForm: Rendering ProfileType Select. loadingProfileTypes:", loadingProfileTypes, "Items to render:", profileTypeOptions) }
+                    {/* { console.log("RegisterForm: Rendering ProfileType Select. loadingProfileTypes:", loadingProfileTypes, "Items to render:", profileTypeOptions) } */}
                     { loadingProfileTypes ? (
                        <div className="p-2 text-sm text-muted-foreground text-center">Loading profile types...</div>
                     ) : profileTypeOptions.length === 0 ? (
-                      <div className="p-2 text-sm text-muted-foreground text-center">No profile types found. Ensure 'profileTypes' collection exists in Firestore with 'id' and 'label' fields, and check server logs for 'ProfileTypeActions'. An index on 'label' is also required.</div>
+                      <div className="p-2 text-sm text-muted-foreground text-center">No profile types found. Ensure 'profileTypes' collection exists in Firestore, has readable documents with 'label' field, and the server action has permissions and necessary indexes (for 'label' ordering). Check server logs for 'ProfileTypeActions'.</div>
                     ) : (
-                      profileTypeOptions.map((type, index) => {
-                        console.log("RegisterForm: Rendering profile type SelectItem", index, type);
-                        return (
+                      profileTypeOptions.map((type) => (
                           <SelectItem key={type.id} value={type.id}>
                             {type.label || `Unnamed Type ID: ${type.id}`}
                           </SelectItem>
-                        );
-                      })
+                        )
+                      )
                     )}
                   </SelectContent>
                 </Select>
@@ -275,20 +283,18 @@ export function RegisterForm() {
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
-                    { console.log("RegisterForm: Rendering Clubs Select. loadingClubs:", loadingClubs, "Clubs to render:", clubs) }
+                    {/* { console.log("RegisterForm: Rendering Clubs Select. loadingClubs:", loadingClubs, "Clubs to render:", clubs) } */}
                     { loadingClubs ? (
                        <div className="p-2 text-sm text-muted-foreground text-center">Loading clubs...</div>
                     ) : clubs.length === 0 ? (
                       <div className="p-2 text-sm text-muted-foreground text-center">No clubs found. Check server logs for 'ClubActions', Firestore collection 'clubs', its content (especially 'name' field), and security rules.</div>
                     ) : (
-                      clubs.map((club, index) => {
-                         console.log("RegisterForm: Rendering club SelectItem", index, club);
-                         return (
+                      clubs.map((club) => (
                            <SelectItem key={club.id} value={club.id}>
                              {club.name || `Unnamed Club ID: ${club.id}`}
                            </SelectItem>
-                         );
-                      })
+                         )
+                      )
                     )}
                   </SelectContent>
                 </Select>
