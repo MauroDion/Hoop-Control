@@ -5,7 +5,7 @@ import type { ProfileTypeOption, ProfileType } from '@/types';
 import { db } from '@/lib/firebase/client';
 import { collection, getDocs, query, orderBy } from 'firebase/firestore';
 
-// Helper function to check if a string is a valid ProfileType
+// Helper function to check if a string is a valid ProfileType defined in src/types/index.ts
 function isValidProfileType(id: string): id is ProfileType {
   const validTypes: ProfileType[] = ['club_admin', 'coach', 'player', 'parent_guardian', 'other'];
   return validTypes.includes(id as ProfileType);
@@ -15,12 +15,12 @@ export async function getProfileTypeOptions(): Promise<ProfileTypeOption[]> {
   console.log("ProfileTypeActions: Attempting to fetch profile types from Firestore collection 'profileTypes'.");
   try {
     const profileTypesCollectionRef = collection(db, 'profileTypes');
-    // Order by label for consistent dropdown order, assuming 'label' field exists
+    // Order by label for consistent dropdown order
     const q = query(profileTypesCollectionRef, orderBy('label', 'asc'));
     const querySnapshot = await getDocs(q);
 
     if (querySnapshot.empty) {
-      console.warn("ProfileTypeActions: No documents found in 'profileTypes' collection. Check collection content and Firestore rules. Ensure documents have 'id' and 'label' fields.");
+      console.warn("ProfileTypeActions: No documents found in 'profileTypes' collection. Ensure this collection exists and contains documents with 'id' (e.g., 'club_admin') and 'label' (e.g., 'Club Admin') fields. Check Firestore rules for read access.");
       return [];
     }
     
@@ -28,20 +28,26 @@ export async function getProfileTypeOptions(): Promise<ProfileTypeOption[]> {
     
     const allProfileTypes = querySnapshot.docs.map(doc => {
       const data = doc.data();
-      // Ensure 'id' and 'label' fields exist and 'id' is a valid ProfileType
-      const typeId = typeof data.id === 'string' ? data.id : null;
-      const typeLabel = typeof data.label === 'string' && data.label.trim() !== '' ? data.label : `Unnamed Type (Doc ID: ${doc.id})`;
+      // Ensure 'id' and 'label' fields exist
+      const typeId = data.id;
+      const typeLabel = data.label;
       
-      if (!typeId || !isValidProfileType(typeId)) {
-        console.warn(`ProfileTypeActions: Document with ID ${doc.id} has missing, invalid, or non-ProfileType 'id' field. Data:`, data);
+      if (typeof typeId !== 'string' || !typeId.trim()) {
+        console.warn(`ProfileTypeActions: Document with Firestore ID ${doc.id} has missing or invalid 'id' field. Data:`, data);
         return null; // Skip this invalid entry
       }
-      if (!(typeof data.label === 'string' && data.label.trim() !== '')) {
-         console.warn(`ProfileTypeActions: Document with ID ${doc.id} (Type ID: ${typeId}) has missing or empty 'label' field. Data:`, data);
+      if (!isValidProfileType(typeId)) {
+        console.warn(`ProfileTypeActions: Document with Firestore ID ${doc.id} has an 'id' ("${typeId}") that is not a valid ProfileType as defined in src/types. Data:`, data);
+        return null; // Skip this invalid entry
+      }
+      if (typeof typeLabel !== 'string' || !typeLabel.trim()) {
+         console.warn(`ProfileTypeActions: Document with Firestore ID ${doc.id} (Type ID: ${typeId}) has missing or empty 'label' field. Data:`, data);
+         // We can provide a fallback label if needed, or skip
+         return { id: typeId as ProfileType, label: `Unnamed Type (ID: ${typeId})` };
       }
 
       return {
-        id: typeId as ProfileType,
+        id: typeId as ProfileType, // Cast to ProfileType after validation
         label: typeLabel,
       };
     }).filter(Boolean) as ProfileTypeOption[]; // Filter out nulls and cast
