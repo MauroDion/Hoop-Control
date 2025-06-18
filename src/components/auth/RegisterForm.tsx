@@ -28,8 +28,6 @@ import type { Club, ProfileType, ProfileTypeOption } from "@/types";
 import { Loader2 } from "lucide-react";
 
 // Schema uses explicit enum values from ProfileType for validation
-// This ensures that even if data comes from DB (via `profileTypes` collection's `id` field),
-// it matches one of the expected types defined in src/types/index.ts.
 // This list MUST match the ProfileType definition in src/types/index.ts
 const formSchema = z.object({
   name: z.string().min(2, { message: "Name must be at least 2 characters." }),
@@ -153,26 +151,30 @@ export function RegisterForm() {
       router.push("/login"); 
     } catch (error: any) {
       console.error("RegisterForm: onSubmit - ERROR:", error);
+      let description = "An unexpected error occurred.";
+      if (error.code === 'auth/email-already-in-use') {
+        description = "This email address is already in use. Please use a different email or try logging in.";
+      } else if (error.message) {
+        description = error.message;
+      }
       toast({
         variant: "destructive",
         title: "Registration Failed",
-        description: error.message || "An unexpected error occurred.",
+        description: description,
       });
     }
   }
   
-  // console.log("RegisterForm: Rendering component. loadingClubs:", loadingClubs, "Clubs count:", clubs.length, "loadingProfileTypes:", loadingProfileTypes, "ProfileTypeOptions count:", profileTypeOptions.length);
-
   return (
     <>
       <div className="p-2 mb-4 border border-dashed border-red-500 bg-red-50 text-red-700 text-xs">
-        <p><strong>DEBUG INFO (Remove Later):</strong></p>
+        <p><strong>DEBUG INFO (Remove When Stable):</strong></p>
         <p>Loading Clubs: {loadingClubs.toString()}</p>
         <p>Clubs Loaded: {clubs.length}</p>
         <p>Loading Profile Types: {loadingProfileTypes.toString()}</p>
         <p>Profile Types Loaded: {profileTypeOptions.length}</p>
-        {/* {clubs.length > 0 && <p>First club name: {clubs[0].name}</p>}
-        {profileTypeOptions.length > 0 && <p>First profile type option: {profileTypeOptions[0].label} (ID: {profileTypeOptions[0].id})</p>} */}
+        {clubs.length > 0 && <p>First club name: {clubs[0].name}</p>}
+        {profileTypeOptions.length > 0 && <p>First profile type option: {profileTypeOptions[0].label} (ID: {profileTypeOptions[0].id})</p>}
       </div>
 
       <Form {...form}>
@@ -239,11 +241,10 @@ export function RegisterForm() {
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
-                    {/* { console.log("RegisterForm: Rendering ProfileType Select. loadingProfileTypes:", loadingProfileTypes, "Items to render:", profileTypeOptions) } */}
                     { loadingProfileTypes ? (
                        <div className="p-2 text-sm text-muted-foreground text-center">Loading profile types...</div>
                     ) : profileTypeOptions.length === 0 ? (
-                      <div className="p-2 text-sm text-muted-foreground text-center">No profile types found. Ensure 'profileTypes' collection exists in Firestore, has readable documents with 'label' field, and the server action has permissions and necessary indexes (for 'label' ordering). Check server logs for 'ProfileTypeActions'.</div>
+                      <div className="p-2 text-sm text-muted-foreground text-center">No profile types found. Ensure 'profileTypes' collection exists in Firestore, has readable documents with 'id' and 'label' fields, and the server action has permissions and necessary indexes (for 'label' ordering). Check server logs for 'ProfileTypeActions'.</div>
                     ) : (
                       profileTypeOptions.map((type) => (
                           <SelectItem key={type.id} value={type.id}>
@@ -283,7 +284,6 @@ export function RegisterForm() {
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
-                    {/* { console.log("RegisterForm: Rendering Clubs Select. loadingClubs:", loadingClubs, "Clubs to render:", clubs) } */}
                     { loadingClubs ? (
                        <div className="p-2 text-sm text-muted-foreground text-center">Loading clubs...</div>
                     ) : clubs.length === 0 ? (
