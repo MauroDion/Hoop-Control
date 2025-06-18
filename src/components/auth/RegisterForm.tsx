@@ -131,16 +131,19 @@ export function RegisterForm() {
       const profileResult = await createUserFirestoreProfile(user.uid, {
         email: user.email,
         displayName: values.name,
-        profileTypeId: values.profileType, 
-        clubId: values.selectedClubId,
+        profileType: values.profileType, 
+        selectedClubId: values.selectedClubId,
         photoURL: user.photoURL,
       });
       console.log("RegisterForm: onSubmit - Firestore profile creation result:", profileResult);
 
       if (!profileResult.success) {
         let detailedDescription = profileResult.error || "Failed to create user profile data.";
-        if (profileResult.error && profileResult.error.toLowerCase().includes("permission denied")) {
-            detailedDescription = `Failed to save profile: Permission denied by Firestore. Please check your Firestore security rules for the 'user_profiles' collection and ensure they allow profile creation (e.g., with 'pending_approval' status and matching UIDs). Also, review server logs for details on the data being sent. Firestore error code: ${profileResult.error.split('code: ')[1] || 'unknown'}`;
+        if (profileResult.error && profileResult.error.toLowerCase().includes('permission denied')) {
+            detailedDescription = `Permission denied by Firestore. Please check your Firestore security rules for the 'user_profiles' collection and ensure they allow profile creation (e.g., with 'pending_approval' status and matching UIDs). Also, review server logs for details on the data being sent. Firestore error code: ${profileResult.error.split('code: ')[1] || 'unknown'}`;
+        } else if (profileResult.error && profileResult.error.toLowerCase().includes('invalid data') && profileResult.error.toLowerCase().includes('undefined')) {
+            // Corrected field names in the descriptive part of the error message
+            detailedDescription = `Failed to save profile: Invalid data sent to Firestore. A field likely had an 'undefined' value. Common culprits are 'profileTypeId' or 'clubId' if not selected in the form. Error: ${profileResult.error.split('Error: ')[1] || profileResult.error}`;
         }
         toast({
             variant: "destructive",
@@ -151,8 +154,7 @@ export function RegisterForm() {
         return; 
       }
 
-      // Profile creation in Firestore was successful
-      await signOut(auth); // Sign the user out
+      await signOut(auth); 
       console.log("RegisterForm: onSubmit - User signed out after successful profile creation.");
 
       toast({
@@ -160,7 +162,7 @@ export function RegisterForm() {
         description: "Your account is created and awaiting administrator approval. You have been signed out.",
         duration: 7000, 
       });
-      router.push("/login?status=pending_approval"); // Redirect to login page
+      router.push("/login?status=pending_approval"); 
       router.refresh();
 
     } catch (error: any) {
@@ -181,7 +183,8 @@ export function RegisterForm() {
   
   return (
     <>
-      <div className="p-2 mb-4 border border-dashed border-blue-500 bg-blue-50 text-blue-700 text-xs">
+      {/* Debug info can be removed once stable */}
+      {/* <div className="p-2 mb-4 border border-dashed border-blue-500 bg-blue-50 text-blue-700 text-xs">
         <p><strong>DEBUG INFO (Remove When Stable):</strong></p>
         <p>Loading Clubs: {loadingClubs.toString()}</p>
         <p>Clubs Loaded: {clubs.length}</p>
@@ -189,7 +192,7 @@ export function RegisterForm() {
         <p>Profile Types Loaded: {profileTypeOptions.length}</p>
         {clubs.length > 0 && <p>First club name: {clubs[0].name}</p>}
         {profileTypeOptions.length > 0 && <p>First profile type option: {profileTypeOptions[0].label} (ID: {profileTypeOptions[0].id})</p>}
-      </div>
+      </div> */}
 
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
@@ -325,5 +328,3 @@ export function RegisterForm() {
     </>
   );
 }
-
-    

@@ -25,8 +25,8 @@ export async function createUserFirestoreProfile(
         email: data.email,
         displayName: data.displayName,
         photoURL: data.photoURL || null,
-        profileTypeId: data.profileType, // Corrected: Was data.profileType, mapping to profileTypeId field
-        clubId: data.selectedClubId,   // Corrected: Was data.selectedClubId, mapping to clubId field
+        profileTypeId: data.profileType, // Corrected: Ensured this is profileTypeId
+        clubId: data.selectedClubId,   // Corrected: Ensured this is clubId
         status: 'pending_approval' as UserProfileStatus,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
@@ -47,14 +47,11 @@ export async function createUserFirestoreProfile(
 
 
     if (profileToSave.profileTypeId === undefined) {
-      console.error("UserActions: profileTypeId is undefined before setDoc. This will cause a Firestore error.");
-      // This check is mostly for debugging; Firestore will throw an error anyway.
-      // It might indicate an issue with how 'profileType' is being passed from the form or handled.
+      console.error("UserActions: profileTypeId is undefined before setDoc. This will cause a Firestore error if not caught by rules. Likely means profileType was not selected in the form or not passed correctly.");
     }
     if (profileToSave.clubId === undefined) {
-       console.error("UserActions: clubId is undefined before setDoc. This might be acceptable if optional, but usually not for required fields.");
+       console.error("UserActions: clubId is undefined before setDoc. This will cause a Firestore error if not caught by rules. Likely means selectedClubId was not selected in the form or not passed correctly.");
     }
-
 
     await setDoc(userProfileRef, profileToSave);
     console.log(`UserActions: Successfully created Firestore profile for UID: ${uid} in 'user_profiles'.`);
@@ -66,10 +63,10 @@ export async function createUserFirestoreProfile(
         errorMessage = `Permission denied by Firestore. Please check your Firestore security rules for the 'user_profiles' collection and ensure they allow profile creation (e.g., with 'pending_approval' status and matching UIDs). Also, review server logs for details on the data being sent. Firestore error code: ${error.code}`;
     } else if (error.message && error.message.toLowerCase().includes('invalid data') && error.message.toLowerCase().includes('undefined')) {
         errorMessage = `Failed to save profile: Invalid data sent to Firestore. A field likely had an 'undefined' value. Common culprits are 'profileTypeId' or 'clubId' if not selected in the form. Error: ${error.message}`;
-    }
-     else if (error.message) {
+    } else if (error.message) {
         errorMessage = error.message;
     }
     return { success: false, error: errorMessage };
   }
 }
+
