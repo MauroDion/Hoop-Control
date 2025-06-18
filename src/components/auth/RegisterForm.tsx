@@ -127,7 +127,8 @@ export function RegisterForm() {
         console.log("RegisterForm: onSubmit - Firebase Auth profile updated with displayName.");
       } else {
         console.error("RegisterForm: onSubmit - User creation failed in Firebase Auth (user object is null).");
-        throw new Error("User creation failed in Firebase Auth.");
+        toast({ variant: "destructive", title: "Registration Failed", description: "User authentication failed." });
+        return;
       }
 
       const profileResult = await createUserFirestoreProfile(user.uid, {
@@ -140,7 +141,18 @@ export function RegisterForm() {
       console.log("RegisterForm: onSubmit - Firestore profile creation result:", profileResult);
 
       if (!profileResult.success) {
-        throw new Error(profileResult.error || "Failed to create user profile data.");
+        let detailedDescription = profileResult.error || "Failed to create user profile data.";
+        // Check for the specific permission denied error string that our server action returns
+        if (profileResult.error && profileResult.error.toLowerCase().includes("permission denied")) {
+            detailedDescription = "Failed to save profile: Permission denied by Firestore. Please check your Firestore security rules for the 'users' collection and ensure they allow profile creation (e.g., with 'pending_approval' status and matching UIDs). Also, review server logs for details on the data being sent.";
+        }
+        toast({
+            variant: "destructive",
+            title: "Profile Creation Failed",
+            description: detailedDescription,
+            duration: 9000, 
+        });
+        return; 
       }
 
       toast({
@@ -151,10 +163,11 @@ export function RegisterForm() {
       router.push("/login"); 
     } catch (error: any) {
       console.error("RegisterForm: onSubmit - ERROR:", error);
-      let description = "An unexpected error occurred.";
+      let description = "An unexpected error occurred during registration.";
       if (error.code === 'auth/email-already-in-use') {
         description = "This email address is already in use. Please use a different email or try logging in.";
       } else if (error.message) {
+        // For other Firebase Auth errors or general errors during auth step
         description = error.message;
       }
       toast({
@@ -167,7 +180,7 @@ export function RegisterForm() {
   
   return (
     <>
-      <div className="p-2 mb-4 border border-dashed border-red-500 bg-red-50 text-red-700 text-xs">
+      <div className="p-2 mb-4 border border-dashed border-blue-500 bg-blue-50 text-blue-700 text-xs">
         <p><strong>DEBUG INFO (Remove When Stable):</strong></p>
         <p>Loading Clubs: {loadingClubs.toString()}</p>
         <p>Clubs Loaded: {clubs.length}</p>
@@ -235,7 +248,7 @@ export function RegisterForm() {
                         loadingProfileTypes 
                           ? "Loading profile types..." 
                           : profileTypeOptions.length === 0 
-                            ? "No profile types found (check DB/logs)" 
+                            ? "No profile types (check DB/logs/rules/indexes)" 
                             : "Select your profile type"
                         } />
                     </SelectTrigger>
@@ -244,7 +257,7 @@ export function RegisterForm() {
                     { loadingProfileTypes ? (
                        <div className="p-2 text-sm text-muted-foreground text-center">Loading profile types...</div>
                     ) : profileTypeOptions.length === 0 ? (
-                      <div className="p-2 text-sm text-muted-foreground text-center">No profile types found. Ensure 'profileTypes' collection exists in Firestore, has readable documents with 'id' and 'label' fields, and the server action has permissions and necessary indexes (for 'label' ordering). Check server logs for 'ProfileTypeActions'.</div>
+                      <div className="p-2 text-sm text-muted-foreground text-center">No profile types found. Ensure 'profileTypes' collection exists in Firestore, has readable documents with valid 'id' and 'label' fields, server action has permissions, and the required Firestore index for 'label' ordering is present. Check server logs for 'ProfileTypeActions'.</div>
                     ) : (
                       profileTypeOptions.map((type) => (
                           <SelectItem key={type.id} value={type.id}>
@@ -277,7 +290,7 @@ export function RegisterForm() {
                           loadingClubs
                             ? "Loading clubs..."
                             : clubs.length === 0
-                            ? "No clubs available (check logs/DB)"
+                            ? "No clubs available (check logs/DB/rules)"
                             : "Select the club you belong to"
                         }
                       />
@@ -287,7 +300,7 @@ export function RegisterForm() {
                     { loadingClubs ? (
                        <div className="p-2 text-sm text-muted-foreground text-center">Loading clubs...</div>
                     ) : clubs.length === 0 ? (
-                      <div className="p-2 text-sm text-muted-foreground text-center">No clubs found. Check server logs for 'ClubActions', Firestore collection 'clubs', its content (especially 'name' field), and security rules.</div>
+                      <div className="p-2 text-sm text-muted-foreground text-center">No clubs found. Check server logs for 'ClubActions', Firestore collection 'clubs', its content (especially 'name' field), and security rules allowing read access.</div>
                     ) : (
                       clubs.map((club) => (
                            <SelectItem key={club.id} value={club.id}>
@@ -311,3 +324,4 @@ export function RegisterForm() {
     </>
   );
 }
+
