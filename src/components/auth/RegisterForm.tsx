@@ -27,8 +27,7 @@ import { getProfileTypeOptions } from "@/app/profile-types/actions";
 import type { Club, ProfileType, ProfileTypeOption } from "@/types";
 import { Loader2 } from "lucide-react";
 
-// Schema uses explicit enum values from ProfileType for validation
-// This list MUST match the ProfileType definition in src/types/index.ts
+// Updated to match the ProfileType definition from src/types/index.ts based on Firestore doc IDs
 const formSchema = z.object({
   name: z.string().min(2, { message: "Name must be at least 2 characters." }),
   email: z.string().email({ message: "Invalid email address." }),
@@ -58,7 +57,6 @@ export function RegisterForm() {
 
   useEffect(() => {
     async function fetchData() {
-      // Fetch Clubs
       console.log("RegisterForm: useEffect fetchClubs - START");
       setLoadingClubs(true);
       try {
@@ -80,7 +78,6 @@ export function RegisterForm() {
         console.log("RegisterForm: useEffect fetchClubs - FINISHED. loadingClubs state: false");
       }
 
-      // Fetch Profile Types
       console.log("RegisterForm: useEffect fetchProfileTypes - START");
       setLoadingProfileTypes(true);
       try {
@@ -111,7 +108,6 @@ export function RegisterForm() {
       name: "",
       email: "",
       password: "",
-      // profileType and selectedClubId will be undefined initially, user must select
     },
   });
 
@@ -142,9 +138,10 @@ export function RegisterForm() {
 
       if (!profileResult.success) {
         let detailedDescription = profileResult.error || "Failed to create user profile data.";
-        // Check for the specific permission denied error string that our server action returns
+        // Check for the specific permission denied error string
         if (profileResult.error && profileResult.error.toLowerCase().includes("permission denied")) {
-            detailedDescription = "Failed to save profile: Permission denied by Firestore. Please check your Firestore security rules for the 'users' collection and ensure they allow profile creation (e.g., with 'pending_approval' status and matching UIDs). Also, review server logs for details on the data being sent.";
+            // Consistently refer to 'user_profiles' collection in the guidance message.
+            detailedDescription = "Failed to save profile: Permission denied by Firestore. Please check your Firestore security rules for the 'user_profiles' collection and ensure they allow profile creation (e.g., with 'pending_approval' status and matching UIDs). Also, review server logs for details on the data being sent.";
         }
         toast({
             variant: "destructive",
@@ -167,7 +164,6 @@ export function RegisterForm() {
       if (error.code === 'auth/email-already-in-use') {
         description = "This email address is already in use. Please use a different email or try logging in.";
       } else if (error.message) {
-        // For other Firebase Auth errors or general errors during auth step
         description = error.message;
       }
       toast({
