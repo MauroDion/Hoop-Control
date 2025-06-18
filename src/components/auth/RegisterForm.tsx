@@ -18,7 +18,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { createUserWithEmailAndPassword, updateProfile as updateFirebaseAuthProfile } from "firebase/auth";
+import { createUserWithEmailAndPassword, updateProfile as updateFirebaseAuthProfile, signOut } from "firebase/auth";
 import { auth } from "@/lib/firebase/client";
 import { useRouter } from "next/navigation";
 import { createUserFirestoreProfile } from "@/app/users/actions";
@@ -131,34 +131,38 @@ export function RegisterForm() {
       const profileResult = await createUserFirestoreProfile(user.uid, {
         email: user.email,
         displayName: values.name,
-        profileType: values.profileType, 
-        selectedClubId: values.selectedClubId,
+        profileTypeId: values.profileType, 
+        clubId: values.selectedClubId,
         photoURL: user.photoURL,
       });
       console.log("RegisterForm: onSubmit - Firestore profile creation result:", profileResult);
 
       if (!profileResult.success) {
         let detailedDescription = profileResult.error || "Failed to create user profile data.";
-        // Check for the specific permission denied error string
         if (profileResult.error && profileResult.error.toLowerCase().includes("permission denied")) {
-            detailedDescription = "Failed to save profile: Permission denied by Firestore. Please check your Firestore security rules for the 'user_profiles' collection and ensure they allow profile creation (e.g., with 'pending_approval' status and matching UIDs). Also, review server logs for details on the data being sent.";
+            detailedDescription = `Failed to save profile: Permission denied by Firestore. Please check your Firestore security rules for the 'user_profiles' collection and ensure they allow profile creation (e.g., with 'pending_approval' status and matching UIDs). Also, review server logs for details on the data being sent. Firestore error code: ${profileResult.error.split('code: ')[1] || 'unknown'}`;
         }
-        // Do not throw an error here, let the toast handle user feedback
         toast({
             variant: "destructive",
             title: "Profile Creation Failed",
             description: detailedDescription,
             duration: 9000, 
         });
-        return; // Stop execution if profile creation failed
+        return; 
       }
+
+      // Profile creation in Firestore was successful
+      await signOut(auth); // Sign the user out
+      console.log("RegisterForm: onSubmit - User signed out after successful profile creation.");
 
       toast({
         title: "Registration Submitted",
-        description: "Your account has been created. It may require admin approval before full access.",
+        description: "Your account is created and awaiting administrator approval. You have been signed out.",
         duration: 7000, 
       });
-      router.push("/login"); 
+      router.push("/login?status=pending_approval"); // Redirect to login page
+      router.refresh();
+
     } catch (error: any) {
       console.error("RegisterForm: onSubmit - ERROR:", error);
       let description = "An unexpected error occurred during registration.";
@@ -321,3 +325,5 @@ export function RegisterForm() {
     </>
   );
 }
+
+    
