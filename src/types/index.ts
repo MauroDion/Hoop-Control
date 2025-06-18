@@ -32,15 +32,14 @@ export interface BcsjdApiDataItem {
 
 export type UserProfileStatus = 'pending_approval' | 'approved' | 'rejected';
 
-// Updated to match Firestore document IDs from the image and collection structure
-export type ProfileType = 
-  | 'club_admin' 
-  | 'coach' 
-  | 'coordinator' 
-  | 'parent_guardian' 
-  | 'player' 
-  | 'scorer' 
-  | 'super_admin' 
+export type ProfileType =
+  | 'club_admin'
+  | 'coach'
+  | 'coordinator'
+  | 'parent_guardian'
+  | 'player'
+  | 'scorer'
+  | 'super_admin'
   | 'user';
 
 export interface UserFirestoreProfile {
@@ -48,8 +47,8 @@ export interface UserFirestoreProfile {
   email: string | null;
   displayName: string | null;
   photoURL?: string | null;
-  profileTypeId: ProfileType; // Corrected field name
-  clubId: string; // Corrected field name
+  profileTypeId: ProfileType;
+  clubId: string;
   status: UserProfileStatus;
   createdAt: Timestamp;
   updatedAt: Timestamp;
@@ -58,11 +57,28 @@ export interface UserFirestoreProfile {
 export interface Club {
   id: string;
   name: string;
-  approved?: boolean; 
+  approved?: boolean;
   createdAt?: Timestamp;
 }
 
 export interface ProfileTypeOption {
-  id: ProfileType; 
+  id: ProfileType;
   label: string;
+}
+
+export interface Team {
+  id: string;
+  name: string;
+  clubId: string;
+  // seasonId?: string | null; // Example for future expansion
+  // competitionCategoryId?: string | null; // Example for future expansion
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+  createdByUserId: string;
+}
+
+export interface TeamFormData {
+  name: string;
+  // seasonId?: string | null; // Example for future expansion
+  // competitionCategoryId?: string | null; // Example for future expansion
 }
