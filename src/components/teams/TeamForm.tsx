@@ -4,16 +4,20 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
+import React from "react"; // Import React
 import { Button } from "@/components/ui/button";
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea"; // Import Textarea
 import type { TeamFormData } from "@/types";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/hooks/use-toast";
@@ -23,7 +27,12 @@ import { Loader2 } from "lucide-react";
 
 const teamFormSchema = z.object({
   name: z.string().min(2, "Team name must be at least 2 characters long.").max(100, "Team name must be 100 characters or less."),
-  // Add other fields like seasonId, competitionCategoryId with Zod validation when ready
+  gameFormatId: z.string().optional().nullable(),
+  competitionCategoryId: z.string().optional().nullable(),
+  coachIds: z.string().optional().describe("Comma-separated User IDs of coaches"),
+  playerIds: z.string().optional().describe("Comma-separated Player IDs"),
+  logoUrl: z.string().url({ message: "Please enter a valid URL for the logo." }).optional().or(z.literal("")).nullable(),
+  city: z.string().optional().nullable(),
 });
 
 interface TeamFormProps {
@@ -36,11 +45,26 @@ export function TeamForm({ clubId, onFormSubmit }: TeamFormProps) {
   const { toast } = useToast();
   const { user, loading: authLoading } = useAuth();
 
+  // Placeholder data for dropdowns - in a real app, fetch this data
+  const gameFormats = [
+    { id: "format_senior_a1", name: "Senior A1 (Placeholder)" },
+    { id: "format_u18_b2", name: "U18 B2 (Placeholder)" },
+  ];
+  const competitionCategories = [
+    { id: "a1-senior", name: "A1 Senior (Placeholder)" },
+    { id: "u18-regional", name: "U18 Regional (Placeholder)" },
+  ];
+
   const form = useForm<z.infer<typeof teamFormSchema>>({
     resolver: zodResolver(teamFormSchema),
     defaultValues: {
       name: "",
-      // Initialize other fields here
+      gameFormatId: null,
+      competitionCategoryId: null,
+      coachIds: "",
+      playerIds: "",
+      logoUrl: "",
+      city: "",
     },
   });
 
@@ -52,7 +76,12 @@ export function TeamForm({ clubId, onFormSubmit }: TeamFormProps) {
 
     const teamData: TeamFormData = {
       name: values.name,
-      // Map other form values here
+      gameFormatId: values.gameFormatId,
+      competitionCategoryId: values.competitionCategoryId,
+      coachIds: values.coachIds,
+      playerIds: values.playerIds,
+      logoUrl: values.logoUrl,
+      city: values.city,
     };
 
     const result = await createTeam(teamData, clubId, user.uid);
@@ -65,10 +94,9 @@ export function TeamForm({ clubId, onFormSubmit }: TeamFormProps) {
       if (onFormSubmit) {
         onFormSubmit();
       } else {
-        // Redirect to the club's detail page or a teams list page
         router.push(`/clubs/${clubId}`); // Adjust as needed
       }
-      router.refresh(); // Revalidate data
+      router.refresh(); 
     } else {
       toast({
         variant: "destructive",
@@ -103,31 +131,116 @@ export function TeamForm({ clubId, onFormSubmit }: TeamFormProps) {
             </FormItem>
           )}
         />
-        
-        {/* Add more FormFields here for season, category, etc. when ready */}
-        {/* Example for a select (would require fetching data for options):
+
         <FormField
           control={form.control}
-          name="seasonId"
+          name="gameFormatId"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Season</FormLabel>
-              <Select onValueChange={field.onChange} defaultValue={field.value}>
+              <FormLabel>Game Format</FormLabel>
+              <Select onValueChange={field.onChange} defaultValue={field.value || undefined}>
                 <FormControl>
                   <SelectTrigger>
-                    <SelectValue placeholder="Select a season" />
+                    <SelectValue placeholder="Select a game format (optional)" />
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
-                  <SelectItem value="season_1">2023-2024</SelectItem>
-                  <SelectItem value="season_2">2024-2025</SelectItem>
+                  <SelectItem value="">No Specific Format</SelectItem>
+                  {gameFormats.map(format => (
+                    <SelectItem key={format.id} value={format.id}>{format.name}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
               <FormMessage />
             </FormItem>
           )}
         />
-        */}
+
+        <FormField
+          control={form.control}
+          name="competitionCategoryId"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Competition Category</FormLabel>
+              <Select onValueChange={field.onChange} defaultValue={field.value || undefined}>
+                <FormControl>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a category (optional)" />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                   <SelectItem value="">No Specific Category</SelectItem>
+                  {competitionCategories.map(cat => (
+                    <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        
+        <FormField
+          control={form.control}
+          name="city"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>City (Optional)</FormLabel>
+              <FormControl>
+                <Input placeholder="Team's primary city" {...field} value={field.value ?? ""} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="logoUrl"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Logo URL (Optional)</FormLabel>
+              <FormControl>
+                <Input type="url" placeholder="https://example.com/logo.png" {...field} value={field.value ?? ""}/>
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        
+        <FormField
+          control={form.control}
+          name="coachIds"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Coach IDs (Optional)</FormLabel>
+              <FormControl>
+                <Textarea placeholder="Enter comma-separated User IDs of coaches" {...field} />
+              </FormControl>
+              <FormDescription>
+                Enter the Firebase User IDs for each coach, separated by commas.
+              </FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="playerIds"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Player IDs (Optional)</FormLabel>
+              <FormControl>
+                <Textarea placeholder="Enter comma-separated Player IDs" {...field} />
+              </FormControl>
+              <FormDescription>
+                Enter the unique Player IDs, separated by commas.
+              </FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
 
         <Button type="submit" className="w-full sm:w-auto" disabled={form.formState.isSubmitting || authLoading}>
           {form.formState.isSubmitting ? (

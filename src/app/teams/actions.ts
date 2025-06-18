@@ -27,21 +27,25 @@ export async function createTeam(
   }
 
   try {
-    const newTeamData: Omit<Team, "id"> = {
+    const newTeamData: Omit<Team, "id" | "createdAt" | "updatedAt"> & { createdAt: any, updatedAt: any } = {
       name: formData.name.trim(),
       clubId: clubId,
-      // seasonId: formData.seasonId || null, // For future expansion
-      // competitionCategoryId: formData.competitionCategoryId || null, // For future expansion
-      createdAt: serverTimestamp() as Timestamp, // Cast needed because serverTimestamp returns a sentinel
-      updatedAt: serverTimestamp() as Timestamp, // Cast needed
+      gameFormatId: formData.gameFormatId || null,
+      competitionCategoryId: formData.competitionCategoryId || null,
+      coachIds: formData.coachIds ? formData.coachIds.split(',').map(id => id.trim()).filter(id => id) : [],
+      playerIds: formData.playerIds ? formData.playerIds.split(',').map(id => id.trim()).filter(id => id) : [],
+      logoUrl: formData.logoUrl || null,
+      city: formData.city || null,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
       createdByUserId: userId,
     };
 
     const docRef = await addDoc(collection(db, "teams"), newTeamData);
     
-    // Revalidate path to the club's page or a teams list page if it exists
     revalidatePath(`/clubs/${clubId}`);
-    // revalidatePath(`/clubs/${clubId}/teams`); // If you have a specific teams list page for a club
+    // Potentially revalidate a general teams list page if one exists
+    // revalidatePath(`/teams`); 
 
     return { success: true, id: docRef.id };
   } catch (error: any) {
@@ -49,3 +53,5 @@ export async function createTeam(
     return { success: false, error: error.message || "Failed to create team." };
   }
 }
+
+// Future actions like getTeamsByClub, getTeamById, updateTeam, deleteTeam will go here.

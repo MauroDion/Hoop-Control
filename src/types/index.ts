@@ -57,21 +57,35 @@ export interface UserFirestoreProfile {
 export interface Club {
   id: string;
   name: string;
-  approved?: boolean;
+  shortName?: string;
+  province_code?: string;
+  city_code?: string;
+  province_name?: string;
+  city_name?: string;
+  logoUrl?: string;
+  approved?: boolean; // This field was present in earlier version, keeping if still relevant
+  createdBy?: string; // UID
   createdAt?: Timestamp;
 }
 
 export interface ProfileTypeOption {
   id: ProfileType;
   label: string;
+  description?: string;
+  order?: number;
+  assignableByUser?: boolean;
 }
 
 export interface Team {
   id: string;
   name: string;
   clubId: string;
-  // seasonId?: string | null; // Example for future expansion
-  // competitionCategoryId?: string | null; // Example for future expansion
+  coachIds?: string[]; // Array of UIDs
+  gameFormatId?: string | null;
+  competitionCategoryId?: string | null;
+  playerIds?: string[]; // Array of player IDs
+  logoUrl?: string | null;
+  city?: string | null;
   createdAt: Timestamp;
   updatedAt: Timestamp;
   createdByUserId: string;
@@ -79,6 +93,43 @@ export interface Team {
 
 export interface TeamFormData {
   name: string;
-  // seasonId?: string | null; // Example for future expansion
-  // competitionCategoryId?: string | null; // Example for future expansion
+  coachIds?: string; // Comma-separated string for form input
+  gameFormatId?: string | null;
+  competitionCategoryId?: string | null;
+  playerIds?: string; // Comma-separated string for form input
+  logoUrl?: string | null;
+  city?: string | null;
+}
+
+// Placeholder types for master data - to be expanded
+export interface Season {
+  id: string;
+  name: string;
+  startDate: Timestamp;
+  endDate: Timestamp;
+}
+
+export interface GameFormat {
+  id: string;
+  name: string;
+  description?: string;
+  // ... other fields from your prompt
+}
+
+export interface CompetitionCategory {
+  id: string;
+  name: string;
+  description?: string;
+  level?: number;
+  // ... other fields from your prompt
+}
+
+export interface Player {
+  id: string;
+  firstName: string;
+  lastName: string;
+  jerseyNumber?: number;
+  position?: string;
+  teamId?: string; // Current team
+  // ... other fields
 }
