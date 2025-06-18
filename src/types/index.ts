@@ -63,7 +63,7 @@ export interface Club {
   province_name?: string;
   city_name?: string;
   logoUrl?: string;
-  approved?: boolean; // This field was present in earlier version, keeping if still relevant
+  approved?: boolean;
   createdBy?: string; // UID
   createdAt?: Timestamp;
 }
@@ -80,10 +80,10 @@ export interface Team {
   id: string;
   name: string;
   clubId: string;
-  coachIds?: string[]; // Array of UIDs
-  gameFormatId?: string | null;
-  competitionCategoryId?: string | null;
-  playerIds?: string[]; // Array of player IDs
+  coachIds?: string[];
+  gameFormatId?: string | null; // Refers to GameFormat.id
+  competitionCategoryId?: string | null; // Refers to CompetitionCategory.id
+  playerIds?: string[];
   logoUrl?: string | null;
   city?: string | null;
   createdAt: Timestamp;
@@ -101,27 +101,33 @@ export interface TeamFormData {
   city?: string | null;
 }
 
-// Placeholder types for master data - to be expanded
 export interface Season {
   id: string;
   name: string;
   startDate: Timestamp;
   endDate: Timestamp;
+  createdBy?: string; // UID
+  createdAt?: Timestamp;
 }
 
 export interface GameFormat {
-  id: string;
+  id: string; // Firestore document ID
   name: string;
   description?: string;
-  // ... other fields from your prompt
+  numPeriods?: number;
+  periodDurationMinutes?: number;
+  defaultTotalTimeouts?: number;
+  minPeriodsPlayerMustPlay?: number;
+  createdAt?: Timestamp;
 }
 
 export interface CompetitionCategory {
-  id: string;
+  id: string; // Firestore document ID
   name: string;
   description?: string;
   level?: number;
-  // ... other fields from your prompt
+  createdAt?: Timestamp;
+  updatedAt?: Timestamp;
 }
 
 export interface Player {
@@ -130,6 +136,7 @@ export interface Player {
   lastName: string;
   jerseyNumber?: number;
   position?: string;
-  teamId?: string; // Current team
-  // ... other fields
+  teamId?: string;
+  createdBy?: string; // UID
+  createdAt?: Timestamp;
 }

@@ -4,7 +4,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
-import React from "react"; // Import React
+import React from "react";
 import { Button } from "@/components/ui/button";
 import {
   Form,
@@ -17,8 +17,8 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea"; // Import Textarea
-import type { TeamFormData } from "@/types";
+import { Textarea } from "@/components/ui/textarea";
+import type { TeamFormData, GameFormat, CompetitionCategory } from "@/types";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/hooks/use-toast";
 import { createTeam } from "@/app/teams/actions";
@@ -37,23 +37,15 @@ const teamFormSchema = z.object({
 
 interface TeamFormProps {
   clubId: string;
-  onFormSubmit?: () => void; // Optional callback
+  gameFormats: GameFormat[];
+  competitionCategories: CompetitionCategory[];
+  onFormSubmit?: () => void;
 }
 
-export function TeamForm({ clubId, onFormSubmit }: TeamFormProps) {
+export function TeamForm({ clubId, gameFormats, competitionCategories, onFormSubmit }: TeamFormProps) {
   const router = useRouter();
   const { toast } = useToast();
   const { user, loading: authLoading } = useAuth();
-
-  // Placeholder data for dropdowns - in a real app, fetch this data
-  const gameFormats = [
-    { id: "format_senior_a1", name: "Senior A1 (Placeholder)" },
-    { id: "format_u18_b2", name: "U18 B2 (Placeholder)" },
-  ];
-  const competitionCategories = [
-    { id: "a1-senior", name: "A1 Senior (Placeholder)" },
-    { id: "u18-regional", name: "U18 Regional (Placeholder)" },
-  ];
 
   const form = useForm<z.infer<typeof teamFormSchema>>({
     resolver: zodResolver(teamFormSchema),
@@ -74,15 +66,7 @@ export function TeamForm({ clubId, onFormSubmit }: TeamFormProps) {
       return;
     }
 
-    const teamData: TeamFormData = {
-      name: values.name,
-      gameFormatId: values.gameFormatId,
-      competitionCategoryId: values.competitionCategoryId,
-      coachIds: values.coachIds,
-      playerIds: values.playerIds,
-      logoUrl: values.logoUrl,
-      city: values.city,
-    };
+    const teamData: TeamFormData = { ...values };
 
     const result = await createTeam(teamData, clubId, user.uid);
 
@@ -94,7 +78,7 @@ export function TeamForm({ clubId, onFormSubmit }: TeamFormProps) {
       if (onFormSubmit) {
         onFormSubmit();
       } else {
-        router.push(`/clubs/${clubId}`); // Adjust as needed
+        router.push(`/clubs/${clubId}`); // Adjust if you have a club detail page showing teams
       }
       router.refresh(); 
     } else {
@@ -138,10 +122,14 @@ export function TeamForm({ clubId, onFormSubmit }: TeamFormProps) {
           render={({ field }) => (
             <FormItem>
               <FormLabel>Game Format</FormLabel>
-              <Select onValueChange={field.onChange} defaultValue={field.value || undefined}>
+              <Select 
+                onValueChange={field.onChange} 
+                defaultValue={field.value || undefined}
+                disabled={gameFormats.length === 0}
+              >
                 <FormControl>
                   <SelectTrigger>
-                    <SelectValue placeholder="Select a game format (optional)" />
+                    <SelectValue placeholder={gameFormats.length === 0 ? "No game formats available" : "Select a game format (optional)"} />
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
@@ -162,10 +150,14 @@ export function TeamForm({ clubId, onFormSubmit }: TeamFormProps) {
           render={({ field }) => (
             <FormItem>
               <FormLabel>Competition Category</FormLabel>
-              <Select onValueChange={field.onChange} defaultValue={field.value || undefined}>
+              <Select 
+                onValueChange={field.onChange} 
+                defaultValue={field.value || undefined}
+                disabled={competitionCategories.length === 0}
+              >
                 <FormControl>
                   <SelectTrigger>
-                    <SelectValue placeholder="Select a category (optional)" />
+                    <SelectValue placeholder={competitionCategories.length === 0 ? "No categories available" : "Select a category (optional)"} />
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
