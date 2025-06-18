@@ -30,7 +30,6 @@ export interface BcsjdApiDataItem {
   lastUpdated: string; // ISO date string
 }
 
-// New types for User Profile and Approval Flow
 export type UserProfileStatus = 'pending_approval' | 'approved' | 'rejected';
 
 // Updated to match Firestore document IDs from the image and collection structure
@@ -49,12 +48,11 @@ export interface UserFirestoreProfile {
   email: string | null;
   displayName: string | null;
   photoURL?: string | null;
-  profileTypeId: ProfileType; // Changed from profileType
-  clubId: string; // Changed from selectedClubId
+  profileTypeId: ProfileType; // Corrected field name
+  clubId: string; // Corrected field name
   status: UserProfileStatus;
   createdAt: Timestamp;
   updatedAt: Timestamp;
-  // roles?: string[]; // Future: for super_admin, etc.
 }
 
 export interface Club {
@@ -64,9 +62,7 @@ export interface Club {
   createdAt?: Timestamp;
 }
 
-// Option for profile type select dropdown, loaded from Firestore
 export interface ProfileTypeOption {
-  id: ProfileType; // Ensures the ID matches one of the allowed ProfileType values
+  id: ProfileType; 
   label: string;
 }
-

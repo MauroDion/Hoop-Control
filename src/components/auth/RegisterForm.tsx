@@ -27,7 +27,6 @@ import { getProfileTypeOptions } from "@/app/profile-types/actions";
 import type { Club, ProfileType, ProfileTypeOption } from "@/types";
 import { Loader2 } from "lucide-react";
 
-// Updated to match the ProfileType definition from src/types/index.ts based on Firestore doc IDs
 const formSchema = z.object({
   name: z.string().min(2, { message: "Name must be at least 2 characters." }),
   email: z.string().email({ message: "Invalid email address." }),
@@ -108,6 +107,8 @@ export function RegisterForm() {
       name: "",
       email: "",
       password: "",
+      // profileType: undefined, // Default to undefined so placeholder shows
+      // selectedClubId: undefined, 
     },
   });
 
@@ -140,16 +141,16 @@ export function RegisterForm() {
         let detailedDescription = profileResult.error || "Failed to create user profile data.";
         // Check for the specific permission denied error string
         if (profileResult.error && profileResult.error.toLowerCase().includes("permission denied")) {
-            // Consistently refer to 'user_profiles' collection in the guidance message.
             detailedDescription = "Failed to save profile: Permission denied by Firestore. Please check your Firestore security rules for the 'user_profiles' collection and ensure they allow profile creation (e.g., with 'pending_approval' status and matching UIDs). Also, review server logs for details on the data being sent.";
         }
+        // Do not throw an error here, let the toast handle user feedback
         toast({
             variant: "destructive",
             title: "Profile Creation Failed",
             description: detailedDescription,
             duration: 9000, 
         });
-        return; 
+        return; // Stop execution if profile creation failed
       }
 
       toast({
@@ -320,4 +321,3 @@ export function RegisterForm() {
     </>
   );
 }
-
