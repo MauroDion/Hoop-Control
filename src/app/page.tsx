@@ -46,6 +46,7 @@ export default function HomePage() {
           alt="BCSJD Platform Illustration" 
           width={600} 
           height={300} 
+          priority 
           className="rounded-lg mb-10 shadow-lg"
           data-ai-hint="collaboration team"
         />

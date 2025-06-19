@@ -107,13 +107,13 @@ export function RegisterForm() {
       name: "",
       email: "",
       password: "",
-      // profileType: undefined, // Default to undefined so placeholder shows
-      // selectedClubId: undefined, 
+      // profileType: undefined, // Let Zod handle default or enforce selection
+      // selectedClubId: undefined, // Let Zod handle default or enforce selection
     },
   });
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
-    console.log("RegisterForm: onSubmit - Values:", values);
+    console.log("RegisterForm: onSubmit - Values submitted by form:", values);
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
       const user = userCredential.user;
@@ -128,21 +128,24 @@ export function RegisterForm() {
         return;
       }
 
-      const profileResult = await createUserFirestoreProfile(user.uid, {
+      const profileDataForFirestore = {
         email: user.email,
         displayName: values.name,
         profileType: values.profileType, 
         selectedClubId: values.selectedClubId,
         photoURL: user.photoURL,
-      });
+      };
+      console.log("RegisterForm: onSubmit - Data being passed to createUserFirestoreProfile:", profileDataForFirestore);
+
+      const profileResult = await createUserFirestoreProfile(user.uid, profileDataForFirestore);
       console.log("RegisterForm: onSubmit - Firestore profile creation result:", profileResult);
 
       if (!profileResult.success) {
         let detailedDescription = profileResult.error || "Failed to create user profile data.";
+        // Keep the detailed error descriptions as they are helpful
         if (profileResult.error && profileResult.error.toLowerCase().includes('permission denied')) {
             detailedDescription = `Permission denied by Firestore. Please check your Firestore security rules for the 'user_profiles' collection and ensure they allow profile creation (e.g., with 'pending_approval' status and matching UIDs). Also, review server logs for details on the data being sent. Firestore error code: ${profileResult.error.split('code: ')[1] || 'unknown'}`;
         } else if (profileResult.error && profileResult.error.toLowerCase().includes('invalid data') && profileResult.error.toLowerCase().includes('undefined')) {
-            // Corrected field names in the descriptive part of the error message
             detailedDescription = `Failed to save profile: Invalid data sent to Firestore. A field likely had an 'undefined' value. Common culprits are 'profileTypeId' or 'clubId' if not selected in the form. Error: ${profileResult.error.split('Error: ')[1] || profileResult.error}`;
         }
         toast({
@@ -151,6 +154,8 @@ export function RegisterForm() {
             description: detailedDescription,
             duration: 9000, 
         });
+        // Do not sign out if profile creation failed, user might want to retry or data might be partially saved.
+        // Or, you might choose to delete the auth user here if profile creation is critical. For now, leave auth user.
         return; 
       }
 
@@ -166,7 +171,7 @@ export function RegisterForm() {
       router.refresh();
 
     } catch (error: any) {
-      console.error("RegisterForm: onSubmit - ERROR:", error);
+      console.error("RegisterForm: onSubmit - ERROR during registration process:", error);
       let description = "An unexpected error occurred during registration.";
       if (error.code === 'auth/email-already-in-use') {
         description = "This email address is already in use. Please use a different email or try logging in.";
@@ -183,17 +188,6 @@ export function RegisterForm() {
   
   return (
     <>
-      {/* Debug info can be removed once stable */}
-      {/* <div className="p-2 mb-4 border border-dashed border-blue-500 bg-blue-50 text-blue-700 text-xs">
-        <p><strong>DEBUG INFO (Remove When Stable):</strong></p>
-        <p>Loading Clubs: {loadingClubs.toString()}</p>
-        <p>Clubs Loaded: {clubs.length}</p>
-        <p>Loading Profile Types: {loadingProfileTypes.toString()}</p>
-        <p>Profile Types Loaded: {profileTypeOptions.length}</p>
-        {clubs.length > 0 && <p>First club name: {clubs[0].name}</p>}
-        {profileTypeOptions.length > 0 && <p>First profile type option: {profileTypeOptions[0].label} (ID: {profileTypeOptions[0].id})</p>}
-      </div> */}
-
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
           <FormField
@@ -261,7 +255,7 @@ export function RegisterForm() {
                     { loadingProfileTypes ? (
                        <div className="p-2 text-sm text-muted-foreground text-center">Loading profile types...</div>
                     ) : profileTypeOptions.length === 0 ? (
-                      <div className="p-2 text-sm text-muted-foreground text-center">No profile types found. Ensure 'profileTypes' collection exists in Firestore, has readable documents with valid 'id' and 'label' fields, server action has permissions, and the required Firestore index for 'label' ordering is present. Check server logs for 'ProfileTypeActions'.</div>
+                      <div className="p-2 text-sm text-muted-foreground text-center">No profile types found. Ensure 'profileTypes' collection exists, is readable, and has 'name' field for ordering. Check server logs for 'ProfileTypeActions'.</div>
                     ) : (
                       profileTypeOptions.map((type) => (
                           <SelectItem key={type.id} value={type.id}>
@@ -304,7 +298,7 @@ export function RegisterForm() {
                     { loadingClubs ? (
                        <div className="p-2 text-sm text-muted-foreground text-center">Loading clubs...</div>
                     ) : clubs.length === 0 ? (
-                      <div className="p-2 text-sm text-muted-foreground text-center">No clubs found. Check server logs for 'ClubActions', Firestore collection 'clubs', its content (especially 'name' field), and security rules allowing read access.</div>
+                      <div className="p-2 text-sm text-muted-foreground text-center">No clubs found. Ensure 'clubs' collection exists, is readable, and has 'name' field. Check server logs for 'ClubActions'.</div>
                     ) : (
                       clubs.map((club) => (
                            <SelectItem key={club.id} value={club.id}>
