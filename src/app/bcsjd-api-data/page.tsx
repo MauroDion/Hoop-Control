@@ -1,3 +1,4 @@
+
 "use client"; // This page needs to be a client component for useEffect and useState
 
 import React, { useEffect, useState } from 'react';
@@ -5,7 +6,7 @@ import { getBcsjdKeyMetrics } from '@/lib/bcsjdApi';
 import type { BcsjdApiDataItem } from '@/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { BarChart3, AlertTriangle, Loader2, RefreshCw } from 'lucide-react';
+import { BarChart3, AlertTriangle, Loader2, RefreshCw, HelpCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {format} from 'date-fns';
 
@@ -13,15 +14,21 @@ export default function BcsjdApiDataPage() {
   const [data, setData] = useState<BcsjdApiDataItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isForbiddenError, setIsForbiddenError] = useState(false);
 
   const fetchData = async () => {
     setLoading(true);
     setError(null);
+    setIsForbiddenError(false);
     try {
       const apiData = await getBcsjdKeyMetrics();
       setData(apiData);
     } catch (err: any) {
-      setError(err.message || "Failed to fetch data from BCSJD API.");
+      const errorMessage = err.message || "Failed to fetch data from BCSJD API.";
+      setError(errorMessage);
+      if (errorMessage.includes('403') || errorMessage.toLowerCase().includes('forbidden')) {
+        setIsForbiddenError(true);
+      }
     } finally {
       setLoading(false);
     }
@@ -47,6 +54,25 @@ export default function BcsjdApiDataPage() {
           <AlertTriangle className="mx-auto h-12 w-12 text-destructive mb-4" />
           <h2 className="text-xl font-semibold text-destructive">Error Fetching Data</h2>
           <p className="text-muted-foreground mb-4">{error}</p>
+          {isForbiddenError && (
+            <div className="mt-4 mb-6 p-4 bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 text-sm text-left">
+              <div className="flex">
+                <div className="py-1"><HelpCircle className="h-5 w-5 text-yellow-500 mr-3" /></div>
+                <div>
+                  A <strong>403 Forbidden</strong> error means the server is refusing access.
+                  Common reasons for this when accessing the BCSJD API include:
+                  <ul className="list-disc list-inside mt-2">
+                    <li>The API Key (<code>NEXT_PUBLIC_BCSJD_API_KEY</code>) might be incorrect, missing, or not authorized for this action.</li>
+                    <li>The BCSJD API server might have IP restrictions or other security measures in place.</li>
+                  </ul>
+                  <p className="mt-2">Please check your <code>.env.local</code> file for the API key and consult the BCSJD API documentation or administrator.</p>
+                </div>
+              </div>
+            </div>
+          )}
+          <p className="text-sm text-muted-foreground mb-4">
+            Tip: Open your browser's Developer Tools (F12), go to the "Network" tab, and refresh. Look for failed requests (often red) to see more details about the error and the specific URL that failed.
+          </p>
           <Button onClick={fetchData} variant="destructive">
             <RefreshCw className="mr-2 h-4 w-4" /> Try Again
           </Button>
