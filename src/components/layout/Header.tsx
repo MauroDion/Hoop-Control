@@ -1,13 +1,20 @@
+
 "use client";
 
 import Link from 'next/link';
 import { useAuth } from '@/hooks/useAuth';
 import UserNav from './UserNav';
 import { Button } from '@/components/ui/button';
-import { LayoutDashboard, ListChecks, BarChart3, LogIn } from 'lucide-react'; // Added LogIn icon
+import { LayoutDashboard, ListChecks, BarChart3, LogIn } from 'lucide-react';
+import { useEffect } from 'react'; // For logging
 
 export default function Header() {
   const { user, loading } = useAuth();
+
+  // Diagnostic log - Check your browser's developer console for this output
+  useEffect(() => {
+    console.log('[Header] Auth State:', { user: user ? { uid: user.uid, email: user.email } : null, loading });
+  }, [user, loading]);
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 shadow-sm">
@@ -20,7 +27,7 @@ export default function Header() {
         </Link>
         
         <nav className="flex items-center space-x-6 text-sm font-medium">
-          {user && (
+          {!loading && user && ( // Only show if not loading AND user is present
             <>
               <Link href="/dashboard" className="transition-colors hover:text-primary flex items-center">
                 <LayoutDashboard className="mr-2 h-4 w-4" /> Dashboard
@@ -38,13 +45,13 @@ export default function Header() {
         <div className="ml-auto flex items-center space-x-4">
           {!loading && user ? (
             <UserNav />
-          ) : !loading ? (
+          ) : !loading ? ( // Only show Login/Register if not loading and no user
             <Button asChild variant="default" size="sm">
               <Link href="/login" className="flex items-center">
                 <LogIn className="mr-2 h-4 w-4" /> Login / Register
               </Link>
             </Button>
-          ) : null }
+          ) : null } {/* Show nothing while loading to prevent flicker or layout shifts */}
         </div>
       </div>
     </header>
