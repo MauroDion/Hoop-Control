@@ -1,9 +1,12 @@
+
 "use client"; // Required for using hooks like useAuth
 
 import { useAuth } from '@/hooks/useAuth';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { BarChart, Building, CheckSquare, Users, AlertTriangle } from 'lucide-react';
+import { BarChart, Building, CheckSquare, Users, AlertTriangle, PlusCircle } from 'lucide-react';
 import Image from 'next/image';
+import { Button } from '@/components/ui/button';
+import Link from 'next/link';
 
 // Dummy data - replace with actual data fetching
 const summaryData = {
@@ -98,6 +101,30 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Club & Team Management Section */}
+      <Card className="shadow-lg">
+        <CardHeader>
+          <CardTitle className="text-2xl font-headline flex items-center">
+            Club & Team Management
+          </CardTitle>
+          <CardDescription>Manage your club details and create new teams.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            To create a new team, you&apos;ll need the ID of the club it belongs to. 
+            Replace <strong>`your-club-id-here`</strong> in the link with an actual Club ID.
+          </p>
+          <Button asChild>
+            <Link href="/clubs/your-club-id-here/teams/new">
+              <PlusCircle className="mr-2 h-5 w-5" /> Create New Team
+            </Link>
+          </Button>
+          <p className="text-xs text-muted-foreground pt-2">
+            In a full application, you would typically navigate from a specific club&apos;s page to create a team for it, or select your club first.
+          </p>
+        </CardContent>
+      </Card>
 
       {/* BCSJD API Data Section (Placeholder) */}
       <Card className="shadow-lg">
