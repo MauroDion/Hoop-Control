@@ -1,3 +1,4 @@
+
 "use client";
 
 import Link from 'next/link';
@@ -13,7 +14,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useAuth } from '@/hooks/useAuth';
-import { signOut } from 'firebase/auth';
+import { signOut as firebaseClientSignOut } from 'firebase/auth'; // Renamed to avoid conflict
 import { auth } from '@/lib/firebase/client';
 import { useRouter } from 'next/navigation';
 import { LogOut, UserCircle, Settings } from 'lucide-react';
@@ -26,15 +27,39 @@ export default function UserNav() {
 
   const handleLogout = async () => {
     try {
-      await signOut(auth);
-      // Clear any session-related cookies if not handled by Firebase persistence/middleware
-      // Example: document.cookie = 'firebaseIdToken=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+      // Call the server API endpoint to clear the session cookie
+      const response = await fetch('/api/auth/session-logout', {
+        method: 'POST',
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        // Log server-side logout error but proceed with client-side logout
+        console.error('Server-side session logout failed:', errorData.error);
+        toast({ variant: "destructive", title: "Logout Incomplete", description: "Could not clear server session fully, but logging out locally." });
+      } else {
+        console.log("UserNav: Session cookie should be cleared by server.");
+      }
+
+      // Perform client-side Firebase sign out
+      await firebaseClientSignOut(auth);
+      
       toast({ title: "Logged out", description: "You have been successfully logged out." });
-      router.push('/login'); // Redirect to login page after logout
-      router.refresh(); // Force refresh to update middleware state
-    } catch (error) {
-      console.error('Logout failed:', error);
-      toast({ variant: "destructive", title: "Logout Failed", description: "Could not log you out. Please try again." });
+      router.push('/login'); 
+      router.refresh(); 
+    } catch (error: any) {
+      console.error('Full logout failed:', error);
+      toast({ variant: "destructive", title: "Logout Failed", description: error.message || "Could not log you out. Please try again." });
+       // Still attempt client-side logout and redirect if server call failed before client signOut
+      if (auth.currentUser) {
+        try {
+          await firebaseClientSignOut(auth);
+        } catch (clientSignOutError) {
+          console.error('Client-side signOut also failed:', clientSignOutError);
+        }
+      }
+      router.push('/login');
+      router.refresh();
     }
   };
 
@@ -78,9 +103,10 @@ export default function UserNav() {
               Profile
             </Link>
           </DropdownMenuItem>
-          <DropdownMenuItem disabled className="flex items-center"> {/* Example of a disabled item */}
+          <DropdownMenuItem disabled className="flex items-center cursor-not-allowed">
             <Settings className="mr-2 h-4 w-4" />
             Settings
+            <span className="ml-auto text-xs text-muted-foreground">(Soon)</span>
           </DropdownMenuItem>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />

@@ -1,3 +1,4 @@
+
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -46,17 +47,31 @@ export function LoginForm() {
   async function onSubmit(values: z.infer<typeof formSchema>) {
     try {
       await setPersistence(auth, values.rememberMe ? browserLocalPersistence : browserSessionPersistence);
-      await signInWithEmailAndPassword(auth, values.email, values.password);
+      const userCredential = await signInWithEmailAndPassword(auth, values.email, values.password);
+      
+      if (userCredential.user) {
+        const idToken = await userCredential.user.getIdToken();
+        const response = await fetch('/api/auth/session-login', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ idToken }),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Session login failed.');
+        }
+        console.log("LoginForm: Session cookie should be set by server.");
+      }
+      
       toast({
         title: "Login Successful",
         description: "Welcome back!",
       });
-      // Forcing a full page reload after login if middleware relies on cookies.
-      // A simple router.push might not be enough for middleware to re-evaluate.
-      // Alternatively, ensure middleware correctly handles redirects without full reload.
-      // window.location.href = redirectUrl;
       router.push(redirectUrl);
-      router.refresh(); // Recommended to ensure middleware re-evaluates
+      router.refresh(); 
     } catch (error: any) {
       console.error("Login error: ", error);
       toast({
@@ -106,11 +121,12 @@ export function LoginForm() {
                   <Checkbox
                     checked={field.value}
                     onCheckedChange={field.onChange}
+                    id="rememberMeLogin"
                   />
                 </FormControl>
                 <div className="space-y-1 leading-none">
                   <Label
-                    htmlFor="rememberMe"
+                    htmlFor="rememberMeLogin"
                     className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
                   >
                     Remember me

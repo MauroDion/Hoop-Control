@@ -1,9 +1,10 @@
+
 "use client";
 
 import { Button } from "@/components/ui/button";
 import { auth } from "@/lib/firebase/client";
 import { GoogleAuthProvider, signInWithPopup, UserCredential } from "firebase/auth";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useToast } from "@/hooks/use-toast";
 
 const GoogleIcon = () => (
@@ -20,19 +21,34 @@ const GoogleIcon = () => (
 export function GoogleSignInButton() {
   const router = useRouter();
   const { toast } = useToast();
+  const searchParams = useSearchParams();
+  const redirectUrl = searchParams.get("redirect") || "/dashboard";
 
   const handleSignIn = async () => {
     const provider = new GoogleAuthProvider();
     try {
       const result: UserCredential = await signInWithPopup(auth, provider);
-      // This gives you a Google Access Token. You can use it to access the Google API.
-      // const credential = GoogleAuthProvider.credentialFromResult(result);
-      // const token = credential?.accessToken;
-      // The signed-in user info.
-      // const user = result.user;
+      
+      if (result.user) {
+        const idToken = await result.user.getIdToken();
+        const response = await fetch('/api/auth/session-login', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ idToken }),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Session login failed for Google Sign-In.');
+        }
+        console.log("GoogleSignInButton: Session cookie should be set by server.");
+      }
+
       toast({ title: "Signed in with Google", description: `Welcome, ${result.user.displayName}!` });
-      router.push("/dashboard");
-      router.refresh(); // Important to update server-side state if middleware relies on cookies
+      router.push(redirectUrl);
+      router.refresh(); 
     } catch (error: any) {
       console.error("Google Sign-In error: ", error);
       toast({
