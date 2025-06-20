@@ -42,13 +42,12 @@ export async function createUserFirestoreProfile(
     console.log(`UserActions:   - profileToSave.status (request.resource.data.status): ${profileToSave.status}`);
     console.log(`UserActions:   - Is profileToSave.status === 'pending_approval'? ${profileToSave.status === 'pending_approval'}`);
     console.log(`UserActions:   - profileToSave.email (request.resource.data.email): ${profileToSave.email}`);
-    console.log(`UserActions:   - profileToSave.profileTypeId: ${profileToSave.profileTypeId}`); // Log this to ensure it's defined
-    console.log(`UserActions:   - profileToSave.clubId: ${profileToSave.clubId}`); // Log this to ensure it's defined
+    console.log(`UserActions:   - profileToSave.profileTypeId: ${profileToSave.profileTypeId}`); 
+    console.log(`UserActions:   - profileToSave.clubId: ${profileToSave.clubId}`);
 
 
     if (profileToSave.profileTypeId === undefined) {
       console.error("UserActions: profileTypeId is undefined before setDoc. This will cause a Firestore error if not caught by rules. Likely means profileType was not selected in the form or not passed correctly.");
-      // This check is more for preventing Firestore 'undefined' value errors than permission errors, but good to have.
     }
     if (profileToSave.clubId === undefined) {
        console.error("UserActions: clubId is undefined before setDoc. This will cause a Firestore error if not caught by rules. Likely means selectedClubId was not selected in the form or not passed correctly.");
@@ -70,3 +69,4 @@ export async function createUserFirestoreProfile(
     return { success: false, error: errorMessage };
   }
 }
+
