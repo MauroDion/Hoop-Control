@@ -32,13 +32,13 @@ const formSchema = z.object({
   email: z.string().email({ message: "Invalid email address." }),
   password: z.string().min(6, { message: "Password must be at least 6 characters." }),
   profileType: z.enum([
-    'club_admin', 
-    'coach', 
-    'coordinator', 
-    'parent_guardian', 
-    'player', 
-    'scorer', 
-    'super_admin', 
+    'club_admin',
+    'coach',
+    'coordinator',
+    'parent_guardian',
+    'player',
+    'scorer',
+    'super_admin',
     'user'
     ], {
     errorMap: () => ({ message: "Please select a valid profile type." })
@@ -107,71 +107,67 @@ export function RegisterForm() {
       name: "",
       email: "",
       password: "",
-      // profileType: undefined, // Let Zod handle default or enforce selection
-      // selectedClubId: undefined, // Let Zod handle default or enforce selection
     },
   });
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     console.log("RegisterForm: onSubmit - Values submitted by form:", values);
+    let userCredential;
+    let firebaseUser;
+    let profileResult = { success: false, error: "Profile creation not attempted." };
+
     try {
-      const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
-      const user = userCredential.user;
-      console.log("RegisterForm: onSubmit - Firebase Auth user created:", user?.uid);
+      userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
+      firebaseUser = userCredential.user;
+      console.log("RegisterForm: onSubmit - Firebase Auth user created:", firebaseUser?.uid);
 
-      if (user) {
-        await updateFirebaseAuthProfile(user, { displayName: values.name });
+      if (firebaseUser) {
+        await updateFirebaseAuthProfile(firebaseUser, { displayName: values.name });
         console.log("RegisterForm: onSubmit - Firebase Auth profile updated with displayName.");
-      } else {
-        console.error("RegisterForm: onSubmit - User creation failed in Firebase Auth (user object is null).");
-        toast({ variant: "destructive", title: "Registration Failed", description: "User authentication failed." });
-        return;
-      }
 
-      const profileDataForFirestore = {
-        email: user.email,
-        displayName: values.name,
-        profileType: values.profileType, 
-        selectedClubId: values.selectedClubId,
-        photoURL: user.photoURL,
-      };
-      console.log("RegisterForm: onSubmit - Data being passed to createUserFirestoreProfile:", profileDataForFirestore);
+        const profileDataForFirestore = {
+          email: firebaseUser.email,
+          displayName: values.name,
+          profileType: values.profileType,
+          selectedClubId: values.selectedClubId,
+          photoURL: firebaseUser.photoURL,
+        };
+        console.log("RegisterForm: onSubmit - Data being passed to createUserFirestoreProfile:", profileDataForFirestore);
 
-      const profileResult = await createUserFirestoreProfile(user.uid, profileDataForFirestore);
-      console.log("RegisterForm: onSubmit - Firestore profile creation result:", profileResult);
+        profileResult = await createUserFirestoreProfile(firebaseUser.uid, profileDataForFirestore);
+        console.log("RegisterForm: onSubmit - Firestore profile creation result:", profileResult);
 
-      if (!profileResult.success) {
-        let detailedDescription = profileResult.error || "Failed to create user profile data.";
-        // Keep the detailed error descriptions as they are helpful
-        if (profileResult.error && profileResult.error.toLowerCase().includes('permission denied')) {
-            detailedDescription = `Permission denied by Firestore. Please check your Firestore security rules for the 'user_profiles' collection and ensure they allow profile creation (e.g., with 'pending_approval' status and matching UIDs). Also, review server logs for details on the data being sent. Firestore error code: ${profileResult.error.split('code: ')[1] || 'unknown'}`;
-        } else if (profileResult.error && profileResult.error.toLowerCase().includes('invalid data') && profileResult.error.toLowerCase().includes('undefined')) {
-            detailedDescription = `Failed to save profile: Invalid data sent to Firestore. A field likely had an 'undefined' value. Common culprits are 'profileTypeId' or 'clubId' if not selected in the form. Error: ${profileResult.error.split('Error: ')[1] || profileResult.error}`;
-        }
-        toast({
+        if (profileResult.success) {
+          toast({
+            title: "Registration Submitted",
+            description: "Your account is created and awaiting administrator approval. You will be signed out.",
+            duration: 7000,
+          });
+        } else {
+          // Firestore profile creation failed
+          let detailedDescription = profileResult.error || "Failed to create user profile data.";
+            if (profileResult.error && profileResult.error.toLowerCase().includes('permission denied')) {
+                detailedDescription = `Permission denied by Firestore. Please check your Firestore security rules for 'user_profiles' and server logs. Firestore error code: ${profileResult.error.split('code: ')[1] || 'unknown'}`;
+            } else if (profileResult.error && profileResult.error.toLowerCase().includes('invalid data') && profileResult.error.toLowerCase().includes('undefined')) {
+                detailedDescription = `Failed to save profile: Invalid data sent to Firestore (field undefined). Error: ${profileResult.error.split('Error: ')[1] || profileResult.error}`;
+            }
+          toast({
             variant: "destructive",
             title: "Profile Creation Failed",
             description: detailedDescription,
-            duration: 9000, 
-        });
-        // Do not sign out if profile creation failed, user might want to retry or data might be partially saved.
-        // Or, you might choose to delete the auth user here if profile creation is critical. For now, leave auth user.
-        return; 
+            duration: 9000,
+          });
+        }
+      } else {
+        console.error("RegisterForm: onSubmit - User creation failed in Firebase Auth (user object is null).");
+        toast({ variant: "destructive", title: "Registration Failed", description: "User authentication failed." });
+        // No firebaseUser, so can't proceed to signOut or redirect based on profileResult.
+        // Form submission will effectively end here for this case.
+        return;
       }
 
-      await signOut(auth); 
-      console.log("RegisterForm: onSubmit - User signed out after successful profile creation.");
-
-      toast({
-        title: "Registration Submitted",
-        description: "Your account is created and awaiting administrator approval. You have been signed out.",
-        duration: 7000, 
-      });
-      router.push("/login?status=pending_approval"); 
-      router.refresh();
-
     } catch (error: any) {
-      console.error("RegisterForm: onSubmit - ERROR during registration process:", error);
+      console.error("RegisterForm: onSubmit - ERROR during Firebase Auth user creation:", error);
       let description = "An unexpected error occurred during registration.";
       if (error.code === 'auth/email-already-in-use') {
         description = "This email address is already in use. Please use a different email or try logging in.";
@@ -183,9 +179,36 @@ export function RegisterForm() {
         title: "Registration Failed",
         description: description,
       });
+      // If auth creation failed, profileResult remains as initial failure.
+      // We'll still proceed to finally block to attempt sign out if firebaseUser was somehow partially set.
+    } finally {
+      // Attempt to sign out regardless of where the process failed,
+      // as long as auth object is available.
+      // This ensures the user isn't left in a partially logged-in state on the client
+      // if any part of the registration (Auth or Firestore profile) fails.
+      if (auth.currentUser) { // Check if there's a current user to sign out
+        try {
+          await signOut(auth);
+          console.log("RegisterForm: onSubmit (finally) - User signed out.");
+        } catch (signOutError) {
+          console.error("RegisterForm: onSubmit (finally) - Error signing out user:", signOutError);
+        }
+      } else {
+          console.log("RegisterForm: onSubmit (finally) - No current user to sign out.");
+      }
+      
+      // Redirect based on whether the Firestore profile was successfully created
+      if (profileResult.success) {
+        router.push("/login?status=pending_approval");
+      } else {
+        // If profile creation failed (or was not attempted due to Auth failure),
+        // just go to login. The error toasts should inform the user.
+        router.push("/login");
+      }
+      router.refresh(); // To update any server-side session/cookie state if applicable
     }
   }
-  
+
   return (
     <>
       <Form {...form}>
@@ -235,18 +258,18 @@ export function RegisterForm() {
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Profile Type</FormLabel>
-                <Select 
-                  onValueChange={field.onChange} 
-                  defaultValue={field.value} 
+                <Select
+                  onValueChange={field.onChange}
+                  defaultValue={field.value}
                   disabled={loadingProfileTypes || profileTypeOptions.length === 0}
                 >
                   <FormControl>
                     <SelectTrigger>
                       <SelectValue placeholder={
-                        loadingProfileTypes 
-                          ? "Loading profile types..." 
-                          : profileTypeOptions.length === 0 
-                            ? "No profile types (check DB/logs/rules/indexes)" 
+                        loadingProfileTypes
+                          ? "Loading profile types..."
+                          : profileTypeOptions.length === 0
+                            ? "No profile types (check DB/logs/rules/indexes)"
                             : "Select your profile type"
                         } />
                     </SelectTrigger>
