@@ -19,12 +19,13 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { createUserWithEmailAndPassword, updateProfile as updateFirebaseAuthProfile, signOut } from "firebase/auth";
-import { auth } from "@/lib/firebase/client";
+import { auth, db } from "@/lib/firebase/client"; // Import db
+import { doc, setDoc, serverTimestamp } from "firebase/firestore"; // Import Firestore functions
 import { useRouter } from "next/navigation";
-import { createUserFirestoreProfile } from "@/app/users/actions";
+// Removed: import { createUserFirestoreProfile } from "@/app/users/actions";
 import { getApprovedClubs } from "@/app/clubs/actions";
 import { getProfileTypeOptions } from "@/app/profile-types/actions";
-import type { Club, ProfileType, ProfileTypeOption } from "@/types";
+import type { Club, ProfileType, ProfileTypeOption, UserFirestoreProfile, UserProfileStatus } from "@/types";
 import { Loader2 } from "lucide-react";
 
 const formSchema = z.object({
@@ -114,7 +115,7 @@ export function RegisterForm() {
     console.log("RegisterForm: onSubmit - Values submitted by form:", values);
     let userCredential;
     let firebaseUser;
-    let profileResult = { success: false, error: "Profile creation not attempted." };
+    let firestoreProfileSuccess = false;
 
     try {
       userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
@@ -125,52 +126,42 @@ export function RegisterForm() {
         await updateFirebaseAuthProfile(firebaseUser, { displayName: values.name });
         console.log("RegisterForm: onSubmit - Firebase Auth profile updated with displayName.");
 
-        const profileDataForFirestore = {
-          email: firebaseUser.email,
-          displayName: values.name,
-          profileType: values.profileType,
-          selectedClubId: values.selectedClubId,
-          photoURL: firebaseUser.photoURL,
+        const userProfileRef = doc(db, 'user_profiles', firebaseUser.uid);
+        const profileToSave: Omit<UserFirestoreProfile, 'createdAt' | 'updatedAt'> & { createdAt: any, updatedAt: any } = {
+            uid: firebaseUser.uid,
+            email: firebaseUser.email,
+            displayName: values.name,
+            photoURL: firebaseUser.photoURL || null,
+            profileTypeId: values.profileType,
+            clubId: values.selectedClubId,
+            status: 'pending_approval' as UserProfileStatus,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
         };
-        console.log("RegisterForm: onSubmit - Data being passed to createUserFirestoreProfile:", profileDataForFirestore);
+        
+        console.log("RegisterForm: onSubmit - Data being sent to Firestore (client-side setDoc):", profileToSave);
+        await setDoc(userProfileRef, profileToSave);
+        firestoreProfileSuccess = true;
+        console.log("RegisterForm: onSubmit - Firestore profile creation (client-side setDoc) successful.");
 
-        profileResult = await createUserFirestoreProfile(firebaseUser.uid, profileDataForFirestore);
-        console.log("RegisterForm: onSubmit - Firestore profile creation result:", profileResult);
-
-        if (profileResult.success) {
-          toast({
-            title: "Registration Submitted",
-            description: "Your account is created and awaiting administrator approval. You will be signed out.",
-            duration: 7000,
-          });
-        } else {
-          // Firestore profile creation failed
-          let detailedDescription = profileResult.error || "Failed to create user profile data.";
-            if (profileResult.error && profileResult.error.toLowerCase().includes('permission denied')) {
-                detailedDescription = `Permission denied by Firestore. Please check your Firestore security rules for 'user_profiles' and server logs. Firestore error code: ${profileResult.error.split('code: ')[1] || 'unknown'}`;
-            } else if (profileResult.error && profileResult.error.toLowerCase().includes('invalid data') && profileResult.error.toLowerCase().includes('undefined')) {
-                detailedDescription = `Failed to save profile: Invalid data sent to Firestore (field undefined). Error: ${profileResult.error.split('Error: ')[1] || profileResult.error}`;
-            }
-          toast({
-            variant: "destructive",
-            title: "Profile Creation Failed",
-            description: detailedDescription,
-            duration: 9000,
-          });
-        }
+        toast({
+          title: "Registration Submitted",
+          description: "Your account is created and awaiting administrator approval. You will be signed out.",
+          duration: 7000,
+        });
       } else {
         console.error("RegisterForm: onSubmit - User creation failed in Firebase Auth (user object is null).");
         toast({ variant: "destructive", title: "Registration Failed", description: "User authentication failed." });
-        // No firebaseUser, so can't proceed to signOut or redirect based on profileResult.
-        // Form submission will effectively end here for this case.
-        return;
       }
 
     } catch (error: any) {
-      console.error("RegisterForm: onSubmit - ERROR during Firebase Auth user creation:", error);
+      console.error("RegisterForm: onSubmit - ERROR during registration process:", error);
       let description = "An unexpected error occurred during registration.";
       if (error.code === 'auth/email-already-in-use') {
         description = "This email address is already in use. Please use a different email or try logging in.";
+      } else if (error.code && error.code.includes('firestore') && error.message && error.message.toLowerCase().includes('permission denied')) {
+        description = `Firestore permission denied. Please check security rules. Error: ${error.message}`;
+        firestoreProfileSuccess = false; // Ensure this is marked as failed
       } else if (error.message) {
         description = error.message;
       }
@@ -178,15 +169,11 @@ export function RegisterForm() {
         variant: "destructive",
         title: "Registration Failed",
         description: description,
+        duration: 9000,
       });
-      // If auth creation failed, profileResult remains as initial failure.
-      // We'll still proceed to finally block to attempt sign out if firebaseUser was somehow partially set.
     } finally {
-      // Attempt to sign out regardless of where the process failed,
-      // as long as auth object is available.
-      // This ensures the user isn't left in a partially logged-in state on the client
-      // if any part of the registration (Auth or Firestore profile) fails.
-      if (auth.currentUser) { // Check if there's a current user to sign out
+      console.log("RegisterForm: onSubmit (finally) block executing.");
+      if (auth.currentUser) {
         try {
           await signOut(auth);
           console.log("RegisterForm: onSubmit (finally) - User signed out.");
@@ -194,18 +181,17 @@ export function RegisterForm() {
           console.error("RegisterForm: onSubmit (finally) - Error signing out user:", signOutError);
         }
       } else {
-          console.log("RegisterForm: onSubmit (finally) - No current user to sign out.");
+          console.log("RegisterForm: onSubmit (finally) - No current user to sign out (might have failed before full auth or already signed out).");
       }
       
-      // Redirect based on whether the Firestore profile was successfully created
-      if (profileResult.success) {
+      if (firestoreProfileSuccess) {
         router.push("/login?status=pending_approval");
       } else {
-        // If profile creation failed (or was not attempted due to Auth failure),
-        // just go to login. The error toasts should inform the user.
+        // If profile creation failed or auth failed, just go to login.
+        // The error toasts should inform the user.
         router.push("/login");
       }
-      router.refresh(); // To update any server-side session/cookie state if applicable
+      router.refresh();
     }
   }
 
@@ -345,3 +331,5 @@ export function RegisterForm() {
     </>
   );
 }
+
+    

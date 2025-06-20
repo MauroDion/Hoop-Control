@@ -5,6 +5,12 @@ import { db } from '@/lib/firebase/client';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import type { UserFirestoreProfile, ProfileType, UserProfileStatus } from '@/types';
 
+// Note: The primary user profile creation flow upon registration
+// has been moved to client-side in RegisterForm.tsx for simpler auth context handling with Firestore rules.
+// This server action (createUserFirestoreProfile) might still be useful for admin-initiated profile creations
+// or other backend processes in the future, but would likely need to use Firebase Admin SDK
+// for proper authentication and authorization if called from a secure backend environment.
+
 interface CreateUserFirestoreProfileData {
   email: string | null;
   displayName: string | null;
@@ -27,42 +33,40 @@ export async function createUserFirestoreProfile(
         photoURL: data.photoURL || null,
         profileTypeId: data.profileType, 
         clubId: data.selectedClubId,   
-        status: 'pending_approval' as UserProfileStatus, // Hardcoded as per requirement
+        status: 'pending_approval' as UserProfileStatus, // Default status
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
     };
 
-    console.log(`UserActions: Attempting to create Firestore profile for UID: ${uid} in 'user_profiles' collection.`);
-    console.log(`UserActions: Data to be saved (profileToSave):`, JSON.stringify(profileToSave, null, 2));
+    console.log(`UserActions (Server Action): Attempting to create Firestore profile for UID: ${uid} in 'user_profiles' collection.`);
+    console.log(`UserActions (Server Action): Data to be saved (profileToSave):`, JSON.stringify(profileToSave, null, 2));
     
-    console.log(`UserActions: Checking conditions relevant to Firestore 'create' rule for /user_profiles/{uid}:`);
-    console.log(`UserActions:   - Input UID for doc ID: ${uid}`);
-    console.log(`UserActions:   - profileToSave.uid (request.resource.data.uid): ${profileToSave.uid}`);
-    console.log(`UserActions:   - Does profileToSave.uid match input uid? ${profileToSave.uid === uid}`);
-    console.log(`UserActions:   - profileToSave.status (request.resource.data.status): ${profileToSave.status}`);
-    console.log(`UserActions:   - Is profileToSave.status === 'pending_approval'? ${profileToSave.status === 'pending_approval'}`);
-    console.log(`UserActions:   - profileToSave.email (request.resource.data.email): ${profileToSave.email}`);
-    console.log(`UserActions:   - profileToSave.profileTypeId: ${profileToSave.profileTypeId}`); 
-    console.log(`UserActions:   - profileToSave.clubId: ${profileToSave.clubId}`);
+    console.log(`UserActions (Server Action): Checking conditions relevant to Firestore 'create' rule for /user_profiles/{uid}:`);
+    console.log(`UserActions (Server Action):   - Input UID for doc ID: ${uid}`);
+    console.log(`UserActions (Server Action):   - profileToSave.uid (request.resource.data.uid): ${profileToSave.uid}`);
+    console.log(`UserActions (Server Action):   - Does profileToSave.uid match input uid? ${profileToSave.uid === uid}`);
+    console.log(`UserActions (Server Action):   - profileToSave.status (request.resource.data.status): ${profileToSave.status}`);
+    console.log(`UserActions (Server Action):   - Is profileToSave.status === 'pending_approval'? ${profileToSave.status === 'pending_approval'}`);
+    console.log(`UserActions (Server Action):   - profileToSave.email (request.resource.data.email): ${profileToSave.email}`);
+    console.log(`UserActions (Server Action):   - profileToSave.profileTypeId: ${profileToSave.profileTypeId}`); 
+    console.log(`UserActions (Server Action):   - profileToSave.clubId: ${profileToSave.clubId}`);
 
-
-    if (profileToSave.profileTypeId === undefined) {
-      console.error("UserActions: profileTypeId is undefined before setDoc. This will cause a Firestore error if not caught by rules. Likely means profileType was not selected in the form or not passed correctly.");
-    }
-    if (profileToSave.clubId === undefined) {
-       console.error("UserActions: clubId is undefined before setDoc. This will cause a Firestore error if not caught by rules. Likely means selectedClubId was not selected in the form or not passed correctly.");
-    }
+    // Important consideration: If this server action is called, the `db` instance (from client SDK)
+    // will likely not have the end-user's auth context. Firestore rules relying on `request.auth`
+    // (like `request.auth.uid == uid` or `request.auth.token.email`) would probably fail
+    // unless this action is called in a context where `request.auth` is populated by other means
+    // or Admin SDK is used.
 
     await setDoc(userProfileRef, profileToSave);
-    console.log(`UserActions: Successfully created Firestore profile for UID: ${uid} in 'user_profiles'.`);
+    console.log(`UserActions (Server Action): Successfully created Firestore profile for UID: ${uid} in 'user_profiles'.`);
     return { success: true };
   } catch (error: any) {
-    console.error(`UserActions: Error creating user profile in Firestore for UID ${uid} (collection 'user_profiles'):`, error.message, error.code, error.stack);
-    let errorMessage = 'Failed to create user profile.';
+    console.error(`UserActions (Server Action): Error creating user profile in Firestore for UID ${uid} (collection 'user_profiles'):`, error.message, error.code, error.stack);
+    let errorMessage = 'Failed to create user profile via server action.';
     if (error.message && error.message.toLowerCase().includes('permission denied')) {
-        errorMessage = `Permission denied by Firestore. Please check your Firestore security rules for the 'user_profiles' collection and ensure they allow profile creation (e.g., with 'pending_approval' status and matching UIDs). Also, review server logs for details on the data being sent. Firestore error code: ${error.code || 'unknown'}`;
+        errorMessage = `Permission denied by Firestore (from server action). This action likely needs Admin SDK for proper auth context or different rules. Firestore error code: ${error.code || 'unknown'}`;
     } else if (error.message && error.message.toLowerCase().includes('invalid data') && error.message.toLowerCase().includes('undefined')) {
-        errorMessage = `Failed to save profile: Invalid data sent to Firestore. A field likely had an 'undefined' value. Common culprits are 'profileTypeId' or 'clubId' if not selected in the form. Error: ${error.message}`;
+        errorMessage = `Failed to save profile (from server action): Invalid data sent to Firestore. A field likely had an 'undefined' value. Error: ${error.message}`;
     } else if (error.message) {
         errorMessage = error.message;
     }
@@ -70,3 +74,4 @@ export async function createUserFirestoreProfile(
   }
 }
 
+    
