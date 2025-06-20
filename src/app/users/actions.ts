@@ -2,7 +2,7 @@
 'use server';
 
 import { db } from '@/lib/firebase/client';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 import type { UserFirestoreProfile, ProfileType, UserProfileStatus } from '@/types';
 
 // Note: The primary user profile creation flow upon registration
@@ -10,12 +10,13 @@ import type { UserFirestoreProfile, ProfileType, UserProfileStatus } from '@/typ
 // This server action (createUserFirestoreProfile) might still be useful for admin-initiated profile creations
 // or other backend processes in the future, but would likely need to use Firebase Admin SDK
 // for proper authentication and authorization if called from a secure backend environment.
+// For now, it is largely unused for the standard registration flow.
 
 interface CreateUserFirestoreProfileData {
   email: string | null;
   displayName: string | null;
-  profileType: ProfileType; 
-  selectedClubId: string; 
+  profileType: ProfileType;
+  selectedClubId: string;
   photoURL?: string | null;
 }
 
@@ -31,32 +32,13 @@ export async function createUserFirestoreProfile(
         email: data.email,
         displayName: data.displayName,
         photoURL: data.photoURL || null,
-        profileTypeId: data.profileType, 
-        clubId: data.selectedClubId,   
+        profileTypeId: data.profileType,
+        clubId: data.selectedClubId,
         status: 'pending_approval' as UserProfileStatus, // Default status
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
     };
-
-    console.log(`UserActions (Server Action): Attempting to create Firestore profile for UID: ${uid} in 'user_profiles' collection.`);
-    console.log(`UserActions (Server Action): Data to be saved (profileToSave):`, JSON.stringify(profileToSave, null, 2));
     
-    console.log(`UserActions (Server Action): Checking conditions relevant to Firestore 'create' rule for /user_profiles/{uid}:`);
-    console.log(`UserActions (Server Action):   - Input UID for doc ID: ${uid}`);
-    console.log(`UserActions (Server Action):   - profileToSave.uid (request.resource.data.uid): ${profileToSave.uid}`);
-    console.log(`UserActions (Server Action):   - Does profileToSave.uid match input uid? ${profileToSave.uid === uid}`);
-    console.log(`UserActions (Server Action):   - profileToSave.status (request.resource.data.status): ${profileToSave.status}`);
-    console.log(`UserActions (Server Action):   - Is profileToSave.status === 'pending_approval'? ${profileToSave.status === 'pending_approval'}`);
-    console.log(`UserActions (Server Action):   - profileToSave.email (request.resource.data.email): ${profileToSave.email}`);
-    console.log(`UserActions (Server Action):   - profileToSave.profileTypeId: ${profileToSave.profileTypeId}`); 
-    console.log(`UserActions (Server Action):   - profileToSave.clubId: ${profileToSave.clubId}`);
-
-    // Important consideration: If this server action is called, the `db` instance (from client SDK)
-    // will likely not have the end-user's auth context. Firestore rules relying on `request.auth`
-    // (like `request.auth.uid == uid` or `request.auth.token.email`) would probably fail
-    // unless this action is called in a context where `request.auth` is populated by other means
-    // or Admin SDK is used.
-
     await setDoc(userProfileRef, profileToSave);
     console.log(`UserActions (Server Action): Successfully created Firestore profile for UID: ${uid} in 'user_profiles'.`);
     return { success: true };
@@ -74,4 +56,22 @@ export async function createUserFirestoreProfile(
   }
 }
 
-    
+
+export async function getUserProfileById(uid: string): Promise<UserFirestoreProfile | null> {
+  console.log(`UserActions: Attempting to fetch profile for UID: ${uid} from 'user_profiles'.`);
+  try {
+    const userProfileRef = doc(db, 'user_profiles', uid);
+    const docSnap = await getDoc(userProfileRef);
+
+    if (docSnap.exists()) {
+      console.log(`UserActions: Profile found for UID: ${uid}.`);
+      return { uid: docSnap.id, ...docSnap.data() } as UserFirestoreProfile;
+    } else {
+      console.warn(`UserActions: No profile found for UID: ${uid}.`);
+      return null;
+    }
+  } catch (error: any) {
+    console.error(`UserActions: Error fetching user profile for UID ${uid}:`, error.message, error.stack);
+    return null;
+  }
+}

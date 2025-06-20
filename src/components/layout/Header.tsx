@@ -5,14 +5,14 @@ import Link from 'next/link';
 import { useAuth } from '@/hooks/useAuth';
 import UserNav from './UserNav';
 import { Button } from '@/components/ui/button';
-import { LayoutDashboard, ListChecks, BarChart3, LogIn } from 'lucide-react';
-import { useEffect } from 'react'; // For logging
+import { LayoutDashboard, ListChecks, BarChart3, LogIn, UsersCog } from 'lucide-react'; // Added UsersCog
+import { useEffect } from 'react'; 
 
 export default function Header() {
   const { user, loading } = useAuth();
 
-  // Diagnostic log - Check your browser's developer console for this output
   useEffect(() => {
+    // This log is still useful for general auth debugging
     console.log('[Header] Auth State:', { user: user ? { uid: user.uid, email: user.email } : null, loading });
   }, [user, loading]);
 
@@ -27,7 +27,7 @@ export default function Header() {
         </Link>
         
         <nav className="flex items-center space-x-6 text-sm font-medium">
-          {!loading && user && ( // Only show if not loading AND user is present
+          {!loading && user && (
             <>
               <Link href="/dashboard" className="transition-colors hover:text-primary flex items-center">
                 <LayoutDashboard className="mr-2 h-4 w-4" /> Dashboard
@@ -38,6 +38,14 @@ export default function Header() {
               <Link href="/bcsjd-api-data" className="transition-colors hover:text-primary flex items-center">
                 <BarChart3 className="mr-2 h-4 w-4" /> API Data
               </Link>
+              {/* 
+                Simple link for now. The page /admin/user-management will handle actual role verification.
+                In a more advanced setup, this link itself could be conditionally rendered based on user role
+                if the role is available in the useAuth() hook.
+              */}
+              <Link href="/admin/user-management" className="transition-colors hover:text-primary flex items-center">
+                <UsersCog className="mr-2 h-4 w-4" /> Admin Users
+              </Link>
             </>
           )}
         </nav>
@@ -45,13 +53,13 @@ export default function Header() {
         <div className="ml-auto flex items-center space-x-4">
           {!loading && user ? (
             <UserNav />
-          ) : !loading ? ( // Only show Login/Register if not loading and no user
+          ) : !loading ? ( 
             <Button asChild variant="default" size="sm">
               <Link href="/login" className="flex items-center">
                 <LogIn className="mr-2 h-4 w-4" /> Login / Register
               </Link>
             </Button>
-          ) : null } {/* Show nothing while loading to prevent flicker or layout shifts */}
+          ) : null } 
         </div>
       </div>
     </header>

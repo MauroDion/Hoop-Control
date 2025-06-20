@@ -54,6 +54,12 @@ export interface UserFirestoreProfile {
   updatedAt: Timestamp;
 }
 
+// ViewModel for admin user management page
+export interface UserProfileAdminView extends UserFirestoreProfile {
+  clubName?: string;
+  profileTypeLabel?: string;
+}
+
 export interface Club {
   id: string;
   name: string;
