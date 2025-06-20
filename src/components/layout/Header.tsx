@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useAuth } from '@/hooks/useAuth';
 import UserNav from './UserNav';
 import { Button } from '@/components/ui/button';
-import { LayoutDashboard, ListChecks, BarChart3, LogIn, UsersCog } from 'lucide-react'; // Added UsersCog
+import { LayoutDashboard, ListChecks, BarChart3, LogIn, UserCog } from 'lucide-react'; // Changed UsersCog to UserCog
 import { useEffect } from 'react'; 
 
 export default function Header() {
@@ -44,7 +44,7 @@ export default function Header() {
                 if the role is available in the useAuth() hook.
               */}
               <Link href="/admin/user-management" className="transition-colors hover:text-primary flex items-center">
-                <UsersCog className="mr-2 h-4 w-4" /> Admin Users
+                <UserCog className="mr-2 h-4 w-4" /> Admin Users
               </Link>
             </>
           )}
