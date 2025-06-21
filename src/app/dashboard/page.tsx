@@ -38,6 +38,13 @@ export default function DashboardPage() {
   const [loadingProfile, setLoadingProfile] = useState(true);
 
   useEffect(() => {
+    // If auth state is resolved and there's no user, redirect to login.
+    // This is a client-side safeguard in case middleware has issues or for race conditions.
+    if (!authLoading && !user) {
+      router.replace('/login?redirect=/dashboard');
+      return; // Stop further execution
+    }
+
     if (user) {
       console.log(`Dashboard: useEffect triggered for user: ${user.uid}`);
       setLoadingProfile(true);
@@ -59,29 +66,16 @@ export default function DashboardPage() {
           console.log("Dashboard: Finished fetching profile, setting loadingProfile to false.");
           setLoadingProfile(false);
         });
-    } else if (!authLoading) {
-      console.log("Dashboard: No user and auth is resolved. Not fetching profile.");
-      setLoadingProfile(false);
     }
-  }, [user, authLoading]);
+  }, [user, authLoading, router]);
 
-  if (authLoading) {
+  // Show a loader while authentication is in progress or if there's no user yet (and we are about to redirect).
+  if (authLoading || !user) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)]">
         <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
         <h1 className="text-2xl font-headline font-semibold">Verifying Session...</h1>
         <p className="text-muted-foreground">Please wait.</p>
-      </div>
-    );
-  }
-
-  if (!user) {
-     return (
-      <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)]">
-        <AlertTriangle className="h-12 w-12 text-destructive mb-4" />
-        <h1 className="text-2xl font-headline font-semibold text-destructive">Access Denied</h1>
-        <p className="text-muted-foreground mb-4">You must be logged in to view this page.</p>
-        <Button onClick={() => router.push('/login')}>Go to Login</Button>
       </div>
     );
   }
@@ -231,3 +225,5 @@ export default function DashboardPage() {
     </div>
   );
 }
+
+    

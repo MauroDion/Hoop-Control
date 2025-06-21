@@ -20,6 +20,12 @@ export default function TasksPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    // Client-side guard: If auth is resolved and there is no user, redirect.
+    if (!authLoading && !user) {
+      router.replace('/login?redirect=/tasks');
+      return;
+    }
+    
     if (user) {
        async function fetchTasks() {
         try {
@@ -34,33 +40,16 @@ export default function TasksPage() {
         }
       }
       fetchTasks();
-    } else if (!authLoading) {
-      // If auth is resolved and there's no user, we don't fetch.
-      // The middleware should handle redirection. We just stop loading.
-      setLoading(false);
     }
-  }, [user, authLoading]);
+  }, [user, authLoading, router]);
 
-  // Show a loader only while authentication is in progress.
-  if (authLoading) {
+  // Show a loader while authentication is in progress or if there's no user yet (and we are about to redirect).
+  if (authLoading || !user) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)] text-center p-6">
         <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
         <h1 className="text-2xl font-semibold">Verifying Access...</h1>
         <p className="text-muted-foreground">Please wait.</p>
-      </div>
-    );
-  }
-
-  // If auth is resolved, and there is no user, show an error.
-  // This page should not be reachable if the middleware is working correctly.
-  if (!user) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)] text-center p-6">
-        <AlertTriangle className="h-12 w-12 text-destructive mb-4" />
-        <h1 className="text-2xl font-semibold text-destructive">Access Denied</h1>
-        <p className="text-muted-foreground mb-4">You need to be logged in to view this page.</p>
-        <Button onClick={() => router.push('/login')}>Go to Login</Button>
       </div>
     );
   }
@@ -101,3 +90,5 @@ export default function TasksPage() {
     </div>
   );
 }
+
+    
