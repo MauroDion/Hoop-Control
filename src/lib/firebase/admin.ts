@@ -29,7 +29,8 @@ if (!admin.apps.length) {
     } catch (e: any) {
       // Store the specific error message
       adminInitError = `Could not initialize using FIREBASE_ADMIN_SERVICE_ACCOUNT_JSON. Error: ${e.message}`;
-      console.error(`Firebase Admin SDK: CRITICAL FAILURE. ${adminInitError}`);
+      // Use console.warn to avoid crashing the server in a loop
+      console.warn(`Firebase Admin SDK: NON-FATAL FAILURE. ${adminInitError}`);
     }
   } else {
     // Store the specific error message
@@ -43,8 +44,9 @@ if (!admin.apps.length) {
         console.log('Firebase Admin SDK: Default initialization successful.');
     } catch (e: any) {
         adminInitError = `Default initialization also failed. Error: ${e.message}`;
-        console.error(
-          'Firebase Admin SDK: CRITICAL FAILURE - ' + adminInitError
+        // Use console.warn to avoid crashing the server in a loop
+        console.warn(
+          'Firebase Admin SDK: NON-FATAL FAILURE - ' + adminInitError
         );
     }
   }
