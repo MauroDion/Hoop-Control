@@ -36,6 +36,7 @@ export default function DashboardPage() {
   const router = useRouter();
   const [userProfile, setUserProfile] = useState<UserFirestoreProfile | null>(null);
   const [loadingProfile, setLoadingProfile] = useState(true);
+  const [profileError, setProfileError] = useState<string | null>(null);
 
   useEffect(() => {
     // The middleware is now responsible for ensuring only authenticated users reach this page.
@@ -43,13 +44,21 @@ export default function DashboardPage() {
     if (user) {
       console.log(`Dashboard: User authenticated. Fetching profile for UID: ${user.uid}`);
       setLoadingProfile(true);
+      setProfileError(null);
       getUserProfileById(user.uid)
         .then(profile => {
-          console.log("Dashboard: Successfully fetched profile data:", profile);
-          setUserProfile(profile);
+          if (profile) {
+            console.log("Dashboard: Successfully fetched profile data:", profile);
+            setUserProfile(profile);
+          } else {
+            console.error("Dashboard: getUserProfileById returned null. This means no profile document was found for the UID in 'user_profiles' collection or there was a permission issue.");
+            setProfileError("Your user profile could not be found in the database. This might be a permission issue. Please contact an administrator.");
+            setUserProfile(null);
+          }
         })
         .catch(err => {
           console.error("Dashboard: An error occurred while fetching user profile:", err);
+          setProfileError("An error occurred while loading your profile. Please try again later.");
           setUserProfile(null);
         })
         .finally(() => {
@@ -75,6 +84,72 @@ export default function DashboardPage() {
       </div>
     );
   }
+
+  const renderClubManagement = () => {
+    if (loadingProfile) {
+      return (
+        <div className="flex items-center">
+          <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+          <span>Loading user information...</span>
+        </div>
+      );
+    }
+
+    if (profileError) {
+      return (
+        <div className="flex items-center text-destructive p-4 bg-destructive/10 rounded-md">
+          <AlertTriangle className="mr-3 h-5 w-5 flex-shrink-0" />
+          <span>{profileError}</span>
+        </div>
+      );
+    }
+    
+    if (userProfile?.profileTypeId === 'super_admin') {
+      return (
+        <>
+          <p className="text-sm text-muted-foreground">
+            As a Super Admin, you have full control over clubs and teams.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-2 pt-2">
+            <Button asChild>
+              <Link href={`/clubs/new`}>
+                <PlusCircle className="mr-2 h-5 w-5" /> Create New Club
+              </Link>
+            </Button>
+            <Button asChild variant="outline">
+              <Link href={`/clubs`}>
+                <Building className="mr-2 h-5 w-5" /> Manage Clubs
+              </Link>
+            </Button>
+          </div>
+        </>
+      );
+    }
+    
+    if (userProfile?.clubId) {
+       return (
+        <>
+          <p className="text-sm text-muted-foreground">
+            You are associated with club <code className="font-mono bg-muted px-1 py-0.5 rounded">{userProfile.clubId}</code>.
+            You can create a new team for your club now.
+          </p>
+          <Button asChild>
+            <Link href={`/clubs/${userProfile.clubId}/teams/new`}>
+              <PlusCircle className="mr-2 h-5 w-5" /> Create New Team
+            </Link>
+          </Button>
+        </>
+      );
+    }
+
+    // Fallback for non-super-admin users without a clubId, or if profile is somehow empty but not errored.
+    return (
+      <div className="flex items-center text-muted-foreground">
+        <AlertTriangle className="mr-2 h-5 w-5 text-yellow-500" />
+        <span>Your profile is not associated with a club. Team creation is disabled.</span>
+      </div>
+    );
+  };
   
   // From here on, we can safely assume `user` exists.
   return (
@@ -147,47 +222,7 @@ export default function DashboardPage() {
           <CardDescription>Manage your club details and create new teams.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {loadingProfile ? (
-            <div className="flex items-center">
-              <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-              <span>Loading user information...</span>
-            </div>
-          ) : userProfile?.profileTypeId === 'super_admin' ? (
-            <>
-              <p className="text-sm text-muted-foreground">
-                As a Super Admin, you have full control over clubs and teams.
-              </p>
-              <div className="flex space-x-2 pt-2">
-                <Button asChild>
-                  <Link href={`/clubs/new`}>
-                    <PlusCircle className="mr-2 h-5 w-5" /> Create New Club
-                  </Link>
-                </Button>
-                <Button asChild variant="outline">
-                  <Link href={`/clubs`}>
-                    <Building className="mr-2 h-5 w-5" /> Manage Clubs
-                  </Link>
-                </Button>
-              </div>
-            </>
-          ) : userProfile?.clubId ? (
-            <>
-              <p className="text-sm text-muted-foreground">
-                You are associated with club <code className="font-mono bg-muted px-1 py-0.5 rounded">{userProfile.clubId}</code>.
-                You can create a new team for your club now.
-              </p>
-              <Button asChild>
-                <Link href={`/clubs/${userProfile.clubId}/teams/new`}>
-                  <PlusCircle className="mr-2 h-5 w-5" /> Create New Team
-                </Link>
-              </Button>
-            </>
-          ) : (
-            <div className="flex items-center text-muted-foreground">
-              <AlertTriangle className="mr-2 h-5 w-5 text-yellow-500" />
-              <span>Your profile is not associated with a club. Team creation is disabled.</span>
-            </div>
-          )}
+          {renderClubManagement()}
         </CardContent>
       </Card>
 
