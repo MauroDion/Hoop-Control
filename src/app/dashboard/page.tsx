@@ -1,12 +1,15 @@
 
-"use client"; // Required for using hooks like useAuth
+"use client";
 
 import { useAuth } from '@/hooks/useAuth';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { BarChart, Building, CheckSquare, Users, AlertTriangle, PlusCircle } from 'lucide-react';
+import { BarChart, Building, CheckSquare, Users, AlertTriangle, PlusCircle, Loader2 } from 'lucide-react';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
+import { useEffect, useState } from 'react';
+import { getUserProfileById } from '@/app/users/actions';
+import type { UserFirestoreProfile } from '@/types';
 
 // Dummy data - replace with actual data fetching
 const summaryData = {
@@ -28,9 +31,31 @@ const bcsjdApiSampleData: ApiData[] = [
 
 
 export default function DashboardPage() {
-  const { user } = useAuth(); // Get user info if needed
+  const { user, loading: authLoading } = useAuth();
+  const [userProfile, setUserProfile] = useState<UserFirestoreProfile | null>(null);
+  const [loadingProfile, setLoadingProfile] = useState(true);
 
-  if (!user) {
+  useEffect(() => {
+    if (user) {
+      setLoadingProfile(true);
+      getUserProfileById(user.uid)
+        .then(profile => {
+          setUserProfile(profile);
+        })
+        .catch(err => {
+          console.error("Dashboard: Failed to fetch user profile", err);
+          setUserProfile(null);
+        })
+        .finally(() => {
+          setLoadingProfile(false);
+        });
+    } else if (!authLoading) {
+        // user is null and auth is not loading
+        setLoadingProfile(false);
+    }
+  }, [user, authLoading]);
+
+  if (!user && !authLoading) {
     // This should ideally be handled by middleware, but as a fallback:
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)]">
@@ -111,18 +136,29 @@ export default function DashboardPage() {
           <CardDescription>Manage your club details and create new teams.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <p className="text-sm text-muted-foreground">
-            To create a new team, you&apos;ll need the ID of the club it belongs to. 
-            Replace <strong>`your-club-id-here`</strong> in the link with an actual Club ID.
-          </p>
-          <Button asChild>
-            <Link href="/clubs/your-club-id-here/teams/new">
-              <PlusCircle className="mr-2 h-5 w-5" /> Create New Team
-            </Link>
-          </Button>
-          <p className="text-xs text-muted-foreground pt-2">
-            In a full application, you would typically navigate from a specific club&apos;s page to create a team for it, or select your club first.
-          </p>
+          {loadingProfile ? (
+            <div className="flex items-center">
+              <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+              <span>Loading club information...</span>
+            </div>
+          ) : userProfile?.clubId ? (
+            <>
+              <p className="text-sm text-muted-foreground">
+                You are associated with club <code className="font-mono bg-muted px-1 py-0.5 rounded">{userProfile.clubId}</code>.
+                You can create a new team for your club now.
+              </p>
+              <Button asChild>
+                <Link href={`/clubs/${userProfile.clubId}/teams/new`}>
+                  <PlusCircle className="mr-2 h-5 w-5" /> Create New Team
+                </Link>
+              </Button>
+            </>
+          ) : (
+            <div className="flex items-center text-muted-foreground">
+              <AlertTriangle className="mr-2 h-5 w-5 text-yellow-500" />
+              <span>Your profile is not associated with a club. Team creation is disabled.</span>
+            </div>
+          )}
         </CardContent>
       </Card>
 
