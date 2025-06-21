@@ -1,9 +1,8 @@
-
 'use server';
 
 import { db } from '@/lib/firebase/client';
-import { adminAuth, adminDb, adminInitError } from '@/lib/firebase/admin';
-import { doc, getDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
+import admin, { adminAuth, adminDb, adminInitError } from '@/lib/firebase/admin';
+import { doc, getDoc, Timestamp } from 'firebase/firestore';
 import type { UserFirestoreProfile, ProfileType, UserProfileStatus } from '@/types';
 
 // This new server action uses the Admin SDK to securely create the user profile,
