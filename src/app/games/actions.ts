@@ -120,3 +120,50 @@ export async function getGamesByCoach(userId: string): Promise<Game[]> {
         return [];
     }
 }
+
+export async function getGameById(gameId: string): Promise<Game | null> {
+    if (!adminDb) return null;
+    try {
+        const gameRef = adminDb.collection('games').doc(gameId);
+        const docSnap = await gameRef.get();
+        if (!docSnap.exists) {
+            console.warn(`Could not find game with ID: ${gameId}`);
+            return null;
+        }
+        const data = docSnap.data()!;
+        return {
+            id: docSnap.id,
+            ...data,
+            date: data.date.toDate(),
+        } as Game;
+    } catch (error: any) {
+        console.error(`Error fetching game by ID ${gameId}:`, error);
+        return null;
+    }
+}
+
+export async function updateGameRoster(
+    gameId: string,
+    playerIds: string[],
+    isHomeTeam: boolean
+): Promise<{ success: boolean; error?: string }> {
+    if (!adminDb) return { success: false, error: "Database not initialized." };
+    try {
+        const gameRef = adminDb.collection('games').doc(gameId);
+        
+        const updateData = isHomeTeam 
+            ? { homeTeamPlayerIds: playerIds } 
+            : { awayTeamPlayerIds: playerIds };
+
+        await gameRef.update({
+            ...updateData,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+        
+        revalidatePath(`/games/${gameId}`);
+        return { success: true };
+    } catch (error: any) {
+        console.error("Error updating game roster:", error);
+        return { success: false, error: error.message || "Failed to update roster." };
+    }
+}

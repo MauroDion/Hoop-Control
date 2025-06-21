@@ -9,7 +9,7 @@ import type { Game, UserFirestoreProfile } from '@/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, AlertTriangle, CalendarClock, PlusCircle, Shield } from 'lucide-react';
+import { Loader2, AlertTriangle, CalendarClock, PlusCircle, Shield, Settings } from 'lucide-react';
 import Link from 'next/link';
 import { format } from 'date-fns';
 
@@ -109,6 +109,7 @@ export default function GamesPage() {
                     <TableHead>Matchup</TableHead>
                     <TableHead>Location</TableHead>
                     <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -118,6 +119,13 @@ export default function GamesPage() {
                       <TableCell className="font-medium">{game.homeTeamName} vs {game.awayTeamName}</TableCell>
                       <TableCell>{game.location}</TableCell>
                       <TableCell className="capitalize">{game.status}</TableCell>
+                      <TableCell className="text-right">
+                        <Button asChild size="sm" variant="outline">
+                          <Link href={`/games/${game.id}`}>
+                            <Settings className="mr-2 h-4 w-4" /> Manage Game
+                          </Link>
+                        </Button>
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
