@@ -13,6 +13,7 @@ export async function POST(request: NextRequest) {
   try {
     const sessionCookie = request.cookies.get('session')?.value;
     if (sessionCookie && adminAuth) { // Only attempt verification if adminAuth is available
+      console.log("API (session-logout): Found session cookie, attempting to revoke tokens.");
       // Verify the session cookie. This is important to prevent CSRF attacks.
       const decodedClaims = await adminAuth.verifySessionCookie(sessionCookie, true /** checkRevoked */)
         .catch(error => {
@@ -22,10 +23,14 @@ export async function POST(request: NextRequest) {
 
       if (decodedClaims) {
         await adminAuth.revokeRefreshTokens(decodedClaims.sub); // Revoke refresh tokens for the user
-        console.log(`API (session-logout): Revoked refresh tokens for UID: ${decodedClaims.sub}`);
+        console.log(`API (session-logout): Successfully revoked refresh tokens for UID: ${decodedClaims.sub}`);
+      } else {
+        console.log("API (session-logout): Could not decode session cookie, skipping token revocation.");
       }
     } else if (sessionCookie && !adminAuth) {
         console.warn("API (session-logout): Firebase Admin not initialized. Cannot revoke tokens. Proceeding to clear cookie.");
+    } else {
+        console.log("API (session-logout): No session cookie found to revoke.");
     }
     
     // Always clear the session cookie by setting its Max-Age to 0
@@ -40,11 +45,11 @@ export async function POST(request: NextRequest) {
       sameSite: 'lax',
     });
 
-    console.log("API (session-logout): Session cookie successfully cleared.");
+    console.log("API (session-logout): Session cookie successfully cleared from response.");
     return response;
 
   } catch (error: any) {
-    console.error('API (session-logout): Error clearing session cookie:', error.message, error.stack);
+    console.error('API (session-logout): Error during logout process:', error.message, error.stack);
     return NextResponse.json({ error: 'Failed to clear session.', details: error.message }, { status: 500 });
   }
 }
