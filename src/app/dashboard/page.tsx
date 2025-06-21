@@ -36,22 +36,33 @@ export default function DashboardPage() {
   const [loadingProfile, setLoadingProfile] = useState(true);
 
   useEffect(() => {
-    if (user) {
+    // Only run if auth is resolved and we have a user
+    if (!authLoading && user) {
+      console.log(`Dashboard: useEffect triggered for user: ${user.uid}`);
       setLoadingProfile(true);
       getUserProfileById(user.uid)
         .then(profile => {
+          console.log("Dashboard: Successfully fetched profile data:", profile);
+          if (profile) {
+            console.log(`Dashboard: Profile found. Club ID is: ${profile.clubId}`);
+          } else {
+            console.warn("Dashboard: Profile not found for user. This could be due to Firestore rules or a missing profile document.");
+          }
           setUserProfile(profile);
         })
         .catch(err => {
-          console.error("Dashboard: Failed to fetch user profile", err);
+          console.error("Dashboard: An error occurred while fetching user profile:", err);
           setUserProfile(null);
         })
         .finally(() => {
+          console.log("Dashboard: Finished fetching profile, setting loadingProfile to false.");
           setLoadingProfile(false);
         });
-    } else if (!authLoading) {
-        // user is null and auth is not loading
+    } else if (!authLoading && !user) {
+        // Handle case where user is logged out or auth is resolved with no user
+        console.log("Dashboard: useEffect triggered but user is not logged in.");
         setLoadingProfile(false);
+        setUserProfile(null);
     }
   }, [user, authLoading]);
 
