@@ -160,3 +160,33 @@ export interface PlayerFormData {
   jerseyNumber?: number | null;
   position?: string | null;
 }
+
+export interface Game {
+  id: string;
+  homeTeamId: string;
+  awayTeamId: string;
+  homeTeamName: string; // denormalized
+  awayTeamName: string; // denormalized
+  gameFormatId?: string | null;
+  competitionCategoryId?: string | null;
+  date: Date;
+  location: string;
+  status: 'scheduled' | 'in-progress' | 'completed' | 'cancelled';
+  homeTeamPlayerIds?: string[];
+  awayTeamPlayerIds?: string[];
+  homeTeamScore?: number;
+  awayTeamScore?: number;
+  createdBy: string; // user id
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface GameFormData {
+  homeTeamId: string;
+  awayTeamId: string;
+  date: string; // From date input
+  time: string; // From time input
+  location: string;
+  gameFormatId?: string | null;
+  competitionCategoryId?: string | null;
+}

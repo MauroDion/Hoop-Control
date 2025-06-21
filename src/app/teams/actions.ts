@@ -137,3 +137,86 @@ export async function getTeamById(teamId: string): Promise<Team | null> {
     return null;
   }
 }
+
+export async function getAllTeams(): Promise<Team[]> {
+  console.log(`TeamActions: Attempting to fetch all teams.`);
+  if (!adminDb) {
+    console.warn("TeamActions (getAllTeams): Admin SDK not available. Returning empty array.");
+    return [];
+  }
+
+  try {
+    const teamsCollectionRef = adminDb.collection('teams');
+    const querySnapshot = await teamsCollectionRef.orderBy('name', 'asc').get();
+
+    if (querySnapshot.empty) {
+      console.log(`TeamActions: No teams found.`);
+      return [];
+    }
+    
+    console.log(`TeamActions: Found ${querySnapshot.docs.length} total teams.`);
+    
+    const teams = querySnapshot.docs.map(doc => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        ...data,
+        createdAt: data.createdAt ? data.createdAt.toDate() : new Date(),
+        updatedAt: data.updatedAt ? data.updatedAt.toDate() : new Date(),
+      } as Team;
+    });
+    
+    return teams;
+  } catch (error: any) {
+    console.error(`TeamActions: Error fetching all teams:`, error.message, error.stack);
+    if (error.code === 'failed-precondition' && error.message.includes("index")) {
+        console.error("TeamActions: Firestore query failed. This is likely due to a missing Firestore index. Please create an index on the 'name' field (ascending) for the 'teams' collection.");
+    }
+    return [];
+  }
+}
+
+export async function getTeamsByCoach(userId: string): Promise<Team[]> {
+  console.log(`TeamActions: Attempting to fetch teams for coach userId: ${userId}`);
+  if (!adminDb) {
+    console.warn("TeamActions (getTeamsByCoach): Admin SDK not available. Returning empty array.");
+    return [];
+  }
+  if (!userId) {
+    console.warn("TeamActions (getTeamsByCoach): userId is required.");
+    return [];
+  }
+
+  try {
+    const teamsCollectionRef = adminDb.collection('teams');
+    const q = teamsCollectionRef.where('coachIds', 'array-contains', userId);
+    const querySnapshot = await q.get();
+
+    if (querySnapshot.empty) {
+      console.log(`TeamActions: No teams found for coach: ${userId}`);
+      return [];
+    }
+    
+    console.log(`TeamActions: Found ${querySnapshot.docs.length} teams for coach: ${userId}.`);
+    
+    const teams = querySnapshot.docs.map(doc => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        ...data,
+        createdAt: data.createdAt ? data.createdAt.toDate() : new Date(),
+        updatedAt: data.updatedAt ? data.updatedAt.toDate() : new Date(),
+      } as Team;
+    });
+
+    teams.sort((a, b) => a.name.localeCompare(b.name));
+    
+    return teams;
+  } catch (error: any) {
+    console.error(`TeamActions: Error fetching teams for coach ${userId}:`, error.message, error.stack);
+    if (error.code === 'failed-precondition' && error.message.includes("index")) {
+        console.error("TeamActions: Firestore query failed. This is likely due to a missing Firestore index. Please create an index on the 'coachIds' field for the 'teams' collection.");
+    }
+    return [];
+  }
+}

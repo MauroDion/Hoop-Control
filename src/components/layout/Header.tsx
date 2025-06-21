@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useAuth } from '@/hooks/useAuth';
 import UserNav from './UserNav';
 import { Button } from '@/components/ui/button';
-import { LayoutDashboard, ListChecks, BarChart3, LogIn, UserCog } from 'lucide-react'; // Changed UsersCog to UserCog
+import { LayoutDashboard, ListChecks, BarChart3, LogIn, UserCog, CalendarClock } from 'lucide-react'; // Changed UsersCog to UserCog
 import { useEffect } from 'react'; 
 
 export default function Header() {
@@ -34,6 +34,9 @@ export default function Header() {
               </Link>
               <Link href="/tasks" className="transition-colors hover:text-primary flex items-center">
                 <ListChecks className="mr-2 h-4 w-4" /> Tasks
+              </Link>
+              <Link href="/games" className="transition-colors hover:text-primary flex items-center">
+                <CalendarClock className="mr-2 h-4 w-4" /> Games
               </Link>
               <Link href="/bcsjd-api-data" className="transition-colors hover:text-primary flex items-center">
                 <BarChart3 className="mr-2 h-4 w-4" /> API Data
