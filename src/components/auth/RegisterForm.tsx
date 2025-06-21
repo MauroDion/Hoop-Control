@@ -18,14 +18,13 @@ import {
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { createUserWithEmailAndPassword, updateProfile as updateFirebaseAuthProfile, signOut } from "firebase/auth";
-import { auth, db } from "@/lib/firebase/client"; // Import db
-import { doc, setDoc, serverTimestamp } from "firebase/firestore"; // Import Firestore functions
+import { createUserWithEmailAndPassword, signOut, UserCredential } from "firebase/auth";
+import { auth } from "@/lib/firebase/client"; 
 import { useRouter } from "next/navigation";
-// Removed: import { createUserFirestoreProfile } from "@/app/users/actions";
+import { finalizeNewUserProfile } from "@/app/users/actions";
 import { getClubs } from "@/app/clubs/actions";
 import { getProfileTypeOptions } from "@/app/profile-types/actions";
-import type { Club, ProfileType, ProfileTypeOption, UserFirestoreProfile, UserProfileStatus } from "@/types";
+import type { Club, ProfileType, ProfileTypeOption } from "@/types";
 import { Loader2 } from "lucide-react";
 
 const formSchema = z.object({
@@ -57,46 +56,28 @@ export function RegisterForm() {
 
   useEffect(() => {
     async function fetchData() {
-      console.log("RegisterForm: useEffect fetchClubs - START");
       setLoadingClubs(true);
-      try {
-        const fetchedClubs = await getClubs();
-        console.log("RegisterForm: useEffect fetchClubs - Raw fetched clubs data from action:", fetchedClubs);
-        setClubs(Array.isArray(fetchedClubs) ? fetchedClubs : []);
-        if (!Array.isArray(fetchedClubs)) {
-          console.warn("RegisterForm: Fetched clubs is not an array:", fetchedClubs);
-           toast({ variant: "destructive", title: "Error Loading Clubs", description: "Received invalid data format for clubs."});
-        } else {
-           console.log(`RegisterForm: useEffect fetchClubs - Set ${fetchedClubs.length} clubs.`);
-        }
-      } catch (error: any) {
-        console.error("RegisterForm: useEffect fetchClubs - Failed to fetch clubs:", error);
-        toast({ variant: "destructive", title: "Error Loading Clubs", description: error.message || "Could not load clubs."});
-        setClubs([]);
-      } finally {
-        setLoadingClubs(false);
-        console.log("RegisterForm: useEffect fetchClubs - FINISHED. loadingClubs state: false");
-      }
-
-      console.log("RegisterForm: useEffect fetchProfileTypes - START");
       setLoadingProfileTypes(true);
       try {
-        const fetchedProfileTypes = await getProfileTypeOptions();
-        console.log("RegisterForm: useEffect fetchProfileTypes - Raw fetched profile types data from action:", fetchedProfileTypes);
+        const [fetchedClubs, fetchedProfileTypes] = await Promise.all([
+           getClubs(),
+           getProfileTypeOptions()
+        ]);
+        
+        setClubs(Array.isArray(fetchedClubs) ? fetchedClubs : []);
         setProfileTypeOptions(Array.isArray(fetchedProfileTypes) ? fetchedProfileTypes : []);
-         if (!Array.isArray(fetchedProfileTypes)) {
-          console.warn("RegisterForm: Fetched profile types is not an array:", fetchedProfileTypes);
-           toast({ variant: "destructive", title: "Error Loading Profile Types", description: "Received invalid data format for profile types."});
-        } else {
-           console.log(`RegisterForm: useEffect fetchProfileTypes - Set ${fetchedProfileTypes.length} profile types.`);
-        }
+        
+        if (!Array.isArray(fetchedClubs)) console.warn("RegisterForm: Fetched clubs is not an array:", fetchedClubs);
+        if (!Array.isArray(fetchedProfileTypes)) console.warn("RegisterForm: Fetched profile types is not an array:", fetchedProfileTypes);
+
       } catch (error: any) {
-        console.error("RegisterForm: useEffect fetchProfileTypes - Failed to fetch profile types:", error);
-        toast({ variant: "destructive", title: "Error Loading Profile Types", description: error.message || "Could not load profile types."});
+        console.error("RegisterForm: Failed to fetch data for form:", error);
+        toast({ variant: "destructive", title: "Error Loading Data", description: error.message || "Could not load clubs or profile types."});
+        setClubs([]);
         setProfileTypeOptions([]);
       } finally {
+        setLoadingClubs(false);
         setLoadingProfileTypes(false);
-        console.log("RegisterForm: useEffect fetchProfileTypes - FINISHED. loadingProfileTypes state: false");
       }
     }
     fetchData();
@@ -112,56 +93,64 @@ export function RegisterForm() {
   });
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
-    console.log("RegisterForm: onSubmit - Values submitted by form:", values);
-    let userCredential;
-    let firebaseUser;
-    let firestoreProfileSuccess = false;
-
+    let userCredential: UserCredential | undefined;
+    
     try {
+      // Step 1: Create the user in Firebase Auth client-side
       userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
-      firebaseUser = userCredential.user;
-      console.log("RegisterForm: onSubmit - Firebase Auth user created:", firebaseUser?.uid);
+      const firebaseUser = userCredential.user;
 
-      if (firebaseUser) {
-        await updateFirebaseAuthProfile(firebaseUser, { displayName: values.name });
-        console.log("RegisterForm: onSubmit - Firebase Auth profile updated with displayName.");
+      if (!firebaseUser) {
+        throw new Error("User creation failed, user object is null.");
+      }
+      
+      console.log("RegisterForm: Auth user created. Getting ID token...");
+      const idToken = await firebaseUser.getIdToken();
+      console.log("RegisterForm: Got ID token. Calling server action to finalize profile.");
 
-        const userProfileRef = doc(db, 'user_profiles', firebaseUser.uid);
-        const profileToSave: Omit<UserFirestoreProfile, 'createdAt' | 'updatedAt'> & { createdAt: any, updatedAt: any } = {
-            uid: firebaseUser.uid,
-            email: firebaseUser.email,
-            displayName: values.name,
-            photoURL: firebaseUser.photoURL || null,
-            profileTypeId: values.profileType,
-            clubId: values.selectedClubId,
-            status: 'pending_approval' as UserProfileStatus,
-            createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp(),
-        };
-        
-        console.log("RegisterForm: onSubmit - Data being sent to Firestore (client-side setDoc):", profileToSave);
-        await setDoc(userProfileRef, profileToSave);
-        firestoreProfileSuccess = true;
-        console.log("RegisterForm: onSubmit - Firestore profile creation (client-side setDoc) successful.");
+      // Step 2: Call the robust server action to create the Firestore profile
+      const profileResult = await finalizeNewUserProfile(idToken, {
+        displayName: values.name,
+        profileType: values.profileType,
+        selectedClubId: values.selectedClubId,
+      });
 
-        toast({
-          title: "Registration Submitted",
-          description: "Your account is created and awaiting administrator approval. You will be signed out.",
-          duration: 7000,
-        });
-      } else {
-        console.error("RegisterForm: onSubmit - User creation failed in Firebase Auth (user object is null).");
-        toast({ variant: "destructive", title: "Registration Failed", description: "User authentication failed." });
+      if (!profileResult.success) {
+        // If the backend fails, this is a critical error. The `catch` block will handle cleanup.
+        throw new Error(profileResult.error || "Failed to create user profile on the server.");
       }
 
+      // Step 3: Success! Inform the user, sign out, and redirect.
+      toast({
+        title: "Registration Submitted",
+        description: "Your account is created and awaiting administrator approval. You will be signed out now.",
+        duration: 7000,
+      });
+      
+      await signOut(auth);
+      router.push("/login?status=pending_approval");
+      router.refresh();
+
     } catch (error: any) {
-      console.error("RegisterForm: onSubmit - ERROR during registration process:", error);
+      console.error("RegisterForm: ERROR during registration process:", error);
+
+      // --- Cleanup on Failure ---
+      // If we created an auth user but the process failed later, delete the auth user
+      // to prevent creating a "ghost" user with no profile.
+      if (userCredential?.user) {
+          console.warn("RegisterForm: Deleting partially created user due to subsequent error...");
+          try {
+              await userCredential.user.delete();
+              console.log("RegisterForm: Successfully deleted partially created user.");
+          } catch (deleteError) {
+              console.error("RegisterForm: CRITICAL - Failed to delete partially created user. This user must be manually removed from Firebase Auth:", userCredential.user.uid, deleteError);
+          }
+      }
+
+      // --- Inform User of Failure ---
       let description = "An unexpected error occurred during registration.";
       if (error.code === 'auth/email-already-in-use') {
         description = "This email address is already in use. Please use a different email or try logging in.";
-      } else if (error.code && error.code.includes('firestore') && error.message && error.message.toLowerCase().includes('permission denied')) {
-        description = `Firestore permission denied. Please check security rules. Error: ${error.message}`;
-        firestoreProfileSuccess = false; // Ensure this is marked as failed
       } else if (error.message) {
         description = error.message;
       }
@@ -171,27 +160,6 @@ export function RegisterForm() {
         description: description,
         duration: 9000,
       });
-    } finally {
-      console.log("RegisterForm: onSubmit (finally) block executing.");
-      if (auth.currentUser) {
-        try {
-          await signOut(auth);
-          console.log("RegisterForm: onSubmit (finally) - User signed out.");
-        } catch (signOutError) {
-          console.error("RegisterForm: onSubmit (finally) - Error signing out user:", signOutError);
-        }
-      } else {
-          console.log("RegisterForm: onSubmit (finally) - No current user to sign out (might have failed before full auth or already signed out).");
-      }
-      
-      if (firestoreProfileSuccess) {
-        router.push("/login?status=pending_approval");
-      } else {
-        // If profile creation failed or auth failed, just go to login.
-        // The error toasts should inform the user.
-        router.push("/login");
-      }
-      router.refresh();
     }
   }
 
@@ -255,22 +223,16 @@ export function RegisterForm() {
                         loadingProfileTypes
                           ? "Loading profile types..."
                           : profileTypeOptions.length === 0
-                            ? "No profile types (check DB/logs/rules/indexes)"
+                            ? "No profile types available"
                             : "Select your profile type"
                         } />
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
-                    { loadingProfileTypes ? (
-                       <div className="p-2 text-sm text-muted-foreground text-center">Loading profile types...</div>
-                    ) : profileTypeOptions.length === 0 ? (
-                      <div className="p-2 text-sm text-muted-foreground text-center">No profile types found. Ensure 'profileTypes' collection exists, is readable, and has 'name' field for ordering. Check server logs for 'ProfileTypeActions'.</div>
-                    ) : (
-                      profileTypeOptions.map((type) => (
-                          <SelectItem key={type.id} value={type.id}>
-                            {type.label || `Unnamed Type ID: ${type.id}`}
-                          </SelectItem>
-                        )
+                    {profileTypeOptions.map((type) => (
+                        <SelectItem key={type.id} value={type.id}>
+                          {type.label || `Unnamed Type ID: ${type.id}`}
+                        </SelectItem>
                       )
                     )}
                   </SelectContent>
@@ -297,24 +259,18 @@ export function RegisterForm() {
                           loadingClubs
                             ? "Loading clubs..."
                             : clubs.length === 0
-                            ? "No clubs available (check logs/DB/rules)"
+                            ? "No clubs available"
                             : "Select the club you belong to"
                         }
                       />
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
-                    { loadingClubs ? (
-                       <div className="p-2 text-sm text-muted-foreground text-center">Loading clubs...</div>
-                    ) : clubs.length === 0 ? (
-                      <div className="p-2 text-sm text-muted-foreground text-center">No clubs found. Ensure 'clubs' collection exists, is readable, and has 'name' field. Check server logs for 'ClubActions'.</div>
-                    ) : (
-                      clubs.map((club) => (
-                           <SelectItem key={club.id} value={club.id}>
-                             {club.name || `Unnamed Club ID: ${club.id}`}
-                           </SelectItem>
-                         )
-                      )
+                    {clubs.map((club) => (
+                         <SelectItem key={club.id} value={club.id}>
+                           {club.name || `Unnamed Club ID: ${club.id}`}
+                         </SelectItem>
+                       )
                     )}
                   </SelectContent>
                 </Select>
@@ -331,5 +287,3 @@ export function RegisterForm() {
     </>
   );
 }
-
-    

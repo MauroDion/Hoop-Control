@@ -2,57 +2,56 @@
 'use server';
 
 import { db } from '@/lib/firebase/client';
-import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
+import { adminAuth, adminDb, adminInitError } from '@/lib/firebase/admin';
+import { doc, getDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
 import type { UserFirestoreProfile, ProfileType, UserProfileStatus } from '@/types';
 
-// Note: The primary user profile creation flow upon registration
-// has been moved to client-side in RegisterForm.tsx for simpler auth context handling with Firestore rules.
-// This server action (createUserFirestoreProfile) might still be useful for admin-initiated profile creations
-// or other backend processes in the future, but would likely need to use Firebase Admin SDK
-// for proper authentication and authorization if called from a secure backend environment.
-// For now, it is largely unused for the standard registration flow.
-
-interface CreateUserFirestoreProfileData {
-  email: string | null;
-  displayName: string | null;
-  profileType: ProfileType;
-  selectedClubId: string;
-  photoURL?: string | null;
-}
-
-export async function createUserFirestoreProfile(
-  uid: string,
-  data: CreateUserFirestoreProfileData
+// This new server action uses the Admin SDK to securely create the user profile,
+// bypassing client-side security rules which are a common point of failure.
+export async function finalizeNewUserProfile(
+  idToken: string,
+  data: { profileType: ProfileType; selectedClubId: string; displayName: string; }
 ): Promise<{ success: boolean; error?: string }> {
-  try {
-    const userProfileRef = doc(db, 'user_profiles', uid);
+  // Defensive check to ensure the Admin SDK was initialized correctly.
+  if (!adminAuth || !adminDb) {
+    console.error("UserActions (finalize): Firebase Admin SDK not initialized. Error:", adminInitError);
+    return { success: false, error: `Server configuration error: ${adminInitError || 'Unknown admin SDK error.'}` };
+  }
 
-    const profileToSave: Omit<UserFirestoreProfile, 'createdAt' | 'updatedAt'> & { createdAt: any, updatedAt: any } = {
+  try {
+    console.log("UserActions (finalize): Verifying ID token...");
+    const decodedToken = await adminAuth.verifyIdToken(idToken);
+    const uid = decodedToken.uid;
+    console.log(`UserActions (finalize): ID token verified for UID: ${uid}`);
+
+    // Use the Admin SDK to update the Auth user's display name
+    await adminAuth.updateUser(uid, { displayName: data.displayName });
+    console.log(`UserActions (finalize): Updated Auth user display name for UID: ${uid}`);
+
+    // Use the Admin SDK to create the Firestore user profile document
+    const userProfileRef = adminDb.collection('user_profiles').doc(uid);
+
+    // Casting to any to handle serverTimestamp correctly before saving
+    const profileToSave: any = {
         uid: uid,
-        email: data.email,
+        email: decodedToken.email,
         displayName: data.displayName,
-        photoURL: data.photoURL || null,
+        photoURL: decodedToken.picture || null,
         profileTypeId: data.profileType,
         clubId: data.selectedClubId,
-        status: 'pending_approval' as UserProfileStatus, // Default status
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
+        status: 'pending_approval' as UserProfileStatus,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     };
     
-    await setDoc(userProfileRef, profileToSave);
-    console.log(`UserActions (Server Action): Successfully created Firestore profile for UID: ${uid} in 'user_profiles'.`);
+    await userProfileRef.set(profileToSave);
+    console.log(`UserActions (finalize): Successfully created Firestore profile for UID: ${uid}`);
+    
     return { success: true };
+
   } catch (error: any) {
-    console.error(`UserActions (Server Action): Error creating user profile in Firestore for UID ${uid} (collection 'user_profiles'):`, error.message, error.code, error.stack);
-    let errorMessage = 'Failed to create user profile via server action.';
-    if (error.message && error.message.toLowerCase().includes('permission denied')) {
-        errorMessage = `Permission denied by Firestore (from server action). This action likely needs Admin SDK for proper auth context or different rules. Firestore error code: ${error.code || 'unknown'}`;
-    } else if (error.message && error.message.toLowerCase().includes('invalid data') && error.message.toLowerCase().includes('undefined')) {
-        errorMessage = `Failed to save profile (from server action): Invalid data sent to Firestore. A field likely had an 'undefined' value. Error: ${error.message}`;
-    } else if (error.message) {
-        errorMessage = error.message;
-    }
-    return { success: false, error: errorMessage };
+    console.error(`UserActions (finalize): Error finalizing user profile. Error code: ${error.code}. Message: ${error.message}`);
+    return { success: false, error: `Failed to finalize profile on server: ${error.message}` };
   }
 }
 
@@ -65,6 +64,7 @@ export async function getUserProfileById(uid: string): Promise<UserFirestoreProf
 
     if (docSnap.exists()) {
       console.log(`UserActions: Profile found for UID: ${uid}.`);
+      // Note: Casting needed because serverTimestamp is read back as Timestamp
       return { uid: docSnap.id, ...docSnap.data() } as UserFirestoreProfile;
     } else {
       console.warn(`UserActions: No profile found for UID: ${uid}.`);
