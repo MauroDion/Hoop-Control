@@ -74,6 +74,14 @@ export interface Club {
   createdAt?: Timestamp;
 }
 
+export interface ClubFormData {
+  name: string;
+  shortName?: string;
+  province_name?: string;
+  city_name?: string;
+  logoUrl?: string;
+}
+
 export interface ProfileTypeOption {
   id: ProfileType;
   label: string;

@@ -23,7 +23,7 @@ import { auth, db } from "@/lib/firebase/client"; // Import db
 import { doc, setDoc, serverTimestamp } from "firebase/firestore"; // Import Firestore functions
 import { useRouter } from "next/navigation";
 // Removed: import { createUserFirestoreProfile } from "@/app/users/actions";
-import { getApprovedClubs } from "@/app/clubs/actions";
+import { getClubs } from "@/app/clubs/actions";
 import { getProfileTypeOptions } from "@/app/profile-types/actions";
 import type { Club, ProfileType, ProfileTypeOption, UserFirestoreProfile, UserProfileStatus } from "@/types";
 import { Loader2 } from "lucide-react";
@@ -60,7 +60,7 @@ export function RegisterForm() {
       console.log("RegisterForm: useEffect fetchClubs - START");
       setLoadingClubs(true);
       try {
-        const fetchedClubs = await getApprovedClubs();
+        const fetchedClubs = await getClubs();
         console.log("RegisterForm: useEffect fetchClubs - Raw fetched clubs data from action:", fetchedClubs);
         setClubs(Array.isArray(fetchedClubs) ? fetchedClubs : []);
         if (!Array.isArray(fetchedClubs)) {

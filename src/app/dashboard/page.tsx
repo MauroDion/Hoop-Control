@@ -163,8 +163,26 @@ export default function DashboardPage() {
           {loadingProfile ? (
             <div className="flex items-center">
               <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-              <span>Loading club information...</span>
+              <span>Loading user information...</span>
             </div>
+          ) : userProfile?.profileTypeId === 'super_admin' ? (
+            <>
+              <p className="text-sm text-muted-foreground">
+                As a Super Admin, you have full control over clubs and teams.
+              </p>
+              <div className="flex space-x-2 pt-2">
+                <Button asChild>
+                  <Link href={`/clubs/new`}>
+                    <PlusCircle className="mr-2 h-5 w-5" /> Create New Club
+                  </Link>
+                </Button>
+                <Button asChild variant="outline">
+                  <Link href={`/clubs`}>
+                    <Building className="mr-2 h-5 w-5" /> Manage Clubs
+                  </Link>
+                </Button>
+              </div>
+            </>
           ) : userProfile?.clubId ? (
             <>
               <p className="text-sm text-muted-foreground">

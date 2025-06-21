@@ -1,29 +1,54 @@
 
 'use server';
 
-import type { Club } from '@/types';
+import type { Club, ClubFormData } from '@/types';
 import { db } from '@/lib/firebase/client';
-import { collection, getDocs, query } from 'firebase/firestore';
+import { collection, getDocs, query, addDoc, serverTimestamp } from 'firebase/firestore';
+import { revalidatePath } from 'next/cache';
 
-export async function getApprovedClubs(): Promise<Club[]> {
-  console.log("ClubActions: Attempting to fetch clubs from Firestore (simplified query - no ordering).");
+export async function createClub(
+  formData: ClubFormData,
+  userId: string
+): Promise<{ success: boolean; error?: string; id?: string }> {
+  if (!userId) {
+    return { success: false, error: 'User not authenticated.' };
+  }
+  // In a real app, you'd verify here if the user is a SUPER_ADMIN using Admin SDK
+  // For now, we rely on the UI to only show the form to the right users.
+
+  try {
+    const newClubData = {
+      ...formData,
+      approved: true, // Clubs created by super_admin are auto-approved
+      createdBy: userId,
+      createdAt: serverTimestamp(),
+    };
+
+    const docRef = await addDoc(collection(db, 'clubs'), newClubData);
+    revalidatePath('/clubs'); // Revalidate the clubs list page
+    return { success: true, id: docRef.id };
+  } catch (error: any) {
+    console.error('Error creating club:', error);
+    return { success: false, error: error.message || 'Failed to create club.' };
+  }
+}
+
+export async function getClubs(): Promise<Club[]> {
+  console.log("ClubActions: Attempting to fetch all clubs from Firestore.");
   try {
     const clubsCollectionRef = collection(db, 'clubs');
-    // Simplified query without orderBy for diagnostics, as per user request.
-    // Original: const q = query(clubsCollectionRef, orderBy('name', 'asc'));
     const q = query(clubsCollectionRef);
     const querySnapshot = await getDocs(q);
 
     if (querySnapshot.empty) {
-      console.warn("ClubActions: No documents found in 'clubs' collection (simplified query). Check collection content and Firestore rules.");
+      console.warn("ClubActions: No documents found in 'clubs' collection.");
       return [];
     }
     
-    console.log(`ClubActions: Found ${querySnapshot.docs.length} documents in 'clubs' collection (simplified query).`);
+    console.log(`ClubActions: Found ${querySnapshot.docs.length} documents in 'clubs' collection.`);
     
     const allClubs = querySnapshot.docs.map(doc => {
       const data = doc.data();
-      // Ensure 'name' field exists and is a string, otherwise provide a fallback and log.
       const clubName = typeof data.name === 'string' && data.name.trim() !== '' ? data.name : `Unnamed Club (ID: ${doc.id})`;
       if (!(typeof data.name === 'string' && data.name.trim() !== '')) {
         console.warn(`ClubActions: Club with ID ${doc.id} has missing, empty, or invalid 'name' field. Data:`, data);
@@ -31,16 +56,14 @@ export async function getApprovedClubs(): Promise<Club[]> {
       return {
         id: doc.id,
         name: clubName,
-        // The 'approved' field is not used for filtering here.
-        // It might be part of the Club type for other uses, so keep it if defined.
-        approved: data.approved === undefined ? undefined : Boolean(data.approved), 
-      } as Club; // Cast to Club, ensure your Club type matches what you expect
+        ...data,
+      } as Club;
     });
     
-    console.log("ClubActions: Successfully fetched and mapped clubs (simplified query):", JSON.stringify(allClubs, null, 2));
+    console.log("ClubActions: Successfully fetched and mapped all clubs.");
     return allClubs;
   } catch (error: any) {
-    console.error('ClubActions: Error fetching clubs from Firestore (simplified query):', error.message, error.stack);
-    return []; // Return empty array on error
+    console.error('ClubActions: Error fetching all clubs from Firestore:', error.message, error.stack);
+    return [];
   }
 }
