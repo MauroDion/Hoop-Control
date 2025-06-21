@@ -3,7 +3,7 @@
 
 import type { Club, ClubFormData } from '@/types';
 import { db } from '@/lib/firebase/client';
-import { collection, getDocs, query, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, getDocs, query, addDoc, serverTimestamp, where } from 'firebase/firestore';
 import { revalidatePath } from 'next/cache';
 
 export async function createClub(
@@ -64,6 +64,45 @@ export async function getClubs(): Promise<Club[]> {
     return allClubs;
   } catch (error: any) {
     console.error('ClubActions: Error fetching all clubs from Firestore:', error.message, error.stack);
+    return [];
+  }
+}
+
+export async function getApprovedClubs(): Promise<Club[]> {
+  console.log("ClubActions: Attempting to fetch only approved clubs from Firestore.");
+  try {
+    const clubsCollectionRef = collection(db, 'clubs');
+    // This query may require a Firestore index on the 'approved' field.
+    const q = query(clubsCollectionRef, where("approved", "==", true)); 
+    const querySnapshot = await getDocs(q);
+
+    if (querySnapshot.empty) {
+      console.warn("ClubActions: No approved clubs found in 'clubs' collection.");
+      return [];
+    }
+    
+    console.log(`ClubActions: Found ${querySnapshot.docs.length} approved clubs.`);
+    
+    const approvedClubs = querySnapshot.docs.map(doc => {
+      const data = doc.data();
+      const clubName = typeof data.name === 'string' && data.name.trim() !== '' ? data.name : `Unnamed Club (ID: ${doc.id})`;
+      if (!(typeof data.name === 'string' && data.name.trim() !== '')) {
+        console.warn(`ClubActions: Club with ID ${doc.id} has missing, empty, or invalid 'name' field. Data:`, data);
+      }
+      return {
+        id: doc.id,
+        name: clubName,
+        ...data,
+      } as Club;
+    });
+    
+    console.log("ClubActions: Successfully fetched and mapped approved clubs.");
+    return approvedClubs;
+  } catch (error: any) {
+    console.error('ClubActions: Error fetching approved clubs from Firestore:', error.message, error.stack);
+     if (error.code === 'failed-precondition') {
+        console.error("ClubActions: Firestore query for approved clubs failed. This is likely due to a missing Firestore index. Please create an index on the 'approved' field for the 'clubs' collection in your Firebase console.");
+    }
     return [];
   }
 }
