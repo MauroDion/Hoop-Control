@@ -68,7 +68,8 @@ export async function getTeamsByClubId(clubId: string): Promise<Team[]> {
 
   try {
     const teamsCollectionRef = adminDb.collection('teams');
-    const q = teamsCollectionRef.where('clubId', '==', clubId).orderBy('createdAt', 'desc');
+    // Simplified query to avoid needing a composite index. We will sort in memory later.
+    const q = teamsCollectionRef.where('clubId', '==', clubId);
     const querySnapshot = await q.get();
 
     if (querySnapshot.empty) {
@@ -87,12 +88,16 @@ export async function getTeamsByClubId(clubId: string): Promise<Team[]> {
         updatedAt: data.updatedAt ? data.updatedAt.toDate() : new Date(),
       } as Team;
     });
+
+    // Sort the results in memory by creation date, newest first.
+    teams.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
     
     return teams;
   } catch (error: any) {
     console.error(`TeamActions: Error fetching teams for club ${clubId}:`, error.message, error.stack);
      if (error.code === 'failed-precondition') {
-        console.error("TeamActions: Firestore query for teams failed. This is likely due to a missing Firestore index. Please create a composite index on the 'teams' collection for fields 'clubId' (asc) and 'createdAt' (desc) in your Firebase console.");
+        // This error is less likely now, but we keep the log just in case.
+        console.error("TeamActions: Firestore query for teams failed. This could be a missing index for 'clubId'.");
     }
     return [];
   }
