@@ -55,4 +55,45 @@ export async function createTeam(
   }
 }
 
-// Future actions like getTeamsByClub, getTeamById, updateTeam, deleteTeam will go here.
+export async function getTeamsByClubId(clubId: string): Promise<Team[]> {
+  console.log(`TeamActions: Attempting to fetch teams for clubId: ${clubId}`);
+  if (!adminDb) {
+    console.warn("TeamActions (getTeamsByClubId): Admin SDK not available. Returning empty array.");
+    return [];
+  }
+  if (!clubId) {
+    console.warn("TeamActions (getTeamsByClubId): clubId is required.");
+    return [];
+  }
+
+  try {
+    const teamsCollectionRef = adminDb.collection('teams');
+    const q = teamsCollectionRef.where('clubId', '==', clubId).orderBy('createdAt', 'desc');
+    const querySnapshot = await q.get();
+
+    if (querySnapshot.empty) {
+      console.log(`TeamActions: No teams found for clubId: ${clubId}`);
+      return [];
+    }
+    
+    console.log(`TeamActions: Found ${querySnapshot.docs.length} teams for clubId: ${clubId}.`);
+    
+    const teams = querySnapshot.docs.map(doc => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        ...data,
+        createdAt: data.createdAt ? data.createdAt.toDate() : new Date(),
+        updatedAt: data.updatedAt ? data.updatedAt.toDate() : new Date(),
+      } as Team;
+    });
+    
+    return teams;
+  } catch (error: any) {
+    console.error(`TeamActions: Error fetching teams for club ${clubId}:`, error.message, error.stack);
+     if (error.code === 'failed-precondition') {
+        console.error("TeamActions: Firestore query for teams failed. This is likely due to a missing Firestore index. Please create a composite index on the 'teams' collection for fields 'clubId' (asc) and 'createdAt' (desc) in your Firebase console.");
+    }
+    return [];
+  }
+}

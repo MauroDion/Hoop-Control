@@ -119,3 +119,38 @@ export async function getApprovedClubs(): Promise<Club[]> {
     return [];
   }
 }
+
+
+export async function getClubById(clubId: string): Promise<Club | null> {
+  console.log(`ClubActions: Attempting to fetch club by ID: ${clubId}`);
+  if (!adminDb) {
+    console.warn("ClubActions (getClubById): Admin SDK not available. Returning null.");
+    return null;
+  }
+   if (!clubId) {
+    console.warn("ClubActions (getClubById): clubId is required.");
+    return null;
+  }
+
+  try {
+    const clubDocRef = adminDb.collection('clubs').doc(clubId);
+    const docSnap = await clubDocRef.get();
+
+    if (!docSnap.exists) {
+      console.warn(`ClubActions: No club found with ID: ${clubId}`);
+      return null;
+    }
+    
+    const data = docSnap.data()!;
+    console.log(`ClubActions: Found club: ${data.name}`);
+    
+    return {
+      id: docSnap.id,
+      ...data,
+      createdAt: data.createdAt ? data.createdAt.toDate() : undefined,
+    } as Club;
+  } catch (error: any) {
+    console.error(`ClubActions: Error fetching club by ID ${clubId}:`, error.message, error.stack);
+    return null;
+  }
+}

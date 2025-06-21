@@ -81,12 +81,14 @@ export function TeamForm({ clubId, gameFormats, competitionCategories, onFormSub
         title: "Team Created",
         description: `Team "${values.name}" has been successfully created.`,
       });
+      form.reset(); // Clear form fields on success
       if (onFormSubmit) {
-        onFormSubmit();
+        onFormSubmit(); // Callback to refresh parent data
       } else {
-        router.push(`/clubs/${clubId}`); // Adjust if you have a club detail page showing teams
+        // Fallback if no callback is provided
+        router.push(`/clubs/${clubId}`);
+        router.refresh(); 
       }
-      router.refresh(); 
     } else {
       toast({
         variant: "destructive",

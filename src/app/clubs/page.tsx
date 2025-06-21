@@ -9,7 +9,7 @@ import type { Club } from '@/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, AlertTriangle, Building, PlusCircle, Users } from 'lucide-react';
+import { Loader2, AlertTriangle, Building, PlusCircle, Settings } from 'lucide-react';
 import Link from 'next/link';
 import { ClubForm } from '@/components/clubs/ClubForm';
 
@@ -97,7 +97,7 @@ export default function ManageClubsPage() {
         <CardHeader>
           <CardTitle>All Clubs</CardTitle>
           <CardDescription>
-            Below is a list of all clubs in the system. You can create teams for any club.
+            Below is a list of all clubs in the system. Select a club to manage its teams.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -124,9 +124,9 @@ export default function ManageClubsPage() {
                       <TableCell>{club.shortName || 'N/A'}</TableCell>
                       <TableCell>{club.city_name || 'N/A'}</TableCell>
                       <TableCell className="text-right">
-                         <Button asChild size="sm">
-                            <Link href={`/clubs/${club.id}/teams/new`}>
-                                <Users className="mr-2 h-4 w-4" /> Create Team
+                         <Button asChild size="sm" variant="outline">
+                            <Link href={`/clubs/${club.id}`}>
+                                <Settings className="mr-2 h-4 w-4" /> Manage
                             </Link>
                          </Button>
                       </TableCell>
