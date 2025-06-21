@@ -25,20 +25,21 @@ export async function POST(request: NextRequest) {
     const sessionCookie = await adminAuth.createSessionCookie(idToken, { expiresIn });
 
     // Set cookie policy for session cookie.
+    // Use SameSite='None' and Secure=true for cross-site contexts like iframes.
     const options = {
-      name: 'session', // Name of the cookie
+      name: 'session',
       value: sessionCookie,
-      maxAge: expiresIn / 1000, // maxAge is in seconds
+      maxAge: expiresIn / 1000,
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production', // Use secure cookies in production
+      secure: true, // Must be true for SameSite=None
       path: '/',
-      sameSite: 'lax' as const,
+      sameSite: 'none' as const,
     };
 
     const response = NextResponse.json({ status: 'success', message: 'Session cookie created.' }, { status: 200 });
     response.cookies.set(options);
     
-    console.log("API (session-login): Session cookie successfully created and set.");
+    console.log("API (session-login): Session cookie successfully created and set with SameSite=None.");
     return response;
 
   } catch (error: any) {

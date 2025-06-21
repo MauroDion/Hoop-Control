@@ -40,12 +40,12 @@ export async function POST(request: NextRequest) {
       value: '',
       maxAge: 0,
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure: true, // Must be true for SameSite=None
       path: '/',
-      sameSite: 'lax',
+      sameSite: 'none',
     });
 
-    console.log("API (session-logout): Session cookie successfully cleared from response.");
+    console.log("API (session-logout): Session cookie successfully cleared from response with SameSite=None.");
     return response;
 
   } catch (error: any) {

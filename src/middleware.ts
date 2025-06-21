@@ -107,8 +107,8 @@ export async function middleware(request: NextRequest) {
             maxAge: 0,
             path: '/',
             httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: 'lax',
+            secure: true, // Must be true for SameSite=None
+            sameSite: 'none',
         });
     } else {
         console.log(`Middleware: User NOT AUTHENTICATED. Redirecting to: ${loginUrl.toString()}`);
