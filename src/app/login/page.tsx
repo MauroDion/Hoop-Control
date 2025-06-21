@@ -3,8 +3,13 @@ import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import Link from "next/link";
 import { Separator } from "@/components/ui/separator";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Clock } from "lucide-react";
 
-export default function LoginPage() {
+
+export default function LoginPage({ searchParams }: { searchParams: { [key: string]: string | string[] | undefined } }) {
+  const showPendingApprovalMessage = searchParams?.status === 'pending_approval';
+
   return (
     <div className="flex min-h-[calc(100vh-10rem)] items-center justify-center">
       <Card className="w-full max-w-md shadow-xl">
@@ -13,6 +18,15 @@ export default function LoginPage() {
           <CardDescription>Sign in to access your BCSJD dashboard.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
+          {showPendingApprovalMessage && (
+            <Alert>
+              <Clock className="h-4 w-4" />
+              <AlertTitle>Account Pending Approval</AlertTitle>
+              <AlertDescription>
+                Your registration is submitted. You will be able to log in once an administrator approves your account.
+              </AlertDescription>
+            </Alert>
+          )}
           <LoginForm />
           <div className="relative my-4">
             <div className="absolute inset-0 flex items-center">

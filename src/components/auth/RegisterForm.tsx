@@ -123,7 +123,7 @@ export function RegisterForm() {
       // Step 3: Success! Inform the user, sign out, and redirect.
       toast({
         title: "Registration Submitted",
-        description: "Your account is created and awaiting administrator approval. You will be signed out now.",
+        description: "Your registration has been submitted. An administrator will review it shortly. You will be able to log in once your account is approved.",
         duration: 7000,
       });
       
