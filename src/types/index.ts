@@ -153,3 +153,10 @@ export interface Player {
   createdBy?: string; // UID
   createdAt?: Date; // Changed from Timestamp
 }
+
+export interface PlayerFormData {
+  firstName: string;
+  lastName: string;
+  jerseyNumber?: number | null;
+  position?: string | null;
+}

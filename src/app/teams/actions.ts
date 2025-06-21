@@ -102,3 +102,38 @@ export async function getTeamsByClubId(clubId: string): Promise<Team[]> {
     return [];
   }
 }
+
+export async function getTeamById(teamId: string): Promise<Team | null> {
+  console.log(`TeamActions: Attempting to fetch team by ID: ${teamId}`);
+  if (!adminDb) {
+    console.warn("TeamActions (getTeamById): Admin SDK not available. Returning null.");
+    return null;
+  }
+  if (!teamId) {
+    console.warn("TeamActions (getTeamById): teamId is required.");
+    return null;
+  }
+
+  try {
+    const teamDocRef = adminDb.collection('teams').doc(teamId);
+    const docSnap = await teamDocRef.get();
+
+    if (!docSnap.exists) {
+      console.warn(`TeamActions: No team found with ID: ${teamId}`);
+      return null;
+    }
+    
+    const data = docSnap.data()!;
+    console.log(`TeamActions: Found team: ${data.name}`);
+    
+    return {
+      id: docSnap.id,
+      ...data,
+      createdAt: data.createdAt ? data.createdAt.toDate() : new Date(),
+      updatedAt: data.updatedAt ? data.updatedAt.toDate() : new Date(),
+    } as Team;
+  } catch (error: any) {
+    console.error(`TeamActions: Error fetching team by ID ${teamId}:`, error.message, error.stack);
+    return null;
+  }
+}

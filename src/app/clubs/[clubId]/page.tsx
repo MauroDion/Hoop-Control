@@ -17,7 +17,7 @@ import { TeamForm } from "@/components/teams/TeamForm";
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Loader2, AlertTriangle, Building, Users, PlusCircle, ChevronLeft } from 'lucide-react';
+import { Loader2, AlertTriangle, Building, Users, PlusCircle, ChevronLeft, Settings } from 'lucide-react';
 import { format } from 'date-fns';
 
 export default function ClubManagementPage() {
@@ -150,6 +150,7 @@ export default function ClubManagementPage() {
                                     <TableHead>Competition</TableHead>
                                     <TableHead>Game Format</TableHead>
                                     <TableHead>Created At</TableHead>
+                                    <TableHead className="text-right">Actions</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -159,6 +160,13 @@ export default function ClubManagementPage() {
                                         <TableCell>{competitionCategories.find(c => c.id === team.competitionCategoryId)?.name || 'N/A'}</TableCell>
                                         <TableCell>{gameFormats.find(f => f.id === team.gameFormatId)?.name || 'N/A'}</TableCell>
                                         <TableCell>{format(team.createdAt, 'PP')}</TableCell>
+                                        <TableCell className="text-right">
+                                            <Button asChild size="sm" variant="outline">
+                                                <Link href={`/clubs/${clubId}/teams/${team.id}`}>
+                                                    <Settings className="mr-2 h-4 w-4" /> Manage Team
+                                                </Link>
+                                            </Button>
+                                        </TableCell>
                                     </TableRow>
                                 ))}
                             </TableBody>
