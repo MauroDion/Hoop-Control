@@ -30,17 +30,17 @@ async function isAuthenticatedViaApi(request: NextRequest): Promise<{ authentica
       // No body needed as cookie is in header
     });
 
-    if (response.ok) {
-      const data = await response.json();
-      if (data.isAuthenticated) {
-        console.log(`Middleware (isAuthenticatedViaApi): API verification SUCCESSFUL for UID: ${data.uid}. User AUTHENTICATED.`);
-        return { authenticated: true, uid: data.uid };
-      }
+    // Read the response body once, regardless of status
+    const data = await response.json().catch(() => ({ isAuthenticated: false, error: "Failed to parse JSON response from verification API." }));
+
+    if (response.ok && data.isAuthenticated) {
+      console.log(`Middleware (isAuthenticatedViaApi): API verification SUCCESSFUL for UID: ${data.uid}. User AUTHENTICATED.`);
+      return { authenticated: true, uid: data.uid };
+    } else {
+      // If response not ok or data.isAuthenticated is false
+      console.warn(`Middleware (isAuthenticatedViaApi): API verification FAILED or user not authenticated. Status: ${response.status}, Body: ${JSON.stringify(data)}`);
+      return { authenticated: false };
     }
-    // If response not ok or data.isAuthenticated is false
-    const errorData = await response.json().catch(() => ({})); // Catch if response.json() fails
-    console.warn(`Middleware (isAuthenticatedViaApi): API verification FAILED or user not authenticated. Status: ${response.status}, Body: ${JSON.stringify(errorData)}`);
-    return { authenticated: false };
 
   } catch (error: any) {
     console.error(`Middleware (isAuthenticatedViaApi): Error calling verification API: ${error.message}`, error.stack);

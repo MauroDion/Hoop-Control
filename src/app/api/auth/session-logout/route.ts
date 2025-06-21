@@ -1,10 +1,18 @@
+
 import { type NextRequest, NextResponse } from 'next/server';
-import { adminAuth } from '@/lib/firebase/admin'; // Use admin SDK
+import { adminAuth, adminInitError } from '@/lib/firebase/admin'; // Use admin SDK
 
 export async function POST(request: NextRequest) {
+  // Add a defensive check right at the beginning
+  if (!adminAuth) {
+    const detailedError = `Server authentication is not configured correctly. Reason: ${adminInitError || 'Unknown initialization error. Check server startup logs for details.'}`;
+    console.error(`API (session-logout): CRITICAL ERROR - Firebase Admin SDK is not initialized. Details: ${adminInitError}`);
+    // Still attempt to clear the client-side cookie even if server auth is down
+  }
+
   try {
     const sessionCookie = request.cookies.get('session')?.value;
-    if (sessionCookie) {
+    if (sessionCookie && adminAuth) { // Only attempt verification if adminAuth is available
       // Verify the session cookie. This is important to prevent CSRF attacks.
       const decodedClaims = await adminAuth.verifySessionCookie(sessionCookie, true /** checkRevoked */)
         .catch(error => {
@@ -16,9 +24,11 @@ export async function POST(request: NextRequest) {
         await adminAuth.revokeRefreshTokens(decodedClaims.sub); // Revoke refresh tokens for the user
         console.log(`API (session-logout): Revoked refresh tokens for UID: ${decodedClaims.sub}`);
       }
+    } else if (sessionCookie && !adminAuth) {
+        console.warn("API (session-logout): Firebase Admin not initialized. Cannot revoke tokens. Proceeding to clear cookie.");
     }
     
-    // Clear the session cookie by setting its Max-Age to 0
+    // Always clear the session cookie by setting its Max-Age to 0
     const response = NextResponse.json({ status: 'success', message: 'Session cookie cleared.' }, { status: 200 });
     response.cookies.set({
       name: 'session',

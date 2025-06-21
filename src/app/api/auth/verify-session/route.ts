@@ -1,8 +1,15 @@
 
 import { type NextRequest, NextResponse } from 'next/server';
-import { adminAuth } from '@/lib/firebase/admin';
+import { adminAuth, adminInitError } from '@/lib/firebase/admin';
 
 export async function POST(request: NextRequest) {
+  // Add a defensive check right at the beginning
+  if (!adminAuth) {
+    const detailedError = `Server authentication is not configured correctly. Reason: ${adminInitError || 'Unknown initialization error. Check server startup logs for details.'}`;
+    console.error(`API (verify-session): CRITICAL ERROR - Firebase Admin SDK is not initialized. Details: ${adminInitError}`);
+    return NextResponse.json({ isAuthenticated: false, error: detailedError }, { status: 500 });
+  }
+
   const sessionCookie = request.cookies.get('session')?.value;
 
   if (!sessionCookie) {
