@@ -3,7 +3,7 @@
 
 import { Button } from "@/components/ui/button";
 import { auth } from "@/lib/firebase/client";
-import { GoogleAuthProvider, signInWithPopup, UserCredential } from "firebase/auth";
+import { GoogleAuthProvider, signInWithPopup, UserCredential, signOut } from "firebase/auth";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useToast } from "@/hooks/use-toast";
 
@@ -29,21 +29,30 @@ export function GoogleSignInButton() {
     try {
       const result: UserCredential = await signInWithPopup(auth, provider);
       
-      if (result.user) {
-        const idToken = await result.user.getIdToken();
-        const response = await fetch('/api/auth/session-login', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ idToken }),
-        });
+      if (!result.user) {
+        throw new Error("Google Sign-In failed, user object not found.");
+      }
 
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || 'Session login failed for Google Sign-In.');
+      const idToken = await result.user.getIdToken();
+      const response = await fetch('/api/auth/session-login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ idToken }),
+      });
+
+      const responseData = await response.json();
+
+      if (!response.ok) {
+        // If server rejects session, sign out client-side
+        await signOut(auth);
+
+        if (responseData.reason) {
+          router.push(`/login?status=${responseData.reason}`);
+          return;
         }
-        console.log("GoogleSignInButton: Session cookie should be set by server.");
+        throw new Error(responseData.error || 'Session login failed for Google Sign-In.');
       }
 
       toast({ title: "Signed in with Google", description: `Welcome, ${result.user.displayName}!` });

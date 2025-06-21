@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { signInWithEmailAndPassword, setPersistence, browserSessionPersistence, browserLocalPersistence } from "firebase/auth";
+import { signInWithEmailAndPassword, setPersistence, browserSessionPersistence, browserLocalPersistence, signOut } from "firebase/auth";
 import { auth } from "@/lib/firebase/client";
 import { useRouter, useSearchParams } from "next/navigation";
 import React from "react";
@@ -49,21 +49,29 @@ export function LoginForm() {
       await setPersistence(auth, values.rememberMe ? browserLocalPersistence : browserSessionPersistence);
       const userCredential = await signInWithEmailAndPassword(auth, values.email, values.password);
       
-      if (userCredential.user) {
-        const idToken = await userCredential.user.getIdToken();
-        const response = await fetch('/api/auth/session-login', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ idToken }),
-        });
+      if (!userCredential.user) {
+        throw new Error("Login failed, user object not found.");
+      }
 
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || 'Session login failed.');
+      const idToken = await userCredential.user.getIdToken();
+      const response = await fetch('/api/auth/session-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ idToken }),
+      });
+
+      const responseData = await response.json();
+
+      if (!response.ok) {
+        // If server rejects session (e.g. pending approval), sign out client-side
+        await signOut(auth);
+
+        if (responseData.reason) {
+          router.push(`/login?status=${responseData.reason}`);
+          return;
         }
-        console.log("LoginForm: Session cookie should be set by server.");
+        // Fallback for other errors from the session-login endpoint
+        throw new Error(responseData.error || 'Session login failed.');
       }
       
       toast({
@@ -77,7 +85,9 @@ export function LoginForm() {
       toast({
         variant: "destructive",
         title: "Login Failed",
-        description: error.message || "Invalid email or password.",
+        description: error.code === 'auth/invalid-credential' 
+          ? "Invalid email or password." 
+          : error.message || "Invalid email or password.",
       });
     }
   }
