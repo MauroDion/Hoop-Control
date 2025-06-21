@@ -3,17 +3,18 @@
 
 import type { CompetitionCategory } from '@/types';
 import { db } from '@/lib/firebase/client';
-import { collection, getDocs, query, orderBy } from 'firebase/firestore';
+import { collection, getDocs, query } from 'firebase/firestore';
 
 export async function getCompetitionCategories(): Promise<CompetitionCategory[]> {
-  console.log("CompetitionCategoryActions: Attempting to fetch competition categories from Firestore, ordered by name.");
+  console.log("CompetitionCategoryActions: Attempting to fetch competition categories from Firestore.");
   try {
     const categoriesCollectionRef = collection(db, 'competitionCategories');
-    const q = query(categoriesCollectionRef, orderBy('name', 'asc'));
+    // Removed orderBy('name') to avoid needing a Firestore index. Sorting is now done in JS.
+    const q = query(categoriesCollectionRef);
     const querySnapshot = await getDocs(q);
 
     if (querySnapshot.empty) {
-      console.warn("CompetitionCategoryActions: No documents found in 'competitionCategories' collection. Check collection content, Firestore rules, and required index on 'name' (asc).");
+      console.warn("CompetitionCategoryActions: No documents found in 'competitionCategories' collection. Check collection content and Firestore rules.");
       return [];
     }
     
@@ -31,13 +32,14 @@ export async function getCompetitionCategories(): Promise<CompetitionCategory[]>
       } as CompetitionCategory; 
     });
     
-    console.log("CompetitionCategoryActions: Successfully fetched categories:", JSON.stringify(allCategories, null, 2));
+    // Sort the results alphabetically by name here in the action
+    allCategories.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+
+    console.log("CompetitionCategoryActions: Successfully fetched and sorted categories:", JSON.stringify(allCategories, null, 2));
     return allCategories;
   } catch (error: any) {
     console.error('CompetitionCategoryActions: Error fetching competition categories:', error.message, error.stack);
-     if (error.code === 'failed-precondition' && error.message.includes("index")) {
-        console.error("CompetitionCategoryActions: Firestore query failed. This is likely due to a missing Firestore index for ordering by 'name' on the 'competitionCategories' collection. Please create this index in your Firebase console: Collection ID 'competitionCategories', Field 'name', Order 'Ascending'.");
-    }
+     // The previous index-related error is now less likely, but we keep the generic error handling.
     return []; // Return empty array on error
   }
 }

@@ -3,17 +3,18 @@
 
 import type { GameFormat } from '@/types';
 import { db } from '@/lib/firebase/client';
-import { collection, getDocs, query, orderBy } from 'firebase/firestore';
+import { collection, getDocs, query } from 'firebase/firestore';
 
 export async function getGameFormats(): Promise<GameFormat[]> {
-  console.log("GameFormatActions: Attempting to fetch game formats from Firestore, ordered by name.");
+  console.log("GameFormatActions: Attempting to fetch game formats from Firestore.");
   try {
     const gameFormatsCollectionRef = collection(db, 'gameFormats');
-    const q = query(gameFormatsCollectionRef, orderBy('name', 'asc'));
+    // Removed orderBy('name') to avoid needing a Firestore index. Sorting is now done in JS.
+    const q = query(gameFormatsCollectionRef);
     const querySnapshot = await getDocs(q);
 
     if (querySnapshot.empty) {
-      console.warn("GameFormatActions: No documents found in 'gameFormats' collection. Check collection content, Firestore rules, and required index on 'name' (asc).");
+      console.warn("GameFormatActions: No documents found in 'gameFormats' collection. Check collection content and Firestore rules.");
       return [];
     }
     
@@ -32,13 +33,14 @@ export async function getGameFormats(): Promise<GameFormat[]> {
       } as GameFormat; 
     });
     
-    console.log("GameFormatActions: Successfully fetched game formats:", JSON.stringify(allGameFormats, null, 2));
+    // Sort the results alphabetically by name here in the action
+    allGameFormats.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+    
+    console.log("GameFormatActions: Successfully fetched and sorted game formats:", JSON.stringify(allGameFormats, null, 2));
     return allGameFormats;
   } catch (error: any) {
     console.error('GameFormatActions: Error fetching game formats:', error.message, error.stack);
-    if (error.code === 'failed-precondition' && error.message.includes("index")) {
-        console.error("GameFormatActions: Firestore query failed. This is likely due to a missing Firestore index for ordering by 'name' on the 'gameFormats' collection. Please create this index in your Firebase console: Collection ID 'gameFormats', Field 'name', Order 'Ascending'.");
-    }
+    // The previous index-related error is now less likely, but we keep the generic error handling.
     return []; // Return empty array on error
   }
 }
