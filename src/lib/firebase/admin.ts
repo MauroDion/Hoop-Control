@@ -59,7 +59,9 @@ if (!adminAuth || !adminDb) {
     if (admin.apps.length === 0 && !adminInitError) {
         adminInitError = "Unknown error during Firebase Admin initialization.";
     }
-    console.error(`Firebase Admin SDK: FATAL - adminAuth or adminDb could not be exported because the SDK is not initialized. Error: ${adminInitError}`);
+    // Using console.warn instead of console.error to prevent the server process manager
+    // from treating this as a fatal startup error and restarting the server in a loop.
+    console.warn(`Firebase Admin SDK: WARNING - adminAuth or adminDb could not be exported because the SDK is not initialized. Error: ${adminInitError}`);
 }
 
 export { adminAuth, adminDb };
