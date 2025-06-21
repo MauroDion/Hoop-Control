@@ -4,10 +4,12 @@ import admin from 'firebase-admin';
 // This file is now only used in the Node.js runtime (API Routes).
 // We ensure it's only initialized once.
 if (!admin.apps.length) {
+  // Diagnostic log to check if the environment variable is being read at all.
   const serviceAccountJsonString = process.env.FIREBASE_ADMIN_SERVICE_ACCOUNT_JSON;
+  console.log(`Firebase Admin SDK: Checking for credentials. Found FIREBASE_ADMIN_SERVICE_ACCOUNT_JSON variable of type '${typeof serviceAccountJsonString}' with length ${serviceAccountJsonString?.length ?? 0}.`);
 
   if (serviceAccountJsonString) {
-    console.log('Firebase Admin SDK: Found FIREBASE_ADMIN_SERVICE_ACCOUNT_JSON. Attempting to initialize...');
+    console.log('Firebase Admin SDK: Attempting to initialize using service account JSON...');
     try {
       const serviceAccount = JSON.parse(serviceAccountJsonString);
       
