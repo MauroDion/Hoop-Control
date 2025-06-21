@@ -29,6 +29,8 @@ async function isAuthenticatedViaApi(request: NextRequest): Promise<{ authentica
     const response = await fetch(verifyUrl.toString(), {
       method: 'POST',
       headers: headers,
+      // IMPORTANT: Disable caching to prevent the middleware from using a stale "unauthenticated" response.
+      cache: 'no-store',
     });
 
     console.log(`Middleware (isAuthenticatedViaApi): Received response from verification API with status: ${response.status}`);
