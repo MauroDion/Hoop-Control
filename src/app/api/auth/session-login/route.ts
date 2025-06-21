@@ -3,6 +3,12 @@ import { type NextRequest, NextResponse } from 'next/server';
 import { adminAuth } from '@/lib/firebase/admin'; // Use admin SDK
 
 export async function POST(request: NextRequest) {
+  // Add a defensive check right at the beginning
+  if (!adminAuth) {
+    console.error("API (session-login): CRITICAL ERROR - Firebase Admin SDK is not initialized. 'adminAuth' is undefined. Check server startup logs for Firebase Admin SDK initialization errors.");
+    return NextResponse.json({ error: "Server authentication is not configured correctly. Check server logs." }, { status: 500 });
+  }
+
   try {
     const { idToken } = await request.json();
     if (!idToken) {
