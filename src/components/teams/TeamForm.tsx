@@ -25,10 +25,16 @@ import { createTeam } from "@/app/teams/actions";
 import { useAuth } from "@/hooks/useAuth";
 import { Loader2 } from "lucide-react";
 
+// Using a unique string to represent a null selection in the form,
+// and then transforming it to actual null for data processing.
+const NULL_VALUE = "__NULL__";
+
 const teamFormSchema = z.object({
   name: z.string().min(2, "Team name must be at least 2 characters long.").max(100, "Team name must be 100 characters or less."),
-  gameFormatId: z.string().optional().nullable(),
-  competitionCategoryId: z.string().optional().nullable(),
+  gameFormatId: z.string().optional().nullable()
+    .transform(value => value === NULL_VALUE ? null : value),
+  competitionCategoryId: z.string().optional().nullable()
+    .transform(value => value === NULL_VALUE ? null : value),
   coachIds: z.string().optional().describe("Comma-separated User IDs of coaches"),
   playerIds: z.string().optional().describe("Comma-separated Player IDs"),
   logoUrl: z.string().url({ message: "Please enter a valid URL for the logo." }).optional().or(z.literal("")).nullable(),
@@ -133,7 +139,7 @@ export function TeamForm({ clubId, gameFormats, competitionCategories, onFormSub
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
-                  <SelectItem value="">No Specific Format</SelectItem>
+                  <SelectItem value={NULL_VALUE}>No Specific Format</SelectItem>
                   {gameFormats.map(format => (
                     <SelectItem key={format.id} value={format.id}>{format.name}</SelectItem>
                   ))}
@@ -161,7 +167,7 @@ export function TeamForm({ clubId, gameFormats, competitionCategories, onFormSub
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
-                   <SelectItem value="">No Specific Category</SelectItem>
+                   <SelectItem value={NULL_VALUE}>No Specific Category</SelectItem>
                   {competitionCategories.map(cat => (
                     <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
                   ))}
