@@ -26,40 +26,45 @@ export default function UserNav() {
   const { toast } = useToast();
 
   const handleLogout = async () => {
+    console.log("UserNav: Logout process initiated.");
     try {
-      // Call the server API endpoint to clear the session cookie
+      // Step 1: Attempt to clear the server session cookie.
+      console.log("UserNav: Attempting to call /api/auth/session-logout endpoint.");
       const response = await fetch('/api/auth/session-logout', {
         method: 'POST',
       });
 
       if (!response.ok) {
+        // If the server call fails, log the error but DO NOT stop the logout process.
         const errorData = await response.json();
-        // Log server-side logout error but proceed with client-side logout
-        console.error('Server-side session logout failed:', errorData.error);
-        toast({ variant: "destructive", title: "Logout Incomplete", description: "Could not clear server session fully, but logging out locally." });
+        console.error('UserNav: Server-side session logout failed. Response:', errorData.error);
+        toast({ variant: "destructive", title: "Logout Warning", description: "Could not clear server session. Logging out locally." });
       } else {
-        console.log("UserNav: Session cookie should be cleared by server.");
+        console.log("UserNav: Server responded OK. Session cookie should be cleared.");
       }
-
-      // Perform client-side Firebase sign out
-      await firebaseClientSignOut(auth);
-      
-      toast({ title: "Logged out", description: "You have been successfully logged out." });
-      router.push('/login'); 
-      router.refresh(); 
     } catch (error: any) {
-      console.error('Full logout failed:', error);
-      toast({ variant: "destructive", title: "Logout Failed", description: error.message || "Could not log you out. Please try again." });
-       // Still attempt client-side logout and redirect if server call failed before client signOut
-      if (auth.currentUser) {
-        try {
-          await firebaseClientSignOut(auth);
-        } catch (clientSignOutError) {
-          console.error('Client-side signOut also failed:', clientSignOutError);
-        }
+      // Also catch network errors, but again, DO NOT stop the logout process.
+      console.error('UserNav: API call to /api/auth/session-logout failed:', error);
+      toast({ variant: "destructive", title: "Logout Error", description: `Could not contact logout service: ${error.message}` });
+    } finally {
+      // Step 2: ALWAYS perform client-side sign-out and redirect.
+      // This ensures the user is logged out on the client regardless of server state.
+      try {
+        await firebaseClientSignOut(auth);
+        console.log("UserNav: Client-side firebaseClientSignOut() completed.");
+        toast({ title: "Logged out", description: "You have been successfully logged out." });
+        
+        // Step 3: Redirect to a clean login page.
+        router.push('/login'); 
+        router.refresh(); // Crucial to ensure the app state is completely reset.
+        console.log("UserNav: Redirected to /login and refreshed router state.");
+      } catch (clientSignOutError: any) {
+        console.error('UserNav: Critical error during client-side signOut:', clientSignOutError);
+        toast({ variant: "destructive", title: "Client Logout Failed", description: clientSignOutError.message });
+        // Still force redirect even if client signout fails for some reason.
+        router.push('/login');
+        router.refresh();
       }
-      router.push('/login');
-      router.refresh();
     }
   };
 
