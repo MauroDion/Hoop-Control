@@ -1,6 +1,9 @@
 
 import admin from 'firebase-admin';
 
+// This new exported variable will hold the specific initialization error.
+export let adminInitError: string | null = null;
+
 // This file is now only used in the Node.js runtime (API Routes).
 // We ensure it's only initialized once.
 if (!admin.apps.length) {
@@ -24,37 +27,39 @@ if (!admin.apps.length) {
       console.log('Firebase Admin SDK: Initialized successfully using service account JSON.');
 
     } catch (e: any) {
-      console.error(
-        'Firebase Admin SDK: CRITICAL FAILURE. Could not initialize using the provided FIREBASE_ADMIN_SERVICE_ACCOUNT_JSON. ' +
-        `Error details: ${e.message}`
-      );
+      // Store the specific error message
+      adminInitError = `Could not initialize using FIREBASE_ADMIN_SERVICE_ACCOUNT_JSON. Error: ${e.message}`;
+      console.error(`Firebase Admin SDK: CRITICAL FAILURE. ${adminInitError}`);
     }
   } else {
-    // This path is for environments like App Hosting where credentials are automatically provided.
+    // Store the specific error message
+    adminInitError = 'FIREBASE_ADMIN_SERVICE_ACCOUNT_JSON environment variable not found. This is required for local development.';
     console.warn(
-      'Firebase Admin SDK: WARNING - FIREBASE_ADMIN_SERVICE_ACCOUNT_JSON not found. ' +
-      'Attempting default initialization. This is expected in production on App Hosting. ' +
-      'For local development, ensure the env var is set in .env.local.'
+      'Firebase Admin SDK: WARNING - ' + adminInitError +
+      ' Attempting default initialization. This is expected in production on App Hosting.'
     );
     try {
         admin.initializeApp();
         console.log('Firebase Admin SDK: Default initialization successful.');
     } catch (e: any) {
+        adminInitError = `Default initialization also failed. Error: ${e.message}`;
         console.error(
-          'Firebase Admin SDK: CRITICAL FAILURE - Default initialization failed. ' +
-          `Error: ${e.message}`
+          'Firebase Admin SDK: CRITICAL FAILURE - ' + adminInitError
         );
     }
   }
 }
 
-// Export auth and firestore instances. They might be undefined if initialization failed.
-// The code using them should be defensive.
+// Export auth and firestore instances. They will be undefined if initialization failed.
 const adminAuth = admin.apps.length ? admin.auth() : undefined;
 const adminDb = admin.apps.length ? admin.firestore() : undefined;
 
 if (!adminAuth || !adminDb) {
-    console.error("Firebase Admin SDK: FATAL - adminAuth or adminDb could not be exported because the SDK is not initialized. Check logs above for initialization errors.");
+    // Update the error if it's still null but initialization failed for some other reason
+    if (admin.apps.length === 0 && !adminInitError) {
+        adminInitError = "Unknown error during Firebase Admin initialization.";
+    }
+    console.error(`Firebase Admin SDK: FATAL - adminAuth or adminDb could not be exported because the SDK is not initialized. Error: ${adminInitError}`);
 }
 
 export { adminAuth, adminDb };
