@@ -57,6 +57,7 @@ export async function getClubs(): Promise<Club[]> {
         id: doc.id,
         name: clubName,
         ...data,
+        createdAt: data.createdAt ? data.createdAt.toDate() : undefined,
       } as Club;
     });
     
@@ -93,6 +94,7 @@ export async function getApprovedClubs(): Promise<Club[]> {
         id: doc.id,
         name: clubName,
         ...data,
+        createdAt: data.createdAt ? data.createdAt.toDate() : undefined,
       } as Club;
     });
     

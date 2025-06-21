@@ -1,4 +1,3 @@
-
 import type { Timestamp } from 'firebase/firestore';
 
 export interface Task {
@@ -7,9 +6,9 @@ export interface Task {
   description?: string;
   status: 'todo' | 'inprogress' | 'done';
   priority: 'low' | 'medium' | 'high';
-  dueDate?: Timestamp | null; // Firestore Timestamp for dates
-  createdAt: Timestamp;
-  updatedAt: Timestamp;
+  dueDate?: Date | null; // Changed from Timestamp
+  createdAt: Date; // Changed from Timestamp
+  updatedAt: Date; // Changed from Timestamp
   userId: string; // To associate task with a user
 }
 
@@ -50,8 +49,8 @@ export interface UserFirestoreProfile {
   profileTypeId: ProfileType;
   clubId: string;
   status: UserProfileStatus;
-  createdAt: Timestamp;
-  updatedAt: Timestamp;
+  createdAt: Date; // Changed from Timestamp
+  updatedAt: Date; // Changed from Timestamp
 }
 
 // ViewModel for admin user management page
@@ -71,7 +70,7 @@ export interface Club {
   logoUrl?: string;
   approved?: boolean;
   createdBy?: string; // UID
-  createdAt?: Timestamp;
+  createdAt?: Date; // Changed from Timestamp
 }
 
 export interface ClubFormData {
@@ -100,8 +99,8 @@ export interface Team {
   playerIds?: string[];
   logoUrl?: string | null;
   city?: string | null;
-  createdAt: Timestamp;
-  updatedAt: Timestamp;
+  createdAt: Date; // Changed from Timestamp
+  updatedAt: Date; // Changed from Timestamp
   createdByUserId: string;
 }
 
@@ -118,10 +117,10 @@ export interface TeamFormData {
 export interface Season {
   id: string;
   name: string;
-  startDate: Timestamp;
-  endDate: Timestamp;
+  startDate: Date; // Changed from Timestamp
+  endDate: Date; // Changed from Timestamp
   createdBy?: string; // UID
-  createdAt?: Timestamp;
+  createdAt?: Date; // Changed from Timestamp
 }
 
 export interface GameFormat {
@@ -132,7 +131,7 @@ export interface GameFormat {
   periodDurationMinutes?: number;
   defaultTotalTimeouts?: number;
   minPeriodsPlayerMustPlay?: number;
-  createdAt?: Timestamp;
+  createdAt?: Date; // Changed from Timestamp
 }
 
 export interface CompetitionCategory {
@@ -140,8 +139,8 @@ export interface CompetitionCategory {
   name: string;
   description?: string;
   level?: number;
-  createdAt?: Timestamp;
-  updatedAt?: Timestamp;
+  createdAt?: Date; // Changed from Timestamp
+  updatedAt?: Date; // Changed from Timestamp
 }
 
 export interface Player {
@@ -152,5 +151,5 @@ export interface Player {
   position?: string;
   teamId?: string;
   createdBy?: string; // UID
-  createdAt?: Timestamp;
+  createdAt?: Date; // Changed from Timestamp
 }

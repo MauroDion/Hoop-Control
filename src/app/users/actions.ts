@@ -69,9 +69,16 @@ export async function getUserProfileById(uid: string): Promise<UserFirestoreProf
 
     if (docSnap.exists) {
       console.log(`UserActions: Profile found for UID: ${uid}.`);
-      // The data is returned with Admin SDK Timestamps, which are compatible with client Timestamps for serialization.
-      // The cast to UserFirestoreProfile should work across the server/client boundary.
-      return { uid: docSnap.id, ...docSnap.data() } as UserFirestoreProfile;
+      const data = docSnap.data();
+      
+      // Convert Firestore Timestamps to serializable JS Date objects
+      const serializableProfile = {
+        ...data,
+        createdAt: data.createdAt.toDate(),
+        updatedAt: data.updatedAt.toDate(),
+      };
+
+      return { uid: docSnap.id, ...serializableProfile } as UserFirestoreProfile;
     } else {
       console.warn(`UserActions: No profile found for UID: ${uid} using Admin SDK.`);
       return null;

@@ -26,9 +26,16 @@ export async function getAllUserProfiles(): Promise<UserFirestoreProfile[]> {
     console.log(`AdminUserManagementActions: Found ${querySnapshot.docs.length} user profiles.`);
     
     const allProfiles = querySnapshot.docs.map(doc => {
+      const data = doc.data();
+      // Convert Timestamps to serializable JS Date objects
+      const serializableData = {
+        ...data,
+        createdAt: data.createdAt.toDate(),
+        updatedAt: data.updatedAt.toDate(),
+      };
       return {
         uid: doc.id,
-        ...doc.data(),
+        ...serializableData,
       } as UserFirestoreProfile;
     });
     

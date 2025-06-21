@@ -118,7 +118,16 @@ export async function getTasks(userId: string): Promise<Task[]> {
   try {
     const q = query(collection(db, "tasks"), where("userId", "==", userId));
     const querySnapshot = await getDocs(q);
-    const tasks = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Task));
+    const tasks = querySnapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+            id: doc.id,
+            ...data,
+            dueDate: data.dueDate ? data.dueDate.toDate() : null,
+            createdAt: data.createdAt.toDate(),
+            updatedAt: data.updatedAt.toDate(),
+        } as Task
+    });
     return tasks;
   } catch (error) {
     console.error("Error fetching tasks:", error);
@@ -136,7 +145,14 @@ export async function getTaskById(id: string, userId: string): Promise<Task | nu
     const taskSnap = await getDocs(query(collection(db, "tasks"), where("userId", "==", userId), where("__name__", "==", id))); // Ensure user owns task
     
     if (!taskSnap.empty && taskSnap.docs[0].exists()) {
-      return { id: taskSnap.docs[0].id, ...taskSnap.docs[0].data() } as Task;
+       const data = taskSnap.docs[0].data();
+       return {
+            id: taskSnap.docs[0].id,
+            ...data,
+            dueDate: data.dueDate ? data.dueDate.toDate() : null,
+            createdAt: data.createdAt.toDate(),
+            updatedAt: data.updatedAt.toDate(),
+        } as Task;
     }
     return null;
   } catch (error) {

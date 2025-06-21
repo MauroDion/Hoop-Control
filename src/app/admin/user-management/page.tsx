@@ -231,7 +231,7 @@ export default function UserManagementPage() {
                       <TableCell>{profile.email}</TableCell>
                       <TableCell>{profile.clubName}</TableCell>
                       <TableCell>{profile.profileTypeLabel}</TableCell>
-                      <TableCell>{profile.createdAt.toDate ? format(profile.createdAt.toDate(), 'PPpp') : 'Invalid Date'}</TableCell>
+                      <TableCell>{profile.createdAt ? format(profile.createdAt, 'PPpp') : 'Invalid Date'}</TableCell>
                       <TableCell>
                         <Badge variant={getStatusBadgeVariant(profile.status)} className="capitalize">
                           {profile.status.replace('_', ' ')}

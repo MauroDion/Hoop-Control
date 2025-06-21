@@ -10,7 +10,6 @@ import Link from "next/link";
 import { CalendarDays, Tag, Info, Edit, Trash2, ChevronLeft, AlertTriangle, Loader2 } from "lucide-react";
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'next/navigation'; // Use next/navigation for App Router
-import { Timestamp } from 'firebase/firestore';
 import {format} from 'date-fns';
 import { deleteTask } from '@/app/tasks/actions';
 import { useToast } from '@/hooks/use-toast';
@@ -121,9 +120,9 @@ export default function TaskDetailPage({ params }: { params: { id: string } }) {
     high: "bg-red-500/20 text-red-700 border-red-500",
   };
   
-  const formatDate = (timestamp?: Timestamp | null) => {
-    if (!timestamp) return 'N/A';
-    return format(timestamp.toDate(), 'PPP'); // e.g., Jun 20, 2023
+  const formatDate = (date?: Date | null) => {
+    if (!date) return 'N/A';
+    return format(date, 'PPP'); // e.g., Jun 20, 2023
   };
 
 
@@ -192,4 +191,3 @@ export default function TaskDetailPage({ params }: { params: { id: string } }) {
     </div>
   );
 }
-

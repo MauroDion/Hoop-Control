@@ -13,7 +13,6 @@ import { deleteTask } from "@/app/tasks/actions";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { useRouter } from "next/navigation"; // Corrected import for App Router
-import { Timestamp } from "firebase/firestore";
 import { format } from "date-fns";
 
 import {
@@ -44,9 +43,9 @@ const priorityText: Record<Task['priority'], string> = {
   high: "High",
 };
 
-const formatDate = (timestamp?: Timestamp | null) => {
-  if (!timestamp) return 'N/A';
-  return format(timestamp.toDate(), 'MMM d, yyyy');
+const formatDate = (date?: Date | null) => {
+  if (!date) return 'N/A';
+  return format(date, 'MMM d, yyyy');
 };
 
 export function TasksList({ tasks }: TasksListProps) {
@@ -64,7 +63,7 @@ export function TasksList({ tasks }: TasksListProps) {
       const matchesStatus = statusFilter === "all" || task.status === statusFilter;
       const matchesPriority = priorityFilter === "all" || task.priority === priorityFilter;
       return matchesSearch && matchesStatus && matchesPriority;
-    }).sort((a, b) => (a.createdAt?.toMillis() || 0) - (b.createdAt?.toMillis() || 0)); // Sort by creation date
+    }).sort((a, b) => (a.createdAt?.getTime() || 0) - (b.createdAt?.getTime() || 0)); // Sort by creation date
   }, [tasks, searchTerm, statusFilter, priorityFilter]);
 
   const handleDelete = async (taskId: string, taskTitle: string) => {

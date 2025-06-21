@@ -36,10 +36,10 @@ interface TaskFormProps {
   onFormSubmit?: () => void; // Optional callback after submission
 }
 
-// Helper to convert Firestore Timestamp to yyyy-MM-dd string
-const formatDateForInput = (timestamp?: Timestamp | null): string => {
-  if (!timestamp) return "";
-  return timestamp.toDate().toISOString().split('T')[0];
+// Helper to convert JS Date to yyyy-MM-dd string
+const formatDateForInput = (date?: Date | null): string => {
+  if (!date) return "";
+  return date.toISOString().split('T')[0];
 };
 
 export function TaskForm({ task, onFormSubmit }: TaskFormProps) {
