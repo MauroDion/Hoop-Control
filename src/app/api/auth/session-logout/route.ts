@@ -48,7 +48,8 @@ export async function POST(request: NextRequest) {
     console.log("API (session-logout): Session cookie successfully cleared from response with SameSite=None.");
     return response;
 
-  } catch (error: any) {
+  } catch (error: any)
+{
     console.error('API (session-logout): Error during logout process:', error.message, error.stack);
     return NextResponse.json({ error: 'Failed to clear session.', details: error.message }, { status: 500 });
   }
