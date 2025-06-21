@@ -23,35 +23,45 @@ export default function ManageClubsPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (authLoading) return;
-    if (!user) {
-      router.replace('/login?redirect=/clubs');
-      return;
-    }
-
     const verifyAdminAndFetchData = async () => {
+      setLoading(true);
+      setError(null);
       try {
+        if (!user) {
+          setError("Authentication session has expired. Please log in again.");
+          setIsSuperAdmin(false);
+          router.replace('/login?redirect=/clubs');
+          return;
+        }
+
+        console.log("ManageClubsPage: Verifying admin status for user:", user.uid);
         const profile = await getUserProfileById(user.uid);
+        console.log("ManageClubsPage: Fetched profile:", profile);
+
         if (profile?.profileTypeId !== 'super_admin') {
+          console.warn("ManageClubsPage: Access denied. User is not a super_admin.");
           setError('Access Denied. You must be a Super Admin to view this page.');
           setIsSuperAdmin(false);
-          setLoading(false);
           return;
         }
         
+        console.log("ManageClubsPage: User is Super Admin. Fetching clubs.");
         setIsSuperAdmin(true);
         const fetchedClubs = await getClubs();
+        console.log("ManageClubsPage: Fetched clubs:", fetchedClubs.length);
         setClubs(fetchedClubs);
 
       } catch (err: any) {
-        setError('Failed to load page data.');
-        console.error(err);
+        console.error("ManageClubsPage: An error occurred:", err);
+        setError('Failed to load page data. Check the console for more details.');
       } finally {
         setLoading(false);
       }
     };
 
-    verifyAdminAndFetchData();
+    if (!authLoading) {
+      verifyAdminAndFetchData();
+    }
   }, [user, authLoading, router]);
 
   if (loading || authLoading) {
@@ -65,10 +75,10 @@ export default function ManageClubsPage() {
 
   if (error) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)]">
+      <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)] text-center">
         <AlertTriangle className="h-12 w-12 text-destructive mb-4" />
         <h1 className="text-2xl font-semibold text-destructive">Error</h1>
-        <p className="text-muted-foreground">{error}</p>
+        <p className="text-muted-foreground mb-4">{error}</p>
         <Button onClick={() => router.push('/dashboard')} className="mt-4">Go to Dashboard</Button>
       </div>
     );

@@ -38,7 +38,6 @@ export default function DashboardPage() {
   const [loadingProfile, setLoadingProfile] = useState(true);
 
   useEffect(() => {
-    // Only run the profile fetch if auth is resolved and we have a user
     if (user) {
       console.log(`Dashboard: useEffect triggered for user: ${user.uid}`);
       setLoadingProfile(true);
@@ -46,7 +45,7 @@ export default function DashboardPage() {
         .then(profile => {
           console.log("Dashboard: Successfully fetched profile data:", profile);
           if (profile) {
-            console.log(`Dashboard: Profile found. Club ID is: ${profile.clubId}`);
+            console.log(`Dashboard: Profile found. Club ID: ${profile.clubId}, Profile Type: ${profile.profileTypeId}`);
           } else {
             console.warn("Dashboard: Profile not found for user. This could be due to Firestore rules or a missing profile document.");
           }
@@ -60,13 +59,12 @@ export default function DashboardPage() {
           console.log("Dashboard: Finished fetching profile, setting loadingProfile to false.");
           setLoadingProfile(false);
         });
-    } else {
-      // If there's no user, we don't need to fetch a profile.
+    } else if (!authLoading) {
+      console.log("Dashboard: No user and auth is resolved. Not fetching profile.");
       setLoadingProfile(false);
     }
-  }, [user]);
+  }, [user, authLoading]);
 
-  // Show a loader ONLY while the initial authentication is happening.
   if (authLoading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)]">
@@ -77,8 +75,6 @@ export default function DashboardPage() {
     );
   }
 
-  // If auth is resolved and there's still no user, the middleware should have redirected.
-  // This is a fallback to prevent rendering a broken page.
   if (!user) {
      return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)]">
@@ -139,14 +135,14 @@ export default function DashboardPage() {
             <p className="text-xs text-muted-foreground">All active</p>
           </CardContent>
         </Card>
-        <Card className="shadow-md hover:shadow-lg transition-shadow border-destructive/50">
+        <Card className="shadow-md hover:shadow-lg transition-shadow">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-destructive">Critical Alerts</CardTitle>
-            <AlertTriangle className="h-5 w-5 text-destructive" />
+            <CardTitle className="text-sm font-medium">Critical Alerts (Sample)</CardTitle>
+            <AlertTriangle className="h-5 w-5 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-destructive">{summaryData.alerts}</div>
-            <p className="text-xs text-muted-foreground">Action required</p>
+            <div className="text-3xl font-bold">{summaryData.alerts}</div>
+            <p className="text-xs text-muted-foreground">This is a sample card</p>
           </CardContent>
         </Card>
       </div>

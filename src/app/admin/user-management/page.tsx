@@ -42,57 +42,71 @@ export default function UserManagementPage() {
   const [error, setError] = useState<string | null>(null);
 
   const fetchPageData = async () => {
-    if (!user) return;
     setLoadingData(true);
     setError(null);
     try {
+      console.log("UserManagementPage: Fetching all required data (profiles, clubs, types)...");
       const [fetchedProfiles, fetchedClubs, fetchedProfileTypes] = await Promise.all([
         getAllUserProfiles(),
         getApprovedClubs(),
         getProfileTypeOptions(),
       ]);
       
+      console.log(`UserManagementPage: Data fetched. Profiles: ${fetchedProfiles.length}, Clubs: ${fetchedClubs.length}, Types: ${fetchedProfileTypes.length}`);
       setProfiles(fetchedProfiles);
       setClubs(fetchedClubs);
       setProfileTypes(fetchedProfileTypes);
 
     } catch (err: any) {
       console.error("Error fetching user management data:", err);
-      setError(err.message || "Failed to load data. Check Firestore rules and server logs.");
+      setError(err.message || "Failed to load data. Check Firestore rules and server logs for details.");
       toast({ variant: "destructive", title: "Data Load Error", description: err.message || "Could not load necessary data." });
     } finally {
       setLoadingData(false);
+      console.log("UserManagementPage: Finished fetching data.");
     }
   };
   
   useEffect(() => {
-    if (authLoading) return;
-    if (!user) {
-      router.replace('/login?redirect=/admin/user-management');
-      return;
-    }
+    const checkPermissionsAndFetchData = async () => {
+      if (!user) {
+        router.replace('/login?redirect=/admin/user-management');
+        return;
+      }
+      
+      setIsVerifyingAdmin(true);
+      setLoadingData(true);
+      setError(null);
 
-    setIsVerifyingAdmin(true);
-    getUserProfileById(user.uid)
-      .then(profile => {
+      try {
+        console.log("UserManagementPage: Verifying admin status for user:", user.uid);
+        const profile = await getUserProfileById(user.uid);
+        console.log("UserManagementPage: Fetched profile:", profile);
+
         if (profile && profile.profileTypeId === 'super_admin') {
+          console.log("UserManagementPage: User is Super Admin.");
           setIsAdmin(true);
-          fetchPageData(); // Fetch data only if admin
+          setIsVerifyingAdmin(false);
+          await fetchPageData();
         } else {
+          console.warn("UserManagementPage: Access denied. User is not a super_admin or profile not found.");
           setIsAdmin(false);
           setError("Access Denied. You must be a Super Admin to view this page.");
+          setIsVerifyingAdmin(false);
+          setLoadingData(false);
         }
-      })
-      .catch(err => {
-        console.error("Error verifying admin status:", err);
-        setError("Could not verify admin status.");
+      } catch (err: any) {
+        console.error("UserManagementPage: Error verifying admin status:", err);
+        setError("Could not verify admin status. Check console for details.");
         setIsAdmin(false);
-      })
-      .finally(() => {
         setIsVerifyingAdmin(false);
-        // setLoadingData(false) should be handled by fetchPageData if it's called
-        if(!isAdmin) setLoadingData(false);
-      });
+        setLoadingData(false);
+      }
+    };
+
+    if (!authLoading) {
+      checkPermissionsAndFetchData();
+    }
   }, [user, authLoading, router]);
 
 
@@ -217,7 +231,7 @@ export default function UserManagementPage() {
                       <TableCell>{profile.email}</TableCell>
                       <TableCell>{profile.clubName}</TableCell>
                       <TableCell>{profile.profileTypeLabel}</TableCell>
-                      <TableCell>{format(profile.createdAt.toDate(), 'PPpp')}</TableCell>
+                      <TableCell>{profile.createdAt.toDate ? format(profile.createdAt.toDate(), 'PPpp') : 'Invalid Date'}</TableCell>
                       <TableCell>
                         <Badge variant={getStatusBadgeVariant(profile.status)} className="capitalize">
                           {profile.status.replace('_', ' ')}
