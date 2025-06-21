@@ -6,7 +6,7 @@ export async function POST(request: NextRequest) {
   // Add a defensive check right at the beginning
   if (!adminAuth) {
     const detailedError = `Server authentication is not configured correctly. Reason: ${adminInitError || 'Unknown initialization error. Check server startup logs for details.'}`;
-    console.error(`API (session-login): CRITICAL ERROR - Firebase Admin SDK is not initialized. Details: ${adminInitError}`);
+    console.warn(`API (session-login): CRITICAL WARNING - Firebase Admin SDK is not initialized. Details: ${adminInitError}`);
     return NextResponse.json({ error: detailedError }, { status: 500 });
   }
 

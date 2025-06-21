@@ -35,7 +35,7 @@ async function verifyAuth(request: NextRequest): Promise<{isAuthenticated: boole
         return { isAuthenticated: false, response: clearCookieResponse };
 
     } catch (error) {
-        console.error('Middleware auth verification fetch failed:', error);
+        console.warn('Middleware auth verification fetch failed:', error);
         return { isAuthenticated: false };
     }
 }
