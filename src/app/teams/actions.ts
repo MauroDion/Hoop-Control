@@ -2,13 +2,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { db } from "@/lib/firebase/client";
-import {
-  collection,
-  addDoc,
-  serverTimestamp,
-  Timestamp,
-} from "firebase/firestore";
+import { adminDb } from "@/lib/firebase/admin";
+import admin from "firebase-admin";
 import type { TeamFormData, Team } from "@/types";
 
 export async function createTeam(
@@ -26,6 +21,12 @@ export async function createTeam(
     return { success: false, error: "Team name cannot be empty." };
   }
 
+  if (!adminDb) {
+    const errorMessage = "Firebase Admin SDK is not initialized. Team creation cannot proceed.";
+    console.error("TeamActions (createTeam):", errorMessage);
+    return { success: false, error: errorMessage };
+  }
+
   try {
     const newTeamData: Omit<Team, "id" | "createdAt" | "updatedAt"> & { createdAt: any, updatedAt: any } = {
       name: formData.name.trim(),
@@ -36,12 +37,12 @@ export async function createTeam(
       playerIds: formData.playerIds ? formData.playerIds.split(',').map(id => id.trim()).filter(id => id) : [],
       logoUrl: formData.logoUrl || null,
       city: formData.city || null,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       createdByUserId: userId,
     };
 
-    const docRef = await addDoc(collection(db, "teams"), newTeamData);
+    const docRef = await adminDb.collection("teams").add(newTeamData);
     
     revalidatePath(`/clubs/${clubId}`);
     // Potentially revalidate a general teams list page if one exists
