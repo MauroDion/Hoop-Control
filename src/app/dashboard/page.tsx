@@ -10,6 +10,7 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { getUserProfileById } from '@/app/users/actions';
 import type { UserFirestoreProfile } from '@/types';
+import { useRouter } from 'next/navigation';
 
 // Dummy data - replace with actual data fetching
 const summaryData = {
@@ -32,12 +33,21 @@ const bcsjdApiSampleData: ApiData[] = [
 
 export default function DashboardPage() {
   const { user, loading: authLoading } = useAuth();
+  const router = useRouter();
   const [userProfile, setUserProfile] = useState<UserFirestoreProfile | null>(null);
   const [loadingProfile, setLoadingProfile] = useState(true);
 
   useEffect(() => {
-    // Only run if auth is resolved and we have a user
-    if (!authLoading && user) {
+    // Client-side guard: If auth is resolved and there is no user,
+    // redirect to the login page. This prevents getting stuck.
+    if (!authLoading && !user) {
+      console.log("Dashboard Client Guard: No user found, redirecting to /login.");
+      router.replace('/login');
+      return; // Stop the effect here
+    }
+
+    // Only run the profile fetch if auth is resolved and we have a user
+    if (user) {
       console.log(`Dashboard: useEffect triggered for user: ${user.uid}`);
       setLoadingProfile(true);
       getUserProfileById(user.uid)
@@ -58,21 +68,17 @@ export default function DashboardPage() {
           console.log("Dashboard: Finished fetching profile, setting loadingProfile to false.");
           setLoadingProfile(false);
         });
-    } else if (!authLoading && !user) {
-        // Handle case where user is logged out or auth is resolved with no user
-        console.log("Dashboard: useEffect triggered but user is not logged in.");
-        setLoadingProfile(false);
-        setUserProfile(null);
     }
-  }, [user, authLoading]);
+  }, [user, authLoading, router]);
 
-  if (!user && !authLoading) {
-    // This should ideally be handled by middleware, but as a fallback:
+  // Show a loader while auth is loading or if a redirect is about to happen.
+  // This prevents flashing the old "Access Denied" message.
+  if (authLoading || !user) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)]">
-        <AlertTriangle className="h-12 w-12 text-destructive mb-4" />
-        <h1 className="text-2xl font-headline font-semibold text-destructive">Access Denied</h1>
-        <p className="text-muted-foreground">Please log in to view the dashboard.</p>
+        <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
+        <h1 className="text-2xl font-headline font-semibold">Verifying Session...</h1>
+        <p className="text-muted-foreground">Please wait.</p>
       </div>
     );
   }
