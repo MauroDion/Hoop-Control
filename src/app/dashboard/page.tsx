@@ -38,14 +38,6 @@ export default function DashboardPage() {
   const [loadingProfile, setLoadingProfile] = useState(true);
 
   useEffect(() => {
-    // Client-side guard: If auth is resolved and there is no user,
-    // redirect to the login page. This prevents getting stuck.
-    if (!authLoading && !user) {
-      console.log("Dashboard Client Guard: No user found, redirecting to /login.");
-      router.replace('/login');
-      return; // Stop the effect here
-    }
-
     // Only run the profile fetch if auth is resolved and we have a user
     if (user) {
       console.log(`Dashboard: useEffect triggered for user: ${user.uid}`);
@@ -68,17 +60,32 @@ export default function DashboardPage() {
           console.log("Dashboard: Finished fetching profile, setting loadingProfile to false.");
           setLoadingProfile(false);
         });
+    } else {
+      // If there's no user, we don't need to fetch a profile.
+      setLoadingProfile(false);
     }
-  }, [user, authLoading, router]);
+  }, [user]);
 
-  // Show a loader while auth is loading or if a redirect is about to happen.
-  // This prevents flashing the old "Access Denied" message.
-  if (authLoading || !user) {
+  // Show a loader ONLY while the initial authentication is happening.
+  if (authLoading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)]">
         <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
         <h1 className="text-2xl font-headline font-semibold">Verifying Session...</h1>
         <p className="text-muted-foreground">Please wait.</p>
+      </div>
+    );
+  }
+
+  // If auth is resolved and there's still no user, the middleware should have redirected.
+  // This is a fallback to prevent rendering a broken page.
+  if (!user) {
+     return (
+      <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)]">
+        <AlertTriangle className="h-12 w-12 text-destructive mb-4" />
+        <h1 className="text-2xl font-headline font-semibold text-destructive">Access Denied</h1>
+        <p className="text-muted-foreground mb-4">You must be logged in to view this page.</p>
+        <Button onClick={() => router.push('/login')}>Go to Login</Button>
       </div>
     );
   }
