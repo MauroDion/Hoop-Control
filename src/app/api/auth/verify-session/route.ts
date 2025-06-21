@@ -32,13 +32,22 @@ export async function POST(request: NextRequest) {
     } else {
       const reason = userProfile ? `status is '${userProfile.status}'` : 'profile not found';
       console.warn(`API (verify-session): Authentication FAILED for UID: ${decodedClaims.uid} because ${reason}.`);
-      // User is not approved or doesn't have a profile. Treat as unauthenticated.
-      return NextResponse.json({ isAuthenticated: false, error: `User is not approved. Status: ${userProfile?.status || 'N/A'}` }, { status: 403 }); // 403 Forbidden is appropriate
+      // User is not approved or doesn't have a profile. Send back a structured error.
+      return NextResponse.json({ 
+          isAuthenticated: false, 
+          error: 'User account not active.', 
+          reason: userProfile?.status || 'not_found' // e.g., 'pending_approval', 'rejected'
+        }, { status: 403 }); // 403 Forbidden is appropriate for a valid user who lacks rights
     }
 
   } catch (error: any) {
     console.warn(`API (verify-session): Cookie verification FAILED. Error Code: ${error.code}. Message: ${error.message}`);
     // This catches invalid/expired cookies.
-    return NextResponse.json({ isAuthenticated: false, error: 'Invalid session cookie.', details: `Code: ${error.code}, Message: ${error.message}` }, { status: 401 });
+    return NextResponse.json({ 
+        isAuthenticated: false, 
+        error: 'Invalid session cookie.', 
+        reason: 'invalid_cookie',
+        details: `Code: ${error.code}, Message: ${error.message}` 
+    }, { status: 401 });
   }
 }

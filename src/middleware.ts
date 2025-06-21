@@ -3,40 +3,40 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 // This function checks if a user is authenticated by verifying their session cookie with a server-side API route.
-async function verifyAuth(request: NextRequest): Promise<{isAuthenticated: boolean, response?: NextResponse}> {
+async function verifyAuth(request: NextRequest): Promise<{
+    isAuthenticated: boolean, 
+    reason?: string,
+    response?: NextResponse
+}> {
     const sessionCookie = request.cookies.get('session')?.value;
 
-    // If no cookie, definitely not authenticated.
     if (!sessionCookie) {
         return { isAuthenticated: false };
     }
 
     try {
-        // The URL must be absolute for fetch in middleware.
         const response = await fetch(new URL('/api/auth/verify-session', request.url), {
             method: 'POST',
             headers: {
-                'Cookie': `session=${sessionCookie}` // Forward the cookie to the verification endpoint
+                'Cookie': `session=${sessionCookie}`
             }
         });
         
-        // If the verification endpoint says the session is valid, we're good.
-        if (response.ok) {
-            const data = await response.json();
-            if (data.isAuthenticated) {
-              return { isAuthenticated: true };
-            }
+        const data = await response.json();
+
+        if (response.ok && data.isAuthenticated) {
+            return { isAuthenticated: true };
         }
-
-        // If verification fails (e.g., expired cookie), clear the invalid cookie and treat as unauthenticated.
+        
+        // If not authenticated, we'll clear the cookie and pass along the reason.
         const clearCookieResponse = NextResponse.next();
-        clearCookieResponse.cookies.set({ name: 'session', value: '', maxAge: 0 });
+        clearCookieResponse.cookies.set({ name: 'session', value: '', maxAge: 0, path: '/' });
 
-        return { isAuthenticated: false, response: clearCookieResponse };
+        return { isAuthenticated: false, reason: data.reason || 'unknown', response: clearCookieResponse };
 
     } catch (error) {
         console.warn('Middleware auth verification fetch failed:', error);
-        return { isAuthenticated: false };
+        return { isAuthenticated: false, reason: 'verify_fetch_failed' };
     }
 }
 
@@ -44,49 +44,43 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   console.log(`\nMiddleware: Verifying auth for path: ${pathname}`);
   
-  // Define public paths that do not require authentication.
   const publicPaths = ['/', '/login', '/register', '/reset-password'];
   const isPublicPath = publicPaths.includes(pathname);
 
-  // Verify the user's session.
-  const { isAuthenticated, response: clearCookieResponse } = await verifyAuth(request);
-  console.log(`Middleware: Auth status is isAuthenticated: ${isAuthenticated}`);
+  const { isAuthenticated, reason, response: authResponse } = await verifyAuth(request);
+  console.log(`Middleware: Auth status is isAuthenticated: ${isAuthenticated}, Reason: ${reason}`);
 
-  let response: NextResponse;
-
-  // If user is authenticated
   if (isAuthenticated) {
-    // If they are trying to access a public page (like login), redirect them to the dashboard.
     if (isPublicPath) {
       console.log(`Middleware: Authenticated user on public path '${pathname}'. Redirecting to /dashboard.`);
       return NextResponse.redirect(new URL('/dashboard', request.url));
     }
-    // Otherwise, allow them to proceed to the requested page.
-    response = clearCookieResponse || NextResponse.next();
-  } 
-  // If user is NOT authenticated
-  else {
-    // If they are trying to access a protected page, redirect them to the login page.
+  } else {
+    // User is not authenticated
+    const loginUrl = new URL('/login', request.url);
     if (!isPublicPath) {
-      const loginUrl = new URL('/login', request.url);
-      loginUrl.searchParams.set('redirect', pathname);
-      console.log(`Middleware: Unauthenticated user on protected path '${pathname}'. Redirecting to ${loginUrl.toString()}`);
-      response = NextResponse.redirect(loginUrl);
-    } else {
-      // Allow access to public pages.
-      response = clearCookieResponse || NextResponse.next();
+        // Trying to access a protected page, so redirect to login
+        loginUrl.searchParams.set('redirect', pathname);
+        if (reason && (reason === 'pending_approval' || reason === 'rejected')) {
+            loginUrl.searchParams.set('status', reason);
+        }
+        console.log(`Middleware: Unauthenticated user on protected path '${pathname}'. Redirecting to ${loginUrl.toString()}`);
+        
+        const redirectResponse = NextResponse.redirect(loginUrl);
+        // If we also need to clear a cookie, copy it from authResponse
+        if (authResponse && authResponse.cookies.has('session')) {
+            const sessionCookie = authResponse.cookies.get('session');
+            if (sessionCookie) {
+                 redirectResponse.cookies.set(sessionCookie);
+            }
+        }
+        return redirectResponse;
     }
-    // If we have a response that clears a cookie, we must use it.
-     if (clearCookieResponse) {
-       // If we also need to redirect, we need to clone headers.
-       if(response.headers.get('Location')) {
-         clearCookieResponse.headers.set('Location', response.headers.get('Location')!);
-       }
-       return clearCookieResponse;
-     }
   }
-
-  return response;
+  
+  // For all other cases (authenticated on protected page, unauthenticated on public page),
+  // just return the authResponse if it exists (to clear cookie) or continue.
+  return authResponse || NextResponse.next();
 }
 
 export const config = {

@@ -4,11 +4,38 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import Link from "next/link";
 import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Clock } from "lucide-react";
+import { Clock, ShieldX } from "lucide-react";
 
 
 export default function LoginPage({ searchParams }: { searchParams: { [key: string]: string | string[] | undefined } }) {
-  const showPendingApprovalMessage = searchParams?.status === 'pending_approval';
+  const status = searchParams?.status;
+
+  const renderStatusMessage = () => {
+    switch (status) {
+      case 'pending_approval':
+        return (
+          <Alert>
+            <Clock className="h-4 w-4" />
+            <AlertTitle>Account Pending Approval</AlertTitle>
+            <AlertDescription>
+              Your registration is submitted. You will be able to log in once an administrator approves your account.
+            </AlertDescription>
+          </Alert>
+        );
+      case 'rejected':
+        return (
+          <Alert variant="destructive">
+            <ShieldX className="h-4 w-4" />
+            <AlertTitle>Account Access Denied</AlertTitle>
+            <AlertDescription>
+              Your account access has been rejected. Please contact an administrator for more information.
+            </AlertDescription>
+          </Alert>
+        );
+      default:
+        return null;
+    }
+  };
 
   return (
     <div className="flex min-h-[calc(100vh-10rem)] items-center justify-center">
@@ -18,15 +45,7 @@ export default function LoginPage({ searchParams }: { searchParams: { [key: stri
           <CardDescription>Sign in to access your BCSJD dashboard.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-          {showPendingApprovalMessage && (
-            <Alert>
-              <Clock className="h-4 w-4" />
-              <AlertTitle>Account Pending Approval</AlertTitle>
-              <AlertDescription>
-                Your registration is submitted. You will be able to log in once an administrator approves your account.
-              </AlertDescription>
-            </Alert>
-          )}
+          {renderStatusMessage()}
           <LoginForm />
           <div className="relative my-4">
             <div className="absolute inset-0 flex items-center">
