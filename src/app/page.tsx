@@ -1,42 +1,14 @@
-"use client";
-import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { useAuth } from '@/hooks/useAuth';
+
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { Loader2 } from 'lucide-react';
 import Image from 'next/image';
 
 export default function HomePage() {
-  const { user, loading } = useAuth();
-  const router = useRouter();
-
-  useEffect(() => {
-    if (!loading && user) {
-      router.replace('/dashboard');
-    }
-  }, [user, loading, router]);
-
-  if (loading) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)] text-center p-6">
-        <Loader2 className="h-16 w-16 animate-spin text-primary mb-6" />
-        <h1 className="text-3xl font-headline font-bold mb-2">Loading Application...</h1>
-        <p className="text-muted-foreground">Please wait while we prepare your experience.</p>
-      </div>
-    );
-  }
-
-  if (user) {
-     // This state should ideally not be reached due to useEffect redirect, but as a fallback:
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)] text-center p-6">
-        <Loader2 className="h-16 w-16 animate-spin text-primary mb-6" />
-        <h1 className="text-3xl font-headline font-bold mb-2">Redirecting...</h1>
-        <p className="text-muted-foreground">Taking you to your dashboard.</p>
-      </div>
-    );
-  }
+  // This page is now a simple Server Component.
+  // It no longer contains client-side logic to check for authentication.
+  // The middleware (`src/middleware.ts`) is solely responsible for redirecting
+  // authenticated users away from this page to the /dashboard.
+  // This approach simplifies the logic and prevents client-server race conditions.
 
   return (
     <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)] text-center p-6 bg-gradient-to-br from-background to-secondary/30 rounded-xl shadow-2xl">
