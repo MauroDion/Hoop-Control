@@ -2,7 +2,6 @@
 
 import { db } from '@/lib/firebase/client';
 import admin, { adminAuth, adminDb, adminInitError } from '@/lib/firebase/admin';
-import { doc, getDoc, Timestamp } from 'firebase/firestore';
 import type { UserFirestoreProfile, ProfileType, UserProfileStatus } from '@/types';
 
 // This new server action uses the Admin SDK to securely create the user profile,
@@ -56,21 +55,29 @@ export async function finalizeNewUserProfile(
 
 
 export async function getUserProfileById(uid: string): Promise<UserFirestoreProfile | null> {
-  console.log(`UserActions: Attempting to fetch profile for UID: ${uid} from 'user_profiles'.`);
+  // Defensive check to ensure the Admin SDK was initialized correctly.
+  if (!adminDb) {
+    console.error("UserActions (getProfile): Firebase Admin SDK not initialized. Error:", adminInitError);
+    // Do not throw, just return null so the UI can handle it.
+    return null;
+  }
+  
+  console.log(`UserActions: Attempting to fetch profile for UID: ${uid} from 'user_profiles' using Admin SDK.`);
   try {
-    const userProfileRef = doc(db, 'user_profiles', uid);
-    const docSnap = await getDoc(userProfileRef);
+    const userProfileRef = adminDb.collection('user_profiles').doc(uid);
+    const docSnap = await userProfileRef.get();
 
-    if (docSnap.exists()) {
+    if (docSnap.exists) {
       console.log(`UserActions: Profile found for UID: ${uid}.`);
-      // Note: Casting needed because serverTimestamp is read back as Timestamp
+      // The data is returned with Admin SDK Timestamps, which are compatible with client Timestamps for serialization.
+      // The cast to UserFirestoreProfile should work across the server/client boundary.
       return { uid: docSnap.id, ...docSnap.data() } as UserFirestoreProfile;
     } else {
-      console.warn(`UserActions: No profile found for UID: ${uid}.`);
+      console.warn(`UserActions: No profile found for UID: ${uid} using Admin SDK.`);
       return null;
     }
   } catch (error: any) {
-    console.error(`UserActions: Error fetching user profile for UID ${uid}:`, error.message, error.stack);
+    console.error(`UserActions: Error fetching user profile for UID ${uid} with Admin SDK:`, error.message, error.stack);
     return null;
   }
 }
