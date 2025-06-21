@@ -2,19 +2,20 @@
 'use server';
 
 import type { CompetitionCategory } from '@/types';
-import { db } from '@/lib/firebase/client';
-import { collection, getDocs, query } from 'firebase/firestore';
+import { adminDb } from '@/lib/firebase/admin';
 
 export async function getCompetitionCategories(): Promise<CompetitionCategory[]> {
-  console.log("CompetitionCategoryActions: Attempting to fetch competition categories from Firestore.");
+  console.log("CompetitionCategoryActions: Attempting to fetch competition categories from Firestore using Admin SDK.");
+  if (!adminDb) {
+    console.warn("CompetitionCategoryActions (getCompetitionCategories): Admin SDK not available. Returning empty array.");
+    return [];
+  }
   try {
-    const categoriesCollectionRef = collection(db, 'competitionCategories');
-    // Removed orderBy('name') to avoid needing a Firestore index. Sorting is now done in JS.
-    const q = query(categoriesCollectionRef);
-    const querySnapshot = await getDocs(q);
+    const categoriesCollectionRef = adminDb.collection('competitionCategories');
+    const querySnapshot = await categoriesCollectionRef.get();
 
     if (querySnapshot.empty) {
-      console.warn("CompetitionCategoryActions: No documents found in 'competitionCategories' collection. Check collection content and Firestore rules.");
+      console.warn("CompetitionCategoryActions: No documents found in 'competitionCategories' collection.");
       return [];
     }
     
@@ -25,21 +26,20 @@ export async function getCompetitionCategories(): Promise<CompetitionCategory[]>
       return {
         id: doc.id,
         name: data.name || `Unnamed Category (ID: ${doc.id})`,
-        // Include other fields as needed from CompetitionCategory type if they are stored
         description: data.description,
         level: data.level,
-        // ... add other fields
+        createdAt: data.createdAt ? data.createdAt.toDate() : undefined,
+        updatedAt: data.updatedAt ? data.updatedAt.toDate() : undefined,
       } as CompetitionCategory; 
     });
     
     // Sort the results alphabetically by name here in the action
     allCategories.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
 
-    console.log("CompetitionCategoryActions: Successfully fetched and sorted categories:", JSON.stringify(allCategories, null, 2));
+    console.log("CompetitionCategoryActions: Successfully fetched and sorted categories using Admin SDK.");
     return allCategories;
   } catch (error: any) {
-    console.error('CompetitionCategoryActions: Error fetching competition categories:', error.message, error.stack);
-     // The previous index-related error is now less likely, but we keep the generic error handling.
+    console.error('CompetitionCategoryActions: Error fetching competition categories with Admin SDK:', error.message, error.stack);
     return []; // Return empty array on error
   }
 }
