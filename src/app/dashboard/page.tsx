@@ -38,17 +38,14 @@ export default function DashboardPage() {
   const [loadingProfile, setLoadingProfile] = useState(true);
 
   useEffect(() => {
+    // The middleware is now responsible for ensuring only authenticated users reach this page.
+    // So, we expect the `user` object to be available shortly after `authLoading` is false.
     if (user) {
-      console.log(`Dashboard: useEffect triggered for user: ${user.uid}`);
+      console.log(`Dashboard: User authenticated. Fetching profile for UID: ${user.uid}`);
       setLoadingProfile(true);
       getUserProfileById(user.uid)
         .then(profile => {
           console.log("Dashboard: Successfully fetched profile data:", profile);
-          if (profile) {
-            console.log(`Dashboard: Profile found. Club ID: ${profile.clubId}, Profile Type: ${profile.profileTypeId}`);
-          } else {
-            console.warn("Dashboard: Profile not found for user. This could be due to Firestore rules or a missing profile document.");
-          }
           setUserProfile(profile);
         })
         .catch(err => {
@@ -56,17 +53,20 @@ export default function DashboardPage() {
           setUserProfile(null);
         })
         .finally(() => {
-          console.log("Dashboard: Finished fetching profile, setting loadingProfile to false.");
+          console.log("Dashboard: Finished fetching profile.");
           setLoadingProfile(false);
         });
-    } else if (!authLoading) {
-      // If auth is resolved and there's no user, we don't need to fetch a profile.
-      setLoadingProfile(false);
+    } else if (!authLoading && !user) {
+      // This is a failsafe. If for any reason an unauthenticated user gets here
+      // (e.g., session expires while on page), redirect them.
+      console.warn("Dashboard: Failsafe triggered. Unauthenticated user detected. Redirecting to login.");
+      router.replace('/login');
     }
-  }, [user, authLoading]);
+  }, [user, authLoading, router]);
 
-  // Show a loader ONLY while authentication is explicitly in progress.
-  if (authLoading) {
+  // A single, reliable loading state. Middleware ensures we don't need an "unauthenticated" UI here.
+  // We wait for auth to be confirmed (`!authLoading && user`) before proceeding to render the dashboard.
+  if (authLoading || !user) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)]">
         <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
@@ -76,24 +76,12 @@ export default function DashboardPage() {
     );
   }
   
-  // If loading is finished, but there's still no user, it means middleware should have redirected.
-  // This is a fallback UI.
-  if (!user) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)] text-center">
-        <AlertTriangle className="h-12 w-12 text-destructive mb-4" />
-        <h1 className="text-2xl font-headline font-semibold text-destructive">Authentication Required</h1>
-        <p className="text-muted-foreground">You must be logged in to view the dashboard.</p>
-        <Button onClick={() => router.push('/login')} className="mt-4">Go to Login Page</Button>
-      </div>
-    );
-  }
-  
+  // From here on, we can safely assume `user` exists.
   return (
     <div className="space-y-8">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 p-6 bg-card rounded-lg shadow-lg">
         <div>
-          <h1 className="text-4xl font-headline font-bold text-primary">Welcome, {user?.displayName || user?.email}!</h1>
+          <h1 className="text-4xl font-headline font-bold text-primary">Welcome, {user.displayName || user.email}!</h1>
           <p className="text-lg text-muted-foreground mt-1">Here&apos;s a summary of your BCSJD workspace.</p>
         </div>
         <Image 
