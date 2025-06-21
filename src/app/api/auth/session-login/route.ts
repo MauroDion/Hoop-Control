@@ -36,15 +36,16 @@ export async function POST(request: NextRequest) {
 
   } catch (error: any) {
     console.error('API (session-login): CRITICAL ERROR creating session cookie. Full error object:', error);
+    
+    // Provide more specific error messages for better client-side debugging.
     let errorMessage = 'Failed to create session.';
     if (error.code === 'auth/id-token-expired') {
         errorMessage = 'Firebase ID token has expired. Please re-authenticate.';
     } else if (error.code === 'auth/invalid-id-token') {
         errorMessage = 'Firebase ID token is invalid. Please re-authenticate.';
-    } else if (error.message && error.message.includes('auth/argument-error')) {
-        errorMessage = 'Invalid ID token provided. Please try again.';
-    } else if (error.message && error.message.includes('Credential')) {
-        errorMessage = 'Server authentication error. The service account credential might be invalid or missing.'
+    } else if (error.message) {
+        // For other errors, especially credential errors, pass the specific message.
+        errorMessage = error.message;
     }
 
     return NextResponse.json({ error: errorMessage, details: error.message }, { status: 401 });
