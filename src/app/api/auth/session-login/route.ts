@@ -1,3 +1,4 @@
+
 import { type NextRequest, NextResponse } from 'next/server';
 import { adminAuth } from '@/lib/firebase/admin'; // Use admin SDK
 
@@ -5,8 +6,10 @@ export async function POST(request: NextRequest) {
   try {
     const { idToken } = await request.json();
     if (!idToken) {
+      console.log("API (session-login): Request failed because ID token is missing.");
       return NextResponse.json({ error: 'ID token is required.' }, { status: 400 });
     }
+    console.log(`API (session-login): Received ID token, attempting to create session cookie.`);
 
     // Set session expiration to 5 days.
     const expiresIn = 60 * 60 * 24 * 5 * 1000; // 5 days in milliseconds
@@ -32,13 +35,18 @@ export async function POST(request: NextRequest) {
     return response;
 
   } catch (error: any) {
-    console.error('API (session-login): Error creating session cookie:', error.message, error.code, error.stack);
+    console.error('API (session-login): CRITICAL ERROR creating session cookie. Full error object:', error);
     let errorMessage = 'Failed to create session.';
     if (error.code === 'auth/id-token-expired') {
         errorMessage = 'Firebase ID token has expired. Please re-authenticate.';
     } else if (error.code === 'auth/invalid-id-token') {
         errorMessage = 'Firebase ID token is invalid. Please re-authenticate.';
+    } else if (error.message && error.message.includes('auth/argument-error')) {
+        errorMessage = 'Invalid ID token provided. Please try again.';
+    } else if (error.message && error.message.includes('Credential')) {
+        errorMessage = 'Server authentication error. The service account credential might be invalid or missing.'
     }
+
     return NextResponse.json({ error: errorMessage, details: error.message }, { status: 401 });
   }
 }

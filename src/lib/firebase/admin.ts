@@ -9,7 +9,7 @@ if (!admin.apps.length) {
     const serviceAccountJsonString = process.env.FIREBASE_ADMIN_SERVICE_ACCOUNT_JSON;
 
     if (serviceAccountJsonString) {
-      console.log('Firebase Admin SDK (Node.js): Found FIREBASE_ADMIN_SERVICE_ACCOUNT_JSON. Attempting initialization.');
+      console.log('Firebase Admin SDK (Node.js): Found FIREBASE_ADMIN_SERVICE_ACCOUNT_JSON. Attempting to parse and initialize.');
       try {
         const serviceAccount = JSON.parse(serviceAccountJsonString);
         if (!serviceAccount.project_id || !serviceAccount.private_key || !serviceAccount.client_email) {
@@ -21,68 +21,59 @@ if (!admin.apps.length) {
         console.log('Firebase Admin SDK (Node.js): Initialized successfully using FIREBASE_ADMIN_SERVICE_ACCOUNT_JSON.');
       } catch (e: any) {
         console.error(
-          'Firebase Admin SDK (Node.js): FAILED to parse or use FIREBASE_ADMIN_SERVICE_ACCOUNT_JSON. ' +
-          `Error: ${e.message}. Attempting default Node.js initialization as a fallback.`,
-          e.stack
+          'Firebase Admin SDK (Node.js): CRITICAL FAILURE to parse or use FIREBASE_ADMIN_SERVICE_ACCOUNT_JSON. ' +
+          'This is the most likely cause of auth issues. Please check your .env.local file. ' +
+          `Error: ${e.message}.`,
+          'Attempting default Node.js initialization as a fallback.'
         );
-        // Fallback to default Node.js initialization if JSON string method fails
         try {
-          admin.initializeApp(); // Relies on GOOGLE_APPLICATION_CREDENTIALS env var or Application Default Credentials
-          console.log('Firebase Admin SDK (Node.js): Default initialization (fallback after JSON failure) successful.');
+          admin.initializeApp();
+          console.log('Firebase Admin SDK (Node.js): Default initialization (fallback) successful.');
         } catch (defaultInitError: any) {
-          console.error('Firebase Admin SDK (Node.js): Default initialization (fallback after JSON failure) FAILED. This is critical for Node.js runtime. Error: ' + defaultInitError.message, defaultInitError.stack);
+          console.error('Firebase Admin SDK (Node.js): Default initialization (fallback) FAILED. This is critical. Error: ' + defaultInitError.message, defaultInitError.stack);
         }
       }
     } else {
       console.log(
         'Firebase Admin SDK (Node.js): FIREBASE_ADMIN_SERVICE_ACCOUNT_JSON not found. ' +
-        'Attempting default Node.js initialization (may rely on GOOGLE_APPLICATION_CREDENTIALS file path or Application Default Credentials)...'
+        'Attempting default Node.js initialization (may rely on GOOGLE_APPLICATION_CREDENTIALS)...'
       );
       try {
           admin.initializeApp();
           console.log('Firebase Admin SDK (Node.js): Default initialization successful.');
       } catch (e: any)          {
-          console.error('Firebase Admin SDK (Node.js): Default Node.js initialization FAILED. This is critical for Node.js runtime. Error: ' + e.message, e.stack);
+          console.error('Firebase Admin SDK (Node.js): Default Node.js initialization FAILED. This is critical. Error: ' + e.message, e.stack);
       }
     }
   } else if (process.env.NEXT_RUNTIME === 'edge') {
     // EDGE RUNTIME (Middleware, etc.)
-    // For Edge, Firebase Admin SDK expects credentials to be implicitly available (e.g., via environment in Firebase App Hosting).
-    // Or, it might not be fully supported for all operations.
-    // For verifying session cookies, this might work if the environment is set up by App Hosting.
     console.log('Firebase Admin SDK (Edge): Attempting default initialization for Edge runtime.');
     try {
       admin.initializeApp();
       console.log('Firebase Admin SDK (Edge): Default initialization for Edge runtime successful.');
     } catch (e: any) {
       console.error('Firebase Admin SDK (Edge): Default initialization for Edge runtime FAILED. Error: ' + e.message, e.stack);
-      // Note: authInstance and dbInstance might remain undefined if this fails.
     }
   } else {
-    console.warn('Firebase Admin SDK: Unknown runtime environment. NEXT_RUNTIME:', process.env.NEXT_RUNTIME, '. Skipping Admin SDK initialization for safety.');
+    console.warn('Firebase Admin SDK: Unknown runtime environment. NEXT_RUNTIME:', process.env.NEXT_RUNTIME, '. Skipping Admin SDK initialization.');
   }
-} else {
-  // console.log('Firebase Admin SDK: Already initialized.');
 }
 
 let authInstance: admin.auth.Auth | undefined;
 let dbInstance: admin.firestore.Firestore | undefined;
 
-// Attempt to get instances only if an app is initialized and the default app exists.
-if (admin.apps.length > 0 && admin.apps[0]) { // Check if default app exists
+if (admin.apps.length > 0 && admin.apps[0]) {
   try {
     const defaultApp = admin.app(); 
     authInstance = defaultApp.auth();
     dbInstance = defaultApp.firestore();
   } catch (e: any) {
-    console.error("Firebase Admin SDK: Error getting auth or db instance from default app. This might happen if initialization failed. Error: " + e.message);
+    console.error("Firebase Admin SDK: Error getting auth or db instance from default app. Error: " + e.message);
   }
 } else {
-  console.warn("Firebase Admin SDK: No Firebase app initialized, or default app is missing. Auth and DB instances will be undefined. This usually means initialization failed critically in all paths.");
+  console.warn("Firebase Admin SDK: No Firebase app initialized. Auth and DB instances will be undefined.");
 }
 
-// Exporting with non-null assertion for convenience.
-// Code using these should be aware that they might be undefined if initialization failed.
 export const adminAuth = authInstance!;
 export const adminDb = dbInstance!;
 export default admin;
