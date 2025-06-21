@@ -20,17 +20,25 @@ async function isAuthenticatedViaApi(request: NextRequest): Promise<{ authentica
     
     console.log(`Middleware (isAuthenticatedViaApi): Calling internal API endpoint: ${verifyUrl.toString()}`);
     
+    // Add a custom header to identify this as an internal fetch and prevent an infinite loop.
+    const headers = new Headers();
+    headers.set('Content-Type', 'application/json');
+    headers.set('Cookie', `session=${sessionCookie}`);
+    headers.set('x-internal-fetch', 'true');
+
     const response = await fetch(verifyUrl.toString(), {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        // Pass along the cookie to the API route
-        'Cookie': `session=${sessionCookie}`
-      },
-      // No body needed as cookie is in header
+      headers: headers,
     });
 
     console.log(`Middleware (isAuthenticatedViaApi): Received response from verification API with status: ${response.status}`);
+    
+    // Check if the response is not a valid JSON before parsing
+    if (!response.headers.get('content-type')?.includes('application/json')) {
+        console.error("Middleware (isAuthenticatedViaApi): Response from verification API was not JSON. Body:", await response.text());
+        return { authenticated: false };
+    }
+
     const data = await response.json().catch((err) => {
         console.error("Middleware (isAuthenticatedViaApi): Failed to parse JSON response from verification API.", err);
         return { isAuthenticated: false, error: "Failed to parse JSON response." };
@@ -42,7 +50,6 @@ async function isAuthenticatedViaApi(request: NextRequest): Promise<{ authentica
       console.log(`Middleware (isAuthenticatedViaApi): API verification SUCCESSFUL for UID: ${data.uid}. User AUTHENTICATED.`);
       return { authenticated: true, uid: data.uid };
     } else {
-      // If response not ok or data.isAuthenticated is false
       console.warn(`Middleware (isAuthenticatedViaApi): API verification FAILED or user not authenticated. Status: ${response.status}, Body: ${JSON.stringify(data)}`);
       return { authenticated: false };
     }
@@ -54,39 +61,46 @@ async function isAuthenticatedViaApi(request: NextRequest): Promise<{ authentica
 }
 
 export async function middleware(request: NextRequest) {
+  // If this is an internal fetch initiated by our `isAuthenticatedViaApi` helper,
+  // let it pass through without running any middleware logic to avoid an infinite loop.
+  if (request.headers.get('x-internal-fetch') === 'true') {
+    return NextResponse.next();
+  }
+
   const { pathname, search } = request.nextUrl;
-  const fullRequestedPath = `${pathname}${search || ''}`; // Ensure search is not undefined
+  const fullRequestedPath = `${pathname}${search || ''}`;
 
   console.log(`\nMiddleware: Processing request for: ${fullRequestedPath}`);
 
   const publicPaths = ['/login', '/register', '/reset-password', '/'];
-  const authApiPaths = ['/api/auth/session-login', '/api/auth/session-logout', '/api/auth/verify-session'];
-
-  if (publicPaths.includes(pathname) || authApiPaths.includes(pathname) || pathname.startsWith('/api/public')) {
-    console.log(`Middleware: Path '${pathname}' is public or an auth/public API. Allowing access.`);
+  
+  // Public paths and static assets are allowed through
+  if (publicPaths.includes(pathname) || pathname.startsWith('/api/public')) {
+    console.log(`Middleware: Path '${pathname}' is public. Allowing access.`);
     return NextResponse.next();
   }
 
   const { authenticated } = await isAuthenticatedViaApi(request);
 
   if (authenticated) {
-    if ((pathname === '/login' || pathname === '/register') && pathname !== '/') {
-      console.log(`Middleware: User AUTHENTICATED (API verified) trying to access '${pathname}'. Redirecting to /dashboard.`);
+    // If an authenticated user tries to access login/register, redirect to dashboard
+    if (pathname === '/login' || pathname === '/register') {
+      console.log(`Middleware: User AUTHENTICATED trying to access '${pathname}'. Redirecting to /dashboard.`);
       return NextResponse.redirect(new URL('/dashboard', request.url));
     }
-    console.log(`Middleware: User AUTHENTICATED (API verified). Allowing access to protected path: '${pathname}'.`);
+    console.log(`Middleware: User AUTHENTICATED. Allowing access to protected path: '${pathname}'.`);
     return NextResponse.next();
   } else {
     // User is not authenticated, redirect to login
     const loginUrl = new URL('/login', request.url);
-    if (pathname !== '/') { // Avoid redirect loop if '/' is somehow considered protected and unauth
+    if (!publicPaths.includes(pathname)) { // Avoid setting redirect for root page
         loginUrl.searchParams.set('redirect', fullRequestedPath);
     }
     
     const response = NextResponse.redirect(loginUrl);
     // Clear potentially invalid session cookie if it exists and verification failed
     if (request.cookies.get('session')?.value) {
-        console.log(`Middleware: User NOT AUTHENTICATED (API verification failed or cookie absent). Redirecting to: ${loginUrl.toString()} and attempting to clear 'session' cookie.`);
+        console.log(`Middleware: User NOT AUTHENTICATED. Redirecting to: ${loginUrl.toString()} and attempting to clear 'session' cookie.`);
         response.cookies.set({
             name: 'session',
             value: '',
@@ -97,7 +111,7 @@ export async function middleware(request: NextRequest) {
             sameSite: 'lax',
         });
     } else {
-        console.log(`Middleware: User NOT AUTHENTICATED (session cookie absent). Redirecting to: ${loginUrl.toString()}`);
+        console.log(`Middleware: User NOT AUTHENTICATED. Redirecting to: ${loginUrl.toString()}`);
     }
     return response;
   }
@@ -109,7 +123,7 @@ export const config = {
     // - _next/static (static files)
     // - _next/image (image optimization files)
     // - favicon.ico (favicon file)
-    // - api/public (public API routes)
-    '/((?!_next/static|_next/image|favicon.ico|api/public/).*)',
+    // No need to exclude /api/* here because we handle it with the x-internal-fetch header
+    '/((?!_next/static|_next/image|favicon.ico).*)',
   ],
 };
