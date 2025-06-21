@@ -2,8 +2,8 @@
 'use server';
 
 import type { Club, ClubFormData } from '@/types';
-import { db } from '@/lib/firebase/client';
-import { collection, getDocs, query, addDoc, serverTimestamp, where } from 'firebase/firestore';
+import { adminDb } from '@/lib/firebase/admin';
+import admin from 'firebase-admin';
 import { revalidatePath } from 'next/cache';
 
 export async function createClub(
@@ -13,18 +13,22 @@ export async function createClub(
   if (!userId) {
     return { success: false, error: 'User not authenticated.' };
   }
-  // In a real app, you'd verify here if the user is a SUPER_ADMIN using Admin SDK
-  // For now, we rely on the UI to only show the form to the right users.
+
+  if (!adminDb) {
+    const errorMessage = "Firebase Admin SDK is not initialized. Club creation cannot proceed.";
+    console.error("ClubActions (createClub):", errorMessage);
+    return { success: false, error: errorMessage };
+  }
 
   try {
     const newClubData = {
       ...formData,
       approved: true, // Clubs created by super_admin are auto-approved
       createdBy: userId,
-      createdAt: serverTimestamp(),
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
     };
 
-    const docRef = await addDoc(collection(db, 'clubs'), newClubData);
+    const docRef = await adminDb.collection('clubs').add(newClubData);
     revalidatePath('/clubs'); // Revalidate the clubs list page
     return { success: true, id: docRef.id };
   } catch (error: any) {
@@ -34,11 +38,14 @@ export async function createClub(
 }
 
 export async function getClubs(): Promise<Club[]> {
-  console.log("ClubActions: Attempting to fetch all clubs from Firestore.");
+  console.log("ClubActions: Attempting to fetch all clubs from Firestore using Admin SDK.");
+  if (!adminDb) {
+    console.warn("ClubActions (getClubs): Admin SDK not available. Returning empty array.");
+    return [];
+  }
   try {
-    const clubsCollectionRef = collection(db, 'clubs');
-    const q = query(clubsCollectionRef);
-    const querySnapshot = await getDocs(q);
+    const clubsCollectionRef = adminDb.collection('clubs');
+    const querySnapshot = await clubsCollectionRef.get();
 
     if (querySnapshot.empty) {
       console.warn("ClubActions: No documents found in 'clubs' collection.");
@@ -61,21 +68,25 @@ export async function getClubs(): Promise<Club[]> {
       } as Club;
     });
     
-    console.log("ClubActions: Successfully fetched and mapped all clubs.");
+    console.log("ClubActions: Successfully fetched and mapped all clubs using Admin SDK.");
     return allClubs;
   } catch (error: any) {
-    console.error('ClubActions: Error fetching all clubs from Firestore:', error.message, error.stack);
+    console.error('ClubActions: Error fetching all clubs from Firestore with Admin SDK:', error.message, error.stack);
     return [];
   }
 }
 
 export async function getApprovedClubs(): Promise<Club[]> {
-  console.log("ClubActions: Attempting to fetch only approved clubs from Firestore.");
+  console.log("ClubActions: Attempting to fetch only approved clubs from Firestore using Admin SDK.");
+   if (!adminDb) {
+    console.warn("ClubActions (getApprovedClubs): Admin SDK not available. Returning empty array.");
+    return [];
+  }
   try {
-    const clubsCollectionRef = collection(db, 'clubs');
+    const clubsCollectionRef = adminDb.collection('clubs');
     // This query may require a Firestore index on the 'approved' field.
-    const q = query(clubsCollectionRef, where("approved", "==", true)); 
-    const querySnapshot = await getDocs(q);
+    const q = clubsCollectionRef.where("approved", "==", true); 
+    const querySnapshot = await q.get();
 
     if (querySnapshot.empty) {
       console.warn("ClubActions: No approved clubs found in 'clubs' collection.");
@@ -98,10 +109,10 @@ export async function getApprovedClubs(): Promise<Club[]> {
       } as Club;
     });
     
-    console.log("ClubActions: Successfully fetched and mapped approved clubs.");
+    console.log("ClubActions: Successfully fetched and mapped approved clubs using Admin SDK.");
     return approvedClubs;
   } catch (error: any) {
-    console.error('ClubActions: Error fetching approved clubs from Firestore:', error.message, error.stack);
+    console.error('ClubActions: Error fetching approved clubs from Firestore with Admin SDK:', error.message, error.stack);
      if (error.code === 'failed-precondition') {
         console.error("ClubActions: Firestore query for approved clubs failed. This is likely due to a missing Firestore index. Please create an index on the 'approved' field for the 'clubs' collection in your Firebase console.");
     }
