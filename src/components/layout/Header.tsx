@@ -15,7 +15,8 @@ import {
     CalendarCheck,
     Tag,
     ChevronDown,
-    Building
+    Building,
+    ListOrdered
 } from 'lucide-react';
 import { useEffect, useState } from 'react'; 
 import { getUserProfileById } from '@/app/users/actions';
@@ -101,6 +102,12 @@ export default function Header() {
                       <Link href="/admin/competition-categories" className="flex items-center w-full cursor-pointer">
                         <Tag className="mr-2 h-4 w-4" />
                         <span>Categories</span>
+                      </Link>
+                    </DropdownMenuItem>
+                     <DropdownMenuItem asChild>
+                      <Link href="/admin/game-formats" className="flex items-center w-full cursor-pointer">
+                        <ListOrdered className="mr-2 h-4 w-4" />
+                        <span>Game Formats</span>
                       </Link>
                     </DropdownMenuItem>
                   </DropdownMenuContent>

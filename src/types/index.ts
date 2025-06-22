@@ -153,6 +153,15 @@ export interface GameFormat {
   createdAt?: Date; // Changed from Timestamp
 }
 
+export interface GameFormatFormData {
+    name: string;
+    description?: string;
+    numPeriods?: number;
+    periodDurationMinutes?: number;
+    defaultTotalTimeouts?: number;
+    minPeriodsPlayerMustPlay?: number;
+}
+
 export interface CompetitionCategory {
   id: string; // Firestore document ID
   name: string;
