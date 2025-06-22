@@ -5,10 +5,28 @@ import Link from 'next/link';
 import { useAuth } from '@/hooks/useAuth';
 import UserNav from './UserNav';
 import { Button } from '@/components/ui/button';
-import { LayoutDashboard, ListChecks, BarChart3, LogIn, UserCog, CalendarClock, CalendarCheck } from 'lucide-react';
+import { 
+    LayoutDashboard, 
+    ListChecks, 
+    BarChart3, 
+    LogIn, 
+    UserCog, 
+    CalendarClock, 
+    CalendarCheck,
+    Tag,
+    ChevronDown
+} from 'lucide-react';
 import { useEffect, useState } from 'react'; 
 import { getUserProfileById } from '@/app/users/actions';
 import type { UserFirestoreProfile } from '@/types';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 export default function Header() {
   const { user, loading } = useAuth();
@@ -48,15 +66,38 @@ export default function Header() {
               <Link href="/bcsjd-api-data" className="transition-colors hover:text-primary flex items-center">
                 <BarChart3 className="mr-2 h-4 w-4" /> API Data
               </Link>
+              
               {profile?.profileTypeId === 'super_admin' && (
-                <>
-                  <Link href="/admin/user-management" className="transition-colors hover:text-primary flex items-center">
-                    <UserCog className="mr-2 h-4 w-4" /> Admin Users
-                  </Link>
-                  <Link href="/seasons" className="transition-colors hover:text-primary flex items-center">
-                    <CalendarCheck className="mr-2 h-4 w-4" /> Manage Seasons
-                  </Link>
-                </>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" className="transition-colors hover:text-primary flex items-center">
+                      Admin Tools
+                      <ChevronDown className="ml-1 h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuLabel>Management</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem asChild>
+                      <Link href="/admin/user-management" className="flex items-center w-full cursor-pointer">
+                        <UserCog className="mr-2 h-4 w-4" />
+                        <span>Users</span>
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                      <Link href="/seasons" className="flex items-center w-full cursor-pointer">
+                        <CalendarCheck className="mr-2 h-4 w-4" />
+                        <span>Seasons</span>
+                      </Link>
+                    </DropdownMenuItem>
+                     <DropdownMenuItem asChild>
+                      <Link href="/admin/competition-categories" className="flex items-center w-full cursor-pointer">
+                        <Tag className="mr-2 h-4 w-4" />
+                        <span>Categories</span>
+                      </Link>
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               )}
             </>
           )}

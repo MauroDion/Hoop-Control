@@ -161,6 +161,13 @@ export interface CompetitionCategory {
   updatedAt?: Date; // Changed from Timestamp
 }
 
+export interface CompetitionCategoryFormData {
+  name: string;
+  description?: string;
+  level?: number;
+}
+
+
 export interface Player {
   id: string;
   firstName: string;
