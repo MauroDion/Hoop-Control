@@ -183,8 +183,6 @@ export interface Game {
   awayTeamId: string;
   homeTeamName: string; // denormalized
   awayTeamName: string; // denormalized
-  gameFormatId?: string | null;
-  competitionCategoryId?: string | null;
   date: Date;
   location: string;
   status: 'scheduled' | 'in-progress' | 'completed' | 'cancelled';
@@ -195,6 +193,10 @@ export interface Game {
   createdBy: string; // user id
   createdAt: Date;
   updatedAt: Date;
+  // New fields for season integration
+  seasonId: string;
+  gameFormatId?: string | null;
+  competitionCategoryId: string;
 }
 
 export interface GameFormData {
@@ -203,6 +205,7 @@ export interface GameFormData {
   date: string; // From date input
   time: string; // From time input
   location: string;
+  seasonId: string;
+  competitionCategoryId: string;
   gameFormatId?: string | null;
-  competitionCategoryId?: string | null;
 }

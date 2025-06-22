@@ -6,11 +6,12 @@ import { CalendarClock, Loader2, AlertTriangle, ChevronLeft } from "lucide-react
 import { useAuth } from "@/hooks/useAuth";
 import { useRouter } from "next/navigation";
 import React, { useEffect, useState } from "react";
-import type { Team, GameFormat, CompetitionCategory, UserFirestoreProfile } from "@/types";
+import type { Team, GameFormat, CompetitionCategory, UserFirestoreProfile, Season } from "@/types";
 import { getTeamsByCoach, getAllTeams } from "@/app/teams/actions";
 import { getGameFormats } from "@/app/game-formats/actions";
 import { getCompetitionCategories } from "@/app/competition-categories/actions";
 import { getUserProfileById } from "@/app/users/actions";
+import { getSeasons } from "@/app/seasons/actions";
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 
@@ -23,6 +24,7 @@ export default function NewGamePage() {
   const [allTeams, setAllTeams] = useState<Team[]>([]);
   const [gameFormats, setGameFormats] = useState<GameFormat[]>([]);
   const [competitionCategories, setCompetitionCategories] = useState<CompetitionCategory[]>([]);
+  const [seasons, setSeasons] = useState<Season[]>([]);
   
   const [loadingData, setLoadingData] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -38,16 +40,17 @@ export default function NewGamePage() {
       setLoadingData(true);
       setError(null);
       try {
-        const [profile, fetchedCoachTeams, fetchedAllTeams, formats, categories] = await Promise.all([
+        const [profile, fetchedCoachTeams, fetchedAllTeams, formats, categories, fetchedSeasons] = await Promise.all([
           getUserProfileById(user.uid),
           getTeamsByCoach(user.uid),
           getAllTeams(),
           getGameFormats(),
-          getCompetitionCategories()
+          getCompetitionCategories(),
+          getSeasons()
         ]);
         
-        if (!profile || profile.profileTypeId !== 'coach') {
-            setError("Access Denied. You must be a coach to schedule games.");
+        if (!profile || (profile.profileTypeId !== 'coach' && profile.profileTypeId !== 'super_admin' && profile.profileTypeId !== 'coordinator')) {
+            setError("Access Denied. You must be a coach, coordinator, or admin to schedule games.");
             return;
         }
 
@@ -56,6 +59,7 @@ export default function NewGamePage() {
         setAllTeams(fetchedAllTeams);
         setGameFormats(formats);
         setCompetitionCategories(categories);
+        setSeasons(fetchedSeasons.filter(s => s.status === 'active')); // Only allow scheduling for active seasons
 
       } catch (err: any) {
         setError("Failed to load data required for scheduling a game.");
@@ -108,6 +112,7 @@ export default function NewGamePage() {
             allTeams={allTeams}
             gameFormats={gameFormats}
             competitionCategories={competitionCategories}
+            seasons={seasons}
           />
         </CardContent>
       </Card>
