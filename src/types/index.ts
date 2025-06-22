@@ -117,10 +117,26 @@ export interface TeamFormData {
 export interface Season {
   id: string;
   name: string;
-  startDate: Date; // Changed from Timestamp
-  endDate: Date; // Changed from Timestamp
+  startDate: Date;
+  endDate: Date;
+  status: 'draft' | 'active' | 'archived';
+  competitions: Array<{
+    competitionCategoryId: string;
+    teamIds: string[];
+  }>;
   createdBy?: string; // UID
-  createdAt?: Date; // Changed from Timestamp
+  createdAt?: Date;
+}
+
+export interface SeasonFormData {
+  name: string;
+  startDate: string;
+  endDate: string;
+  status: 'draft' | 'active' | 'archived';
+  competitions: Array<{
+    competitionCategoryId: string;
+    teamIds: string[];
+  }>;
 }
 
 export interface GameFormat {

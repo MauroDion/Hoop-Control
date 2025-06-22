@@ -5,16 +5,23 @@ import Link from 'next/link';
 import { useAuth } from '@/hooks/useAuth';
 import UserNav from './UserNav';
 import { Button } from '@/components/ui/button';
-import { LayoutDashboard, ListChecks, BarChart3, LogIn, UserCog, CalendarClock } from 'lucide-react'; // Changed UsersCog to UserCog
-import { useEffect } from 'react'; 
+import { LayoutDashboard, ListChecks, BarChart3, LogIn, UserCog, CalendarClock, CalendarCheck } from 'lucide-react';
+import { useEffect, useState } from 'react'; 
+import { getUserProfileById } from '@/app/users/actions';
+import type { UserFirestoreProfile } from '@/types';
 
 export default function Header() {
   const { user, loading } = useAuth();
+  const [profile, setProfile] = useState<UserFirestoreProfile | null>(null);
 
   useEffect(() => {
-    // This log is still useful for general auth debugging
-    console.log('[Header] Auth State:', { user: user ? { uid: user.uid, email: user.email } : null, loading });
-  }, [user, loading]);
+    if (user && !profile) {
+      getUserProfileById(user.uid).then(setProfile);
+    }
+    if (!user) {
+      setProfile(null);
+    }
+  }, [user, profile]);
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 shadow-sm">
@@ -41,14 +48,16 @@ export default function Header() {
               <Link href="/bcsjd-api-data" className="transition-colors hover:text-primary flex items-center">
                 <BarChart3 className="mr-2 h-4 w-4" /> API Data
               </Link>
-              {/* 
-                Simple link for now. The page /admin/user-management will handle actual role verification.
-                In a more advanced setup, this link itself could be conditionally rendered based on user role
-                if the role is available in the useAuth() hook.
-              */}
-              <Link href="/admin/user-management" className="transition-colors hover:text-primary flex items-center">
-                <UserCog className="mr-2 h-4 w-4" /> Admin Users
-              </Link>
+              {profile?.profileTypeId === 'super_admin' && (
+                <>
+                  <Link href="/admin/user-management" className="transition-colors hover:text-primary flex items-center">
+                    <UserCog className="mr-2 h-4 w-4" /> Admin Users
+                  </Link>
+                  <Link href="/seasons" className="transition-colors hover:text-primary flex items-center">
+                    <CalendarCheck className="mr-2 h-4 w-4" /> Manage Seasons
+                  </Link>
+                </>
+              )}
             </>
           )}
         </nav>
