@@ -14,7 +14,8 @@ import {
     CalendarClock, 
     CalendarCheck,
     Tag,
-    ChevronDown
+    ChevronDown,
+    Building
 } from 'lucide-react';
 import { useEffect, useState } from 'react'; 
 import { getUserProfileById } from '@/app/users/actions';
@@ -82,6 +83,12 @@ export default function Header() {
                       <Link href="/admin/user-management" className="flex items-center w-full cursor-pointer">
                         <UserCog className="mr-2 h-4 w-4" />
                         <span>Users</span>
+                      </Link>
+                    </DropdownMenuItem>
+                     <DropdownMenuItem asChild>
+                      <Link href="/clubs" className="flex items-center w-full cursor-pointer">
+                        <Building className="mr-2 h-4 w-4" />
+                        <span>Clubs</span>
                       </Link>
                     </DropdownMenuItem>
                     <DropdownMenuItem asChild>
