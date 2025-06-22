@@ -6,11 +6,12 @@ import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'next/navigation';
 import { getUserProfileById } from '@/app/users/actions';
 import { getCompetitionCategories } from '@/app/competition-categories/actions';
-import type { CompetitionCategory } from '@/types';
+import { getGameFormats } from '@/app/game-formats/actions';
+import type { CompetitionCategory, GameFormat } from '@/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, AlertTriangle, Tag, PlusCircle } from 'lucide-react';
+import { Loader2, AlertTriangle, Tag, PlusCircle, ListOrdered } from 'lucide-react';
 import { CompetitionCategoryForm } from '@/components/competition-categories/CompetitionCategoryForm';
 import { format } from 'date-fns';
 
@@ -21,6 +22,7 @@ export default function ManageCategoriesPage() {
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
   const [categories, setCategories] = useState<CompetitionCategory[]>([]);
+  const [gameFormats, setGameFormats] = useState<GameFormat[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
@@ -36,8 +38,13 @@ export default function ManageCategoriesPage() {
       }
       setIsSuperAdmin(true);
 
-      const fetchedCategories = await getCompetitionCategories();
+      const [fetchedCategories, fetchedGameFormats] = await Promise.all([
+          getCompetitionCategories(),
+          getGameFormats()
+      ]);
       setCategories(fetchedCategories);
+      setGameFormats(fetchedGameFormats);
+
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -103,6 +110,7 @@ export default function ManageCategoriesPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Category Name</TableHead>
+                    <TableHead>Default Format</TableHead>
                     <TableHead>Description</TableHead>
                     <TableHead>Level</TableHead>
                     <TableHead>Created At</TableHead>
@@ -112,6 +120,9 @@ export default function ManageCategoriesPage() {
                   {categories.map((cat) => (
                     <TableRow key={cat.id}>
                       <TableCell className="font-medium">{cat.name}</TableCell>
+                      <TableCell>
+                        {gameFormats.find(f => f.id === cat.gameFormatId)?.name || 'N/A'}
+                      </TableCell>
                       <TableCell>{cat.description || 'N/A'}</TableCell>
                       <TableCell>{cat.level || 'N/A'}</TableCell>
                       <TableCell>{cat.createdAt ? format(cat.createdAt, 'PPP') : 'N/A'}</TableCell>
@@ -132,7 +143,7 @@ export default function ManageCategoriesPage() {
           <CardDescription>Fill in the details to register a new category.</CardDescription>
         </CardHeader>
         <CardContent>
-          <CompetitionCategoryForm onFormSubmit={fetchData} />
+          <CompetitionCategoryForm onFormSubmit={fetchData} gameFormats={gameFormats} />
         </CardContent>
       </Card>
     </div>

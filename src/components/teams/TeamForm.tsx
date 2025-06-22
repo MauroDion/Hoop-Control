@@ -4,7 +4,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
-import React from "react";
+import React, { useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Form,
@@ -33,7 +33,7 @@ const teamFormSchema = z.object({
   name: z.string().min(2, "Team name must be at least 2 characters long.").max(100, "Team name must be 100 characters or less."),
   gameFormatId: z.string().optional().nullable()
     .transform(value => value === NULL_VALUE ? null : value),
-  competitionCategoryId: z.string().optional().nullable()
+  competitionCategoryId: z.string().min(1, "Competition Category is required.").nullable()
     .transform(value => value === NULL_VALUE ? null : value),
   coachIds: z.string().optional().describe("Comma-separated User IDs of coaches"),
   coordinatorIds: z.string().optional().describe("Comma-separated User IDs of coordinators"),
@@ -68,6 +68,20 @@ export function TeamForm({ clubId, gameFormats, competitionCategories, onFormSub
     },
   });
 
+  const { watch, setValue } = form;
+  const selectedCompetitionId = watch("competitionCategoryId");
+
+  useEffect(() => {
+    if (selectedCompetitionId) {
+      const category = competitionCategories.find(c => c.id === selectedCompetitionId);
+      if (category && category.gameFormatId) {
+        setValue("gameFormatId", category.gameFormatId, { shouldValidate: true });
+      } else {
+        setValue("gameFormatId", null, { shouldValidate: true });
+      }
+    }
+  }, [selectedCompetitionId, competitionCategories, setValue]);
+
   async function onSubmit(values: z.infer<typeof teamFormSchema>) {
     if (authLoading || !user) {
       toast({ variant: "destructive", title: "Authentication Error", description: "You must be logged in to create a team." });
@@ -99,6 +113,8 @@ export function TeamForm({ clubId, gameFormats, competitionCategories, onFormSub
       });
     }
   }
+  
+  const selectedGameFormatName = gameFormats.find(f => f.id === watch("gameFormatId"))?.name;
 
   if (authLoading) {
     return (
@@ -125,35 +141,7 @@ export function TeamForm({ clubId, gameFormats, competitionCategories, onFormSub
             </FormItem>
           )}
         />
-
-        <FormField
-          control={form.control}
-          name="gameFormatId"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Game Format</FormLabel>
-              <Select 
-                onValueChange={field.onChange} 
-                defaultValue={field.value || undefined}
-                disabled={gameFormats.length === 0}
-              >
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue placeholder={gameFormats.length === 0 ? "No game formats available" : "Select a game format (optional)"} />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  <SelectItem value={NULL_VALUE}>No Specific Format</SelectItem>
-                  {gameFormats.map(format => (
-                    <SelectItem key={format.id} value={format.id}>{format.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
+        
         <FormField
           control={form.control}
           name="competitionCategoryId"
@@ -167,11 +155,10 @@ export function TeamForm({ clubId, gameFormats, competitionCategories, onFormSub
               >
                 <FormControl>
                   <SelectTrigger>
-                    <SelectValue placeholder={competitionCategories.length === 0 ? "No categories available" : "Select a category (optional)"} />
+                    <SelectValue placeholder={competitionCategories.length === 0 ? "No categories available" : "Select a category"} />
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
-                   <SelectItem value={NULL_VALUE}>No Specific Category</SelectItem>
                   {competitionCategories.map(cat => (
                     <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
                   ))}
@@ -182,6 +169,20 @@ export function TeamForm({ clubId, gameFormats, competitionCategories, onFormSub
           )}
         />
         
+        <FormItem>
+          <FormLabel>Game Format</FormLabel>
+          <FormControl>
+              <Input 
+                value={selectedGameFormatName || "Automatically selected based on category"} 
+                disabled 
+              />
+          </FormControl>
+           <FormDescription>
+            The game format is determined by the selected competition category.
+          </FormDescription>
+          <FormMessage />
+        </FormItem>
+
         <FormField
           control={form.control}
           name="city"

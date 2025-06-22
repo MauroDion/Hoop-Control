@@ -1,10 +1,11 @@
+
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
 import { Button } from "@/components/ui/button";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { GameFormData, Team, GameFormat, CompetitionCategory, Season } from "@/types";
@@ -13,7 +14,7 @@ import { useToast } from "@/hooks/use-toast";
 import { createGame } from "@/app/games/actions";
 import { useAuth } from "@/hooks/useAuth";
 import { Loader2 } from "lucide-react";
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 
 const gameFormSchema = z.object({
   seasonId: z.string().min(1, "You must select a season."),
@@ -86,6 +87,18 @@ export function GameForm({ coachTeams, allTeams, gameFormats, competitionCategor
       return eligibleTeams.filter(et => et.id !== selectedHomeTeamId);
   }, [eligibleTeams, selectedHomeTeamId]);
 
+  useEffect(() => {
+    if (selectedCompetitionId) {
+        const category = availableCompetitions.find(c => c.id === selectedCompetitionId);
+        if (category && category.gameFormatId) {
+            setValue("gameFormatId", category.gameFormatId, { shouldValidate: true });
+        } else {
+            setValue("gameFormatId", null, { shouldValidate: true });
+        }
+    }
+  }, [selectedCompetitionId, availableCompetitions, setValue]);
+  
+  const selectedGameFormatName = gameFormats.find(f => f.id === watch("gameFormatId"))?.name;
 
   async function onSubmit(values: z.infer<typeof gameFormSchema>) {
     if (!user) {
@@ -260,28 +273,19 @@ export function GameForm({ coachTeams, allTeams, gameFormats, competitionCategor
           )}
         />
 
-         <FormField
-            control={form.control}
-            name="gameFormatId"
-            render={({ field }) => (
-                <FormItem>
-                <FormLabel>Game Format (Optional)</FormLabel>
-                <Select onValueChange={field.onChange} defaultValue={field.value}>
-                    <FormControl>
-                    <SelectTrigger>
-                        <SelectValue placeholder="Select format" />
-                    </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                    {gameFormats.map(format => (
-                        <SelectItem key={format.id} value={format.id}>{format.name}</SelectItem>
-                    ))}
-                    </SelectContent>
-                </Select>
-                <FormMessage />
-                </FormItem>
-            )}
-        />
+        <FormItem>
+            <FormLabel>Game Format</FormLabel>
+            <FormControl>
+                <Input 
+                    value={selectedGameFormatName || "Automatically selected based on competition"} 
+                    disabled 
+                />
+            </FormControl>
+            <FormDescription>
+                The game format is determined by the selected competition.
+            </FormDescription>
+            <FormMessage />
+        </FormItem>
 
         <Button type="submit" className="w-full sm:w-auto" disabled={form.formState.isSubmitting}>
           {form.formState.isSubmitting ? (

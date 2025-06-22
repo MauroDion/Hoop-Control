@@ -167,6 +167,7 @@ export interface CompetitionCategory {
   name: string;
   description?: string;
   level?: number;
+  gameFormatId?: string | null; // The associated default game format
   createdAt?: Date; // Changed from Timestamp
   updatedAt?: Date; // Changed from Timestamp
 }
@@ -175,6 +176,7 @@ export interface CompetitionCategoryFormData {
   name: string;
   description?: string;
   level?: number;
+  gameFormatId?: string | null;
 }
 
 

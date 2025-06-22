@@ -24,6 +24,7 @@ export async function createCompetitionCategory(
     const newCategoryData = {
       ...formData,
       level: formData.level ? Number(formData.level) : 0,
+      gameFormatId: formData.gameFormatId || null,
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     };
@@ -61,6 +62,7 @@ export async function getCompetitionCategories(): Promise<CompetitionCategory[]>
         name: data.name || `Unnamed Category (ID: ${doc.id})`,
         description: data.description,
         level: data.level,
+        gameFormatId: data.gameFormatId,
         createdAt: data.createdAt ? data.createdAt.toDate() : undefined,
         updatedAt: data.updatedAt ? data.updatedAt.toDate() : undefined,
       } as CompetitionCategory; 

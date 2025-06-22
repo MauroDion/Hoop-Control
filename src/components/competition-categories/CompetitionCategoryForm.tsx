@@ -15,23 +15,29 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import type { CompetitionCategoryFormData } from "@/types";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import type { CompetitionCategoryFormData, GameFormat } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { createCompetitionCategory } from "@/app/competition-categories/actions";
 import { useAuth } from "@/hooks/useAuth";
 import { Loader2 } from "lucide-react";
 
+const NULL_VALUE = "__NULL__";
+
 const formSchema = z.object({
   name: z.string().min(2, "Category name must be at least 2 characters."),
   description: z.string().optional(),
   level: z.coerce.number().optional(),
+  gameFormatId: z.string().optional().nullable()
+    .transform(value => value === NULL_VALUE ? null : value),
 });
 
 interface CompetitionCategoryFormProps {
   onFormSubmit: () => void;
+  gameFormats: GameFormat[];
 }
 
-export function CompetitionCategoryForm({ onFormSubmit }: CompetitionCategoryFormProps) {
+export function CompetitionCategoryForm({ onFormSubmit, gameFormats }: CompetitionCategoryFormProps) {
   const { toast } = useToast();
   const { user } = useAuth();
 
@@ -41,6 +47,7 @@ export function CompetitionCategoryForm({ onFormSubmit }: CompetitionCategoryFor
       name: "",
       description: "",
       level: undefined,
+      gameFormatId: undefined,
     },
   });
 
@@ -80,6 +87,31 @@ export function CompetitionCategoryForm({ onFormSubmit }: CompetitionCategoryFor
               <FormControl>
                 <Input placeholder="e.g., U-12 Masculino" {...field} />
               </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+         <FormField
+          control={form.control}
+          name="gameFormatId"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Default Game Format</FormLabel>
+              <Select onValueChange={field.onChange} defaultValue={field.value || undefined} disabled={gameFormats.length === 0}>
+                <FormControl>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a default format (optional)" />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  <SelectItem value={NULL_VALUE}>No Specific Format</SelectItem>
+                  {gameFormats.map((format) => (
+                    <SelectItem key={format.id} value={format.id}>
+                      {format.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               <FormMessage />
             </FormItem>
           )}
