@@ -72,3 +72,35 @@ export async function getSeasons(): Promise<Season[]> {
     return [];
   }
 }
+
+export async function getSeasonById(seasonId: string): Promise<Season | null> {
+  if (!adminDb) {
+    console.warn("SeasonsActions (getSeasonById): Admin SDK not available.");
+    return null;
+  }
+  if (!seasonId) {
+    console.warn("SeasonsActions (getSeasonById): seasonId is required.");
+    return null;
+  }
+  try {
+    const seasonDocRef = adminDb.collection('seasons').doc(seasonId);
+    const docSnap = await seasonDocRef.get();
+
+    if (!docSnap.exists) {
+      console.warn(`SeasonsActions: No season found with ID: ${seasonId}`);
+      return null;
+    }
+    
+    const data = docSnap.data()!;
+    return {
+      id: docSnap.id,
+      ...data,
+      startDate: data.startDate.toDate(),
+      endDate: data.endDate.toDate(),
+      createdAt: data.createdAt?.toDate(),
+    } as Season;
+  } catch (error: any) {
+    console.error(`SeasonsActions: Error fetching season by ID ${seasonId}:`, error.message, error.stack);
+    return null;
+  }
+}

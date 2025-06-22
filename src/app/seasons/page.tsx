@@ -125,8 +125,10 @@ export default function ManageSeasonsPage() {
                           </Badge>
                       </TableCell>
                       <TableCell className="text-right">
-                         <Button size="sm" variant="outline" disabled>
-                           <Settings className="mr-2 h-4 w-4" /> Manage
+                         <Button asChild size="sm" variant="outline">
+                           <Link href={`/seasons/${season.id}`}>
+                            <Settings className="mr-2 h-4 w-4" /> Manage
+                           </Link>
                          </Button>
                       </TableCell>
                     </TableRow>
