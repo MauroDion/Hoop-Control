@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useEffect, useState } from 'react';
@@ -11,7 +12,6 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Loader2, AlertTriangle, Building, PlusCircle, Settings } from 'lucide-react';
 import Link from 'next/link';
-import { ClubForm } from '@/components/clubs/ClubForm';
 
 export default function ManageClubsPage() {
   const { user, loading: authLoading } = useAuth();
@@ -86,11 +86,15 @@ export default function ManageClubsPage() {
 
   return (
     <div className="space-y-8">
-      <div>
+      <div className="flex justify-between items-center">
         <h1 className="text-4xl font-headline font-bold text-primary flex items-center">
-          <Building className="mr-3 h-10 w-10" /> Manage Clubs
+            <Building className="mr-3 h-10 w-10" /> Manage Clubs
         </h1>
-        <p className="text-lg text-muted-foreground mt-1">View existing clubs or create a new one below.</p>
+        <Button asChild>
+          <Link href="/clubs/new">
+            <PlusCircle className="mr-2 h-5 w-5" /> Create New Club
+          </Link>
+        </Button>
       </div>
 
       <Card className="shadow-xl">
@@ -105,7 +109,7 @@ export default function ManageClubsPage() {
              <div className="text-center py-10 border-2 border-dashed rounded-lg">
                 <Building className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
                 <h2 className="text-xl font-semibold">No Clubs Found</h2>
-                <p className="text-muted-foreground">There are no clubs to display. Create one below to get started.</p>
+                <p className="text-muted-foreground">There are no clubs to display. Create one to get started.</p>
             </div>
           ) : (
              <Table>
@@ -135,19 +139,6 @@ export default function ManageClubsPage() {
                 </TableBody>
               </Table>
           )}
-        </CardContent>
-      </Card>
-
-      <Card className="shadow-xl">
-        <CardHeader>
-          <CardTitle className="text-3xl font-headline flex items-center">
-            <PlusCircle className="mr-3 h-8 w-8 text-primary" />
-            Create New Club
-          </CardTitle>
-          <CardDescription>Fill in the details below to register a new club in the system.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <ClubForm />
         </CardContent>
       </Card>
     </div>

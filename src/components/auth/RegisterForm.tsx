@@ -22,7 +22,7 @@ import { createUserWithEmailAndPassword, signOut, UserCredential } from "firebas
 import { auth } from "@/lib/firebase/client"; 
 import { useRouter } from "next/navigation";
 import { finalizeNewUserProfile } from "@/app/users/actions";
-import { getClubs } from "@/app/clubs/actions";
+import { getApprovedClubs } from "@/app/clubs/actions";
 import { getProfileTypeOptions } from "@/app/profile-types/actions";
 import type { Club, ProfileType, ProfileTypeOption } from "@/types";
 import { Loader2 } from "lucide-react";
@@ -60,7 +60,7 @@ export function RegisterForm() {
       setLoadingProfileTypes(true);
       try {
         const [fetchedClubs, fetchedProfileTypes] = await Promise.all([
-           getClubs(),
+           getApprovedClubs(),
            getProfileTypeOptions()
         ]);
         
