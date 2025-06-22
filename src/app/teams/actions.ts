@@ -4,7 +4,7 @@
 import { revalidatePath } from "next/cache";
 import { adminDb } from "@/lib/firebase/admin";
 import admin from "firebase-admin";
-import type { TeamFormData, Team } from "@/types";
+import type { TeamFormData, Team, UserFirestoreProfile } from "@/types";
 
 export async function createTeam(
   formData: TeamFormData,
@@ -34,6 +34,7 @@ export async function createTeam(
       gameFormatId: formData.gameFormatId || null,
       competitionCategoryId: formData.competitionCategoryId || null,
       coachIds: formData.coachIds ? formData.coachIds.split(',').map(id => id.trim()).filter(id => id) : [],
+      coordinatorIds: formData.coordinatorIds ? formData.coordinatorIds.split(',').map(id => id.trim()).filter(id => id) : [],
       playerIds: formData.playerIds ? formData.playerIds.split(',').map(id => id.trim()).filter(id => id) : [],
       logoUrl: formData.logoUrl || null,
       city: formData.city || null,
@@ -219,4 +220,50 @@ export async function getTeamsByCoach(userId: string): Promise<Team[]> {
     }
     return [];
   }
+}
+
+export async function updateTeamCoaches(
+    teamId: string,
+    coachIds: string[],
+    actorId: string // The UID of the user performing the action
+): Promise<{ success: boolean; error?: string }> {
+    if (!adminDb) return { success: false, error: "Database not initialized." };
+    if (!actorId) return { success: false, error: "User not authenticated." };
+    
+    try {
+        const teamRef = adminDb.collection('teams').doc(teamId);
+        const teamSnap = await teamRef.get();
+        if (!teamSnap.exists) {
+            return { success: false, error: "Team not found." };
+        }
+        // We need to cast to a type that we know has `clubId` and `coordinatorIds`
+        const teamData = teamSnap.data() as Team;
+
+        const actorProfileSnap = await adminDb.collection('user_profiles').doc(actorId).get();
+        if (!actorProfileSnap.exists) {
+            return { success: false, error: "Action performer profile not found."};
+        }
+        const actorProfile = actorProfileSnap.data() as UserFirestoreProfile;
+
+        // Permission Check
+        const isSuperAdmin = actorProfile.profileTypeId === 'super_admin';
+        const isClubAdmin = actorProfile.profileTypeId === 'club_admin' && actorProfile.clubId === teamData.clubId;
+        const isCoordinator = actorProfile.profileTypeId === 'coordinator' && teamData.coordinatorIds?.includes(actorId);
+
+        if (!isSuperAdmin && !isClubAdmin && !isCoordinator) {
+            return { success: false, error: "You do not have permission to manage this team's coaches." };
+        }
+
+        await teamRef.update({
+            coachIds: coachIds,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+        
+        revalidatePath(`/clubs/${teamData.clubId}/teams/${teamId}`);
+        return { success: true };
+
+    } catch (error: any) {
+        console.error(`Error updating coaches for team ${teamId}:`, error);
+        return { success: false, error: error.message || "Failed to update coaches." };
+    }
 }

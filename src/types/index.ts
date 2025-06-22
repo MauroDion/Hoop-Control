@@ -94,6 +94,7 @@ export interface Team {
   name: string;
   clubId: string;
   coachIds?: string[];
+  coordinatorIds?: string[];
   gameFormatId?: string | null; // Refers to GameFormat.id
   competitionCategoryId?: string | null; // Refers to CompetitionCategory.id
   playerIds?: string[];
@@ -107,6 +108,7 @@ export interface Team {
 export interface TeamFormData {
   name: string;
   coachIds?: string; // Comma-separated string for form input
+  coordinatorIds?: string;
   gameFormatId?: string | null;
   competitionCategoryId?: string | null;
   playerIds?: string; // Comma-separated string for form input

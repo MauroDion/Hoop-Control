@@ -8,10 +8,12 @@ import Link from 'next/link';
 
 import { getTeamById } from '@/app/teams/actions';
 import { getPlayersByTeamId } from '@/app/players/actions';
+import { getUserProfileById, getUsersByProfileTypeAndClub } from '@/app/users/actions';
 
-import type { Team, Player } from '@/types';
+import type { Team, Player, UserFirestoreProfile } from '@/types';
 
 import { PlayerForm } from "@/components/players/PlayerForm";
+import { ManageCoachesForm } from '@/components/teams/ManageCoachesForm';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -27,10 +29,15 @@ export default function TeamManagementPage() {
 
     const [team, setTeam] = useState<Team | null>(null);
     const [players, setPlayers] = useState<Player[]>([]);
+    const [userProfile, setUserProfile] = useState<UserFirestoreProfile | null>(null);
+    const [availableCoaches, setAvailableCoaches] = useState<UserFirestoreProfile[]>([]);
+    const [canManageCoaches, setCanManageCoaches] = useState(false);
+
     const [loadingData, setLoadingData] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
     const loadPageData = useCallback(async () => {
+        if (!user) return;
         setLoadingData(true);
         setError(null);
         try {
@@ -38,24 +45,51 @@ export default function TeamManagementPage() {
                 setError("Team or Club ID is missing from the URL.");
                 return;
             }
-            const [teamData, playersData] = await Promise.all([
+            const [teamData, playersData, profileData] = await Promise.all([
                 getTeamById(teamId),
                 getPlayersByTeamId(teamId),
+                getUserProfileById(user.uid),
             ]);
 
             if (!teamData) {
                 setError("Team not found.");
+                setTeam(null);
             } else {
                 setTeam(teamData);
                 setPlayers(playersData);
             }
+
+            if (!profileData) {
+                setError("Could not load your user profile.");
+                setUserProfile(null);
+            } else {
+                setUserProfile(profileData);
+            }
+
+            // Permission Check & Fetch Coaches
+            if (teamData && profileData) {
+                const isSuperAdmin = profileData.profileTypeId === 'super_admin';
+                const isClubAdmin = profileData.profileTypeId === 'club_admin' && profileData.clubId === teamData.clubId;
+                const isCoordinator = profileData.profileTypeId === 'coordinator' && teamData.coordinatorIds?.includes(profileData.uid);
+                
+                const hasPermission = isSuperAdmin || isClubAdmin || isCoordinator;
+                setCanManageCoaches(hasPermission);
+
+                if (hasPermission) {
+                    const coaches = await getUsersByProfileTypeAndClub('coach', teamData.clubId);
+                    setAvailableCoaches(coaches);
+                }
+            } else {
+                setCanManageCoaches(false);
+            }
+
         } catch (err: any) {
             console.error("Failed to load team management data:", err);
             setError(err.message || "Failed to load data.");
         } finally {
             setLoadingData(false);
         }
-    }, [teamId, clubId]);
+    }, [teamId, clubId, user]);
 
     useEffect(() => {
         if (authLoading) return;
@@ -64,7 +98,7 @@ export default function TeamManagementPage() {
             return;
         }
         loadPageData();
-    }, [teamId, clubId, user, authLoading, router, loadPageData]);
+    }, [user, authLoading, router, loadPageData, clubId, teamId]);
 
     if (authLoading || (loadingData && !error)) {
         return (
@@ -115,6 +149,15 @@ export default function TeamManagementPage() {
                     </CardDescription>
                 </CardHeader>
             </Card>
+
+            {canManageCoaches && (
+                <ManageCoachesForm 
+                    teamId={teamId}
+                    assignedCoachIds={team.coachIds || []}
+                    availableCoaches={availableCoaches}
+                    onFormSubmit={loadPageData}
+                />
+            )}
             
             <Card className="shadow-xl">
                 <CardHeader>

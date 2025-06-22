@@ -88,3 +88,42 @@ export async function getUserProfileById(uid: string): Promise<UserFirestoreProf
     return null;
   }
 }
+
+export async function getUsersByProfileTypeAndClub(
+  profileType: ProfileType,
+  clubId: string
+): Promise<UserFirestoreProfile[]> {
+  if (!adminDb) {
+    console.error("UserActions (getUsersByProfileTypeAndClub): Admin SDK not initialized.");
+    return [];
+  }
+  try {
+    const usersRef = adminDb.collection('user_profiles');
+    const q = usersRef.where('clubId', '==', clubId).where('profileTypeId', '==', profileType);
+    const querySnapshot = await q.get();
+
+    if (querySnapshot.empty) {
+      return [];
+    }
+    
+    const users = querySnapshot.docs.map(doc => {
+      const data = doc.data();
+      return {
+        uid: doc.id,
+        ...data,
+        createdAt: data.createdAt.toDate(),
+        updatedAt: data.updatedAt.toDate(),
+      } as UserFirestoreProfile;
+    });
+
+    users.sort((a, b) => (a.displayName || '').localeCompare(b.displayName || ''));
+    return users;
+
+  } catch (error: any) {
+    console.error(`Error fetching users by profile type '${profileType}' for club '${clubId}':`, error.message);
+    if (error.code === 'failed-precondition' && error.message.includes("index")) {
+        console.error("Firestore query failed. This is likely due to a missing composite index. Please create an index on 'clubId' and 'profileTypeId' for the 'user_profiles' collection.");
+    }
+    return [];
+  }
+}

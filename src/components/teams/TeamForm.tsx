@@ -36,6 +36,7 @@ const teamFormSchema = z.object({
   competitionCategoryId: z.string().optional().nullable()
     .transform(value => value === NULL_VALUE ? null : value),
   coachIds: z.string().optional().describe("Comma-separated User IDs of coaches"),
+  coordinatorIds: z.string().optional().describe("Comma-separated User IDs of coordinators"),
   playerIds: z.string().optional().describe("Comma-separated Player IDs"),
   logoUrl: z.string().url({ message: "Please enter a valid URL for the logo." }).optional().or(z.literal("")).nullable(),
   city: z.string().optional().nullable(),
@@ -60,6 +61,7 @@ export function TeamForm({ clubId, gameFormats, competitionCategories, onFormSub
       gameFormatId: null,
       competitionCategoryId: null,
       coachIds: "",
+      coordinatorIds: "",
       playerIds: "",
       logoUrl: "",
       city: "",
@@ -219,6 +221,23 @@ export function TeamForm({ clubId, gameFormats, competitionCategories, onFormSub
               </FormControl>
               <FormDescription>
                 Enter the Firebase User IDs for each coach, separated by commas.
+              </FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="coordinatorIds"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Coordinator IDs (Optional)</FormLabel>
+              <FormControl>
+                <Textarea placeholder="Enter comma-separated User IDs of coordinators" {...field} />
+              </FormControl>
+              <FormDescription>
+                Enter the Firebase User IDs for each coordinator, separated by commas.
               </FormDescription>
               <FormMessage />
             </FormItem>
