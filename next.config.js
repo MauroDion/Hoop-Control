@@ -19,23 +19,29 @@ const nextConfig = {
       },
     ],
   },
-  webpack(config) {
+  webpack: (config, { isServer }) => {
+    // Enable WebAssembly
     config.experiments = {
       ...config.experiments,
       asyncWebAssembly: true,
     };
 
-    config.resolve.fallback = {
-      ...config.resolve.fallback,
-      process: require.resolve('process/browser'),
-    };
+    // Add polyfill for `process` module for browser builds
+    if (!isServer) {
+        config.resolve.fallback = {
+            ...config.resolve.fallback,
+            process: require.resolve('process/browser'),
+        };
+    }
     
+    // Provide the `process` variable globally to all modules
     config.plugins.push(
       new webpack.ProvidePlugin({
         process: 'process/browser',
       })
     );
     
+    // Important: return the modified config
     return config;
   },
 };
