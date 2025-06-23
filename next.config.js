@@ -38,12 +38,6 @@ const nextConfig = {
         ...config.resolve.fallback,
         process: require.resolve('process/browser'),
       };
-      
-      config.plugins.push(
-        new webpack.ProvidePlugin({
-          process: 'process/browser',
-        })
-      );
     }
 
     // Keep the WebAssembly config as it's unrelated and likely necessary for other dependencies.
