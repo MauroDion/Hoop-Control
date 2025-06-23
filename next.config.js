@@ -7,19 +7,22 @@ const nextConfig = {
     // This is required by a dependency (likely Firebase)
     config.experiments = { ...config.experiments, asyncWebAssembly: true };
 
-    // This block applies a comprehensive, three-part fix for the "node:process" error,
-    // ensuring it only runs for the client-side bundle.
+    // For client-side code, we provide a comprehensive set of polyfills
+    // for Node.js 'process' module, which some dependencies might be using.
     if (!isServer) {
-      // 1. Add a fallback for the 'process' module.
+      // Method 1: Fallback for imports like `import process from 'process'`
       config.resolve.fallback = {
         ...config.resolve.fallback,
         process: require.resolve('process/browser'),
       };
+      
+      // Method 2: Direct alias for the `node:process` import scheme.
+      config.resolve.alias = {
+        ...config.resolve.alias,
+        'node:process': 'process/browser',
+      };
 
-      // 2. Alias 'node:process' to the browser-safe replacement.
-      config.resolve.alias['node:process'] = 'process/browser';
-
-      // 3. Provide the 'process' variable globally.
+      // Method 3: ProvidePlugin to make `process` available globally.
       config.plugins.push(
         new webpack.ProvidePlugin({
           process: 'process/browser',
