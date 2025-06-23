@@ -21,7 +21,7 @@ const nextConfig = {
   },
   webpack: (config, { isServer }) => {
     // This is the essential fix for the "node:process" error.
-    // We apply two fixes to be safe.
+    // We apply two fixes to be safe, only on the client-side build.
     if (!isServer) {
       // Fallback tells webpack to replace imports of 'process' with the 'process/browser' package.
       config.resolve.fallback = {
@@ -37,7 +37,7 @@ const nextConfig = {
       );
     }
 
-    // Keep the WebAssembly config as it's unrelated and likely necessary.
+    // Keep the WebAssembly config as it's unrelated and likely necessary for other dependencies.
     config.experiments = { ...config.experiments, asyncWebAssembly: true, topLevelAwait: true };
     config.module.rules.push({
       test: /\.wasm$/,
