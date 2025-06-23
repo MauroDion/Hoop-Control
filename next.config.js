@@ -1,6 +1,14 @@
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+    images: {
+        remotePatterns: [
+            {
+                protocol: 'https',
+                hostname: 'placehold.co',
+            },
+        ],
+    },
     webpack: (config, { isServer }) => {
         // This is to polyfill `process` which is not available in the browser.
         if (!isServer) {
