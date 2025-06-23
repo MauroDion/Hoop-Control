@@ -9,22 +9,25 @@ const nextConfig = {
 
     // Apply this fix only to the client-side bundle.
     if (!isServer) {
-      // Standard polyfill for the 'process' module.
+      // 1. Standard polyfill for the 'process' module.
       config.resolve.fallback = {
         ...config.resolve.fallback,
         process: require.resolve('process/browser'),
       };
-      
-      // Use the NormalModuleReplacementPlugin to forcefully replace any
-      // import of 'node:process' with its browser-compatible substitute.
-      // This is more powerful than a simple alias.
+
+      // 2. Forcefully replace any import of 'node:process'.
       config.plugins.push(
         new webpack.NormalModuleReplacementPlugin(
           /^node:process$/, // Match the exact module name.
-          (resource) => {
-            resource.request = 'process/browser';
-          }
+          require.resolve('process/browser')
         )
+      );
+
+      // 3. Make the 'process' module globally available to client-side code.
+      config.plugins.push(
+        new webpack.ProvidePlugin({
+            process: 'process/browser',
+        })
       );
     }
     
