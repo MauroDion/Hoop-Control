@@ -1,1 +1,1 @@
-// Flows will be imported for their side effects in this file.
+// Genkit configuration has been temporarily removed to stabilize the server.
