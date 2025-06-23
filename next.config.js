@@ -20,20 +20,13 @@ const nextConfig = {
     ],
   },
   webpack: (config, { isServer }) => {
-    // Add fallback for 'process' module for browser builds
+    // Add fallback for 'process' module for browser builds. This handles 'import process from "process"'.
     if (!isServer) {
-      config.resolve.fallback = {
-        ...config.resolve.fallback,
-        process: require.resolve('process/browser'),
-      };
+        config.resolve.fallback = {
+            ...config.resolve.fallback,
+            process: require.resolve('process/browser'),
+        };
     }
-
-    // Add ProvidePlugin to make 'process' available globally
-    config.plugins.push(
-      new webpack.ProvidePlugin({
-        process: 'process/browser',
-      })
-    );
 
     // Enable WebAssembly experiments
     config.experiments = { ...config.experiments, asyncWebAssembly: true, topLevelAwait: true };
@@ -43,6 +36,13 @@ const nextConfig = {
       test: /\.wasm$/,
       type: "webassembly/async",
     });
+
+    // Add ProvidePlugin to make 'process' available globally. This is for code that expects a global `process` variable.
+    config.plugins.push(
+      new webpack.ProvidePlugin({
+        process: 'process/browser',
+      })
+    );
 
     return config;
   },
