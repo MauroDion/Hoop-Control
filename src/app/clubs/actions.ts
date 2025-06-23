@@ -7,25 +7,27 @@ import admin from 'firebase-admin';
 import { revalidatePath } from 'next/cache';
 
 // This function will be used by the registration form to populate the clubs dropdown.
-// It only fetches clubs that have been marked as 'approved' by a super_admin.
+// It fetches all clubs to ensure new users can register.
+// NOTE: The filter for `approved == true` has been temporarily removed to facilitate development.
 export async function getApprovedClubs(): Promise<Club[]> {
-  console.log("ClubActions: Attempting to fetch approved clubs from Firestore using Admin SDK.");
+  console.log("ClubActions: Attempting to fetch all clubs from Firestore using Admin SDK.");
   if (!adminDb) {
     console.warn("ClubActions (getApprovedClubs): Admin SDK not available. Returning empty array.");
     return [];
   }
   try {
     const clubsCollectionRef = adminDb.collection('clubs');
-    // Query for approved clubs and order them alphabetically by name
-    const q = clubsCollectionRef.where('approved', '==', true).orderBy('name', 'asc');
+    // Query for all clubs and order them alphabetically by name
+    // The `where('approved', '==', true)` has been removed for now.
+    const q = clubsCollectionRef.orderBy('name', 'asc');
     const querySnapshot = await q.get();
 
     if (querySnapshot.empty) {
-      console.warn("ClubActions: No 'approved' clubs found in 'clubs' collection. A composite index on 'approved' (asc) and 'name' (asc) is required for this query to work.");
+      console.warn("ClubActions: No clubs found in 'clubs' collection. An index on 'name' (asc) may be required.");
       return [];
     }
     
-    console.log(`ClubActions: Found ${querySnapshot.docs.length} approved clubs.`);
+    console.log(`ClubActions: Found ${querySnapshot.docs.length} clubs.`);
     
     const allClubs = querySnapshot.docs.map(doc => {
       const data = doc.data();
@@ -41,12 +43,12 @@ export async function getApprovedClubs(): Promise<Club[]> {
       } as Club; 
     });
     
-    console.log("ClubActions: Successfully fetched and sorted approved clubs using Admin SDK.");
+    console.log("ClubActions: Successfully fetched and sorted all clubs using Admin SDK.");
     return allClubs;
   } catch (error: any) {
-    console.error('ClubActions: Error fetching approved clubs with Admin SDK:', error.message, error.stack);
+    console.error('ClubActions: Error fetching clubs with Admin SDK:', error.message, error.stack);
     if (error.code === 'failed-precondition' && error.message.includes("index")) {
-        console.error("ClubActions: Firestore query failed. This is likely due to a missing Firestore index. Please create a composite index on the 'clubs' collection for fields 'approved' (Ascending) and 'name' (Ascending).");
+        console.error("ClubActions: Firestore query failed. This is likely due to a missing Firestore index. Please create an index on the 'name' field (ascending) for the 'clubs' collection.");
     }
     return []; // Return empty array on error
   }
