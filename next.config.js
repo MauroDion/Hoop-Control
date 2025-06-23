@@ -20,20 +20,20 @@ const nextConfig = {
     ],
   },
   webpack: (config, { isServer }) => {
-    // This is the essential fix for the "node:process" error.
     // Apply this configuration only to the client-side bundle.
     if (!isServer) {
-      // This plugin is a targeted fix for the "node:" prefix in imports.
-      // It strips the "node:" prefix, allowing the fallback for "process" to work.
+      // This plugin is a targeted fix for the "node:process" error.
+      // It directly replaces any import of 'node:process' with its browser-safe equivalent.
       config.plugins.push(
         new webpack.NormalModuleReplacementPlugin(
-          /^node:/,
+          /^node:process$/, // Match 'node:process' exactly.
           (resource) => {
-            resource.request = resource.request.replace(/^node:/, '');
+            resource.request = require.resolve('process/browser');
           }
         )
       );
-      
+
+      // This provides a fallback for any other module that might just import 'process'.
       config.resolve.fallback = {
         ...config.resolve.fallback,
         process: require.resolve('process/browser'),
