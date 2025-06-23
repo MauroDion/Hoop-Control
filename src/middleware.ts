@@ -30,7 +30,15 @@ async function verifyAuth(request: NextRequest): Promise<{
         
         // If not authenticated, we'll clear the cookie and pass along the reason.
         const clearCookieResponse = NextResponse.next();
-        clearCookieResponse.cookies.set({ name: 'session', value: '', maxAge: 0, path: '/' });
+        // FIX: Added secure and sameSite attributes to match how the cookie was set.
+        clearCookieResponse.cookies.set({ 
+            name: 'session', 
+            value: '', 
+            maxAge: 0, 
+            path: '/',
+            secure: true,
+            sameSite: 'none'
+        });
 
         return { isAuthenticated: false, reason: data.reason || 'unknown', response: clearCookieResponse };
 
