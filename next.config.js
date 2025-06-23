@@ -15,19 +15,12 @@ const nextConfig = {
         process: require.resolve('process/browser'),
       };
 
-      // 2. Forcefully replace any import of 'node:process'.
+      // 2. Forcefully replace any import of 'node:process'. This is the most direct fix.
       config.plugins.push(
         new webpack.NormalModuleReplacementPlugin(
-          /^node:process$/, // Match the exact module name.
+          /^node:process$/,
           require.resolve('process/browser')
         )
-      );
-
-      // 3. Make the 'process' module globally available to client-side code.
-      config.plugins.push(
-        new webpack.ProvidePlugin({
-            process: 'process/browser',
-        })
       );
     }
     
