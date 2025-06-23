@@ -1,6 +1,4 @@
 
-const webpack = require('webpack');
-
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   typescript: {
@@ -20,29 +18,21 @@ const nextConfig = {
     ],
   },
   webpack: (config, { isServer }) => {
-    // Add fallback for 'process' module for browser builds. This handles 'import process from "process"'.
+    // This is the essential fix for the "node:process" error.
+    // It tells Webpack to use a browser-compatible version of the 'process' module for client-side code.
     if (!isServer) {
-        config.resolve.fallback = {
-            ...config.resolve.fallback,
-            process: require.resolve('process/browser'),
-        };
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        process: require.resolve('process/browser'),
+      };
     }
 
-    // Enable WebAssembly experiments
+    // Keep the WebAssembly config as it's unrelated and likely necessary.
     config.experiments = { ...config.experiments, asyncWebAssembly: true, topLevelAwait: true };
-    
-    // Handle .wasm files
     config.module.rules.push({
       test: /\.wasm$/,
       type: "webassembly/async",
     });
-
-    // Add ProvidePlugin to make 'process' available globally. This is for code that expects a global `process` variable.
-    config.plugins.push(
-      new webpack.ProvidePlugin({
-        process: 'process/browser',
-      })
-    );
 
     return config;
   },
