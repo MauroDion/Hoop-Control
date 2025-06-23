@@ -26,7 +26,7 @@ const nextConfig = {
     if (!isServer) {
       config.resolve.fallback = {
         ...config.resolve.fallback,
-        process: false,
+        process: require.resolve('process/browser'),
       };
     }
     
