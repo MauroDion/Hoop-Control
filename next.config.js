@@ -23,6 +23,10 @@ const nextConfig = {
     'https://6000-firebase-studio-1750097612873.cluster-l6vkdperq5ebaqo3qy4ksvoqom.cloudworkstations.dev',
     'http://localhost:6000', // IDX preview port
   ],
+  webpack: (config) => {
+    config.experiments = { ...config.experiments, asyncWebAssembly: true };
+    return config;
+  },
 };
 
 module.exports = nextConfig;
