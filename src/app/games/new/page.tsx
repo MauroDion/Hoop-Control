@@ -1,3 +1,4 @@
+
 "use client";
 
 import { GameForm } from "@/components/games/GameForm";
