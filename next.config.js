@@ -15,22 +15,15 @@ const nextConfig = {
       // sees an import for the 'process' module.
       config.resolve.fallback = {
         ...config.resolve.fallback,
-        process: 'process/browser',
+        process: require.resolve('process/browser'),
       };
 
-      // 2. Replacement Plugin: Forcefully intercepts any import for the exact
-      // string 'node:process' and replaces it with the browser version.
-      // This is the most direct fix for the error message.
+      // 2 & 3. Plugins: Forcefully replace `node:process` and provide `process` globally.
       config.plugins.push(
         new webpack.NormalModuleReplacementPlugin(
           /^node:process$/,
-          'process/browser'
-        )
-      );
-
-      // 3. Provide Plugin: Makes the 'process' object globally available
-      // in the client-side code, which some libraries expect.
-      config.plugins.push(
+          require.resolve('process/browser')
+        ),
         new webpack.ProvidePlugin({
           process: 'process/browser',
         })
