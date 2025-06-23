@@ -1,3 +1,4 @@
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   webpack: (config, { isServer }) => {
@@ -6,10 +7,17 @@ const nextConfig = {
 
     // Apply polyfills and fallbacks only to the client-side bundle.
     if (!isServer) {
-      // Polyfill for `process` module.
+      // Standard polyfill for `process` module.
       config.resolve.fallback = {
         ...config.resolve.fallback,
         process: require.resolve('process/browser'),
+      };
+
+      // Explicitly alias 'node:process' to its browser-compatible version.
+      // This is a more direct fix for the "UnhandledSchemeError".
+      config.resolve.alias = {
+        ...config.resolve.alias,
+        'node:process': 'process/browser',
       };
     }
 
