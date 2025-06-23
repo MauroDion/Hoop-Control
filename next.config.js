@@ -23,12 +23,10 @@ const nextConfig = {
       asyncWebAssembly: true,
     };
 
-    if (!isServer) {
-      config.resolve.fallback = {
-        ...config.resolve.fallback,
-        process: require.resolve('process/browser'),
-      };
-    }
+    config.resolve.fallback = {
+      ...config.resolve.fallback,
+      process: require.resolve('process/browser'),
+    };
     
     return config;
   },
