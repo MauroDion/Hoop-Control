@@ -27,13 +27,14 @@ const nextConfig = {
     };
 
     // Add polyfill for `process` module.
-    // We apply this to all builds (server and client) to be safe.
+    // This is necessary for some packages that expect a Node.js environment.
     config.resolve.fallback = {
-      ...(config.resolve.fallback || {}), // Ensure fallback is an object
+      ...(config.resolve.fallback || {}),
       process: require.resolve('process/browser'),
     };
     
-    // Provide the `process` variable globally to all modules
+    // Provide the `process` variable globally to all modules.
+    // This is a more forceful way to ensure it's available where needed.
     config.plugins.push(
       new webpack.ProvidePlugin({
         process: 'process/browser',
