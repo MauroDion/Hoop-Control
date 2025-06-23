@@ -26,13 +26,12 @@ const nextConfig = {
       asyncWebAssembly: true,
     };
 
-    // Add polyfill for `process` module for browser builds
-    if (!isServer) {
-        config.resolve.fallback = {
-            ...config.resolve.fallback,
-            process: require.resolve('process/browser'),
-        };
-    }
+    // Add polyfill for `process` module.
+    // We apply this to all builds (server and client) to be safe.
+    config.resolve.fallback = {
+      ...(config.resolve.fallback || {}), // Ensure fallback is an object
+      process: require.resolve('process/browser'),
+    };
     
     // Provide the `process` variable globally to all modules
     config.plugins.push(
