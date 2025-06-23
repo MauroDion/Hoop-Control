@@ -55,14 +55,7 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: [
-    /*
-     * Match all request paths except for the ones starting with:
-     * - api (API routes, which are handled separately)
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     */
-    '/((?!api|_next/static|_next/image|favicon.ico).*)',
-  ],
+  // The matcher is intentionally left empty to completely disable the middleware
+  // for diagnosing the server restart loop.
+  matcher: [],
 };
