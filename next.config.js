@@ -14,12 +14,12 @@ const nextConfig = {
                     process: 'process/browser',
                 })
             );
-
-            // Exclude server-side packages from the client-side bundle.
-            // This prevents Webpack from trying to parse native Node.js addons like `farmhash.node`
-            // which are dependencies of `firebase-admin`.
-            config.externals.push('firebase-admin', 'farmhash');
         }
+        
+        // Exclude server-side packages from the bundle for both client and server.
+        // This prevents Webpack from trying to parse native Node.js addons like `farmhash.node`
+        // which are dependencies of `firebase-admin`.
+        config.externals.push('firebase-admin', 'farmhash');
         
         return config;
     },
