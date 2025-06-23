@@ -1,7 +1,6 @@
 
 'use server';
 
-import { db } from '@/lib/firebase/client';
 import admin, { adminAuth, adminDb, adminInitError } from '@/lib/firebase/admin';
 import type { UserFirestoreProfile, ProfileType, UserProfileStatus } from '@/types';
 
