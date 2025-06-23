@@ -1,4 +1,15 @@
 
+// Temporarily disabled to debug server startup issues.
+// The 'firebase-admin' package can cause issues in certain environments if not configured perfectly.
+export const adminInitError = "Firebase Admin SDK is temporarily disabled for debugging.";
+export const adminAuth = undefined;
+export const adminDb = undefined;
+const admin = undefined;
+export default admin;
+
+
+// Original code is preserved below for when we re-enable it.
+/*
 import admin from 'firebase-admin';
 
 // This new exported variable will hold the specific initialization error.
@@ -68,3 +79,4 @@ if (!adminAuth || !adminDb) {
 
 export { adminAuth, adminDb };
 export default admin;
+*/

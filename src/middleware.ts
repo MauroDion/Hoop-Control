@@ -1,13 +1,20 @@
 
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { adminAuth, adminDb } from '@/lib/firebase/admin';
+// import { adminAuth, adminDb } from '@/lib/firebase/admin';
 
 const PUBLIC_PATHS = ['/', '/login', '/register', '/reset-password'];
 
 const isPublic = (path: string) => PUBLIC_PATHS.includes(path);
 
 export async function middleware(request: NextRequest) {
+  // --- TEMPORARILY DISABLED FOR DEBUGGING SERVER STARTUP ---
+  // The Firebase Admin SDK initialization was causing the server to crash-loop.
+  // This bypasses auth to allow the server to start.
+  console.log("Middleware auth checks are temporarily disabled for debugging.");
+  return NextResponse.next();
+
+  /*
   const { pathname } = request.nextUrl;
   const sessionCookie = request.cookies.get('session')?.value;
 
@@ -74,6 +81,7 @@ export async function middleware(request: NextRequest) {
     response.cookies.set({ name: 'session', value: '', maxAge: 0, path: '/', secure: true, sameSite: 'none' });
     return response;
   }
+  */
 }
 
 export const config = {
