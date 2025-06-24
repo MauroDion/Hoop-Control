@@ -15,11 +15,12 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import type { CompetitionCategoryFormData, GameFormat } from "@/types";
+import type { CompetitionCategoryFormData, GameFormat, CompetitionCategory } from "@/types";
 import { useToast } from "@/hooks/use-toast";
-import { createCompetitionCategory } from "@/app/competition-categories/actions";
+import { createCompetitionCategory, updateCompetitionCategory } from "@/app/competition-categories/actions";
 import { useAuth } from "@/hooks/useAuth";
 import { Loader2 } from "lucide-react";
+import { useEffect } from "react";
 
 const categoryFormSchema = z.object({
   name: z.string().min(3, "El nombre debe tener al menos 3 caracteres."),
@@ -31,21 +32,31 @@ const categoryFormSchema = z.object({
 interface CompetitionCategoryFormProps {
   onFormSubmit: () => void;
   gameFormats: GameFormat[];
+  category?: CompetitionCategory | null;
 }
 
-export function CompetitionCategoryForm({ onFormSubmit, gameFormats }: CompetitionCategoryFormProps) {
+export function CompetitionCategoryForm({ onFormSubmit, gameFormats, category }: CompetitionCategoryFormProps) {
   const { toast } = useToast();
   const { user } = useAuth();
 
   const form = useForm<z.infer<typeof categoryFormSchema>>({
     resolver: zodResolver(categoryFormSchema),
     defaultValues: {
-      name: "",
-      description: "",
-      level: undefined,
-      gameFormatId: null,
+      name: category?.name || "",
+      description: category?.description || "",
+      level: category?.level || undefined,
+      gameFormatId: category?.gameFormatId || null,
     },
   });
+
+  useEffect(() => {
+    form.reset({
+      name: category?.name || "",
+      description: category?.description || "",
+      level: category?.level || undefined,
+      gameFormatId: category?.gameFormatId || null,
+    })
+  }, [category, form]);
 
   async function onSubmit(values: z.infer<typeof categoryFormSchema>) {
     if (!user) {
@@ -53,19 +64,22 @@ export function CompetitionCategoryForm({ onFormSubmit, gameFormats }: Competiti
       return;
     }
 
-    const result = await createCompetitionCategory(values, user.uid);
+    const result = category
+        ? await updateCompetitionCategory(category.id, values, user.uid)
+        : await createCompetitionCategory(values, user.uid);
+
 
     if (result.success) {
       toast({
-        title: "Categoría Creada",
-        description: `La categoría "${values.name}" ha sido creada con éxito.`,
+        title: category ? "Categoría Actualizada" : "Categoría Creada",
+        description: `La categoría "${values.name}" ha sido ${category ? 'actualizada' : 'creada'} con éxito.`,
       });
       form.reset();
       onFormSubmit();
     } else {
       toast({
         variant: "destructive",
-        title: "Error al Crear",
+        title: "Error en la operación",
         description: result.error || "Ocurrió un error inesperado.",
       });
     }
@@ -120,7 +134,7 @@ export function CompetitionCategoryForm({ onFormSubmit, gameFormats }: Competiti
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Formato de Partido por Defecto</FormLabel>
-                <Select onValueChange={field.onChange} defaultValue={field.value || ""}>
+                <Select onValueChange={field.onChange} value={field.value || ""}>
                   <FormControl>
                     <SelectTrigger>
                       <SelectValue placeholder="Selecciona un formato" />
@@ -140,7 +154,7 @@ export function CompetitionCategoryForm({ onFormSubmit, gameFormats }: Competiti
         </div>
         <Button type="submit" disabled={form.formState.isSubmitting}>
           {form.formState.isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          Crear Categoría
+          {category ? 'Guardar Cambios' : 'Crear Categoría'}
         </Button>
       </form>
     </Form>

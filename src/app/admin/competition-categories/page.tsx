@@ -4,33 +4,38 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'next/navigation';
 import { getUserProfileById } from '@/app/users/actions';
-import { getCompetitionCategories } from '@/app/competition-categories/actions';
+import { getCompetitionCategories, deleteCompetitionCategory } from '@/app/competition-categories/actions';
 import { getGameFormats } from '@/app/game-formats/actions';
 import type { CompetitionCategory, GameFormat } from '@/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, AlertTriangle, Tag, PlusCircle } from 'lucide-react';
+import { Loader2, AlertTriangle, Tag, PlusCircle, Trash2, Edit } from 'lucide-react';
 import { CompetitionCategoryForm } from '@/components/competition-categories/CompetitionCategoryForm';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { useToast } from '@/hooks/use-toast';
 
 export default function ManageCategoriesPage() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
+  const { toast } = useToast();
 
   const [loading, setLoading] = useState(true);
   const [categories, setCategories] = useState<CompetitionCategory[]>([]);
   const [gameFormats, setGameFormats] = useState<GameFormat[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [editingCategory, setEditingCategory] = useState<CompetitionCategory | null>(null);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-        if (!user) {
-            throw new Error("Autenticación requerida.");
-        }
+        if (!user) throw new Error("Autenticación requerida.");
+        
       const profile = await getUserProfileById(user.uid);
       if (profile?.profileTypeId !== 'super_admin') {
         throw new Error('Acceso Denegado. Debes ser Super Admin para ver esta página.');
@@ -59,6 +64,26 @@ export default function ManageCategoriesPage() {
       }
     }
   }, [user, authLoading, router, fetchData]);
+  
+  const handleEdit = (category: CompetitionCategory) => {
+    setEditingCategory(category);
+    setIsFormOpen(true);
+  };
+  
+  const handleCreateNew = () => {
+    setEditingCategory(null);
+    setIsFormOpen(true);
+  }
+
+  const handleDelete = async (categoryId: string, categoryName: string) => {
+    const result = await deleteCompetitionCategory(categoryId);
+    if (result.success) {
+        toast({ title: "Categoría Eliminada", description: `La categoría "${categoryName}" ha sido eliminada.`});
+        fetchData();
+    } else {
+        toast({ variant: "destructive", title: "Error al Eliminar", description: result.error });
+    }
+  }
 
   if (loading || authLoading) {
     return (
@@ -82,11 +107,32 @@ export default function ManageCategoriesPage() {
 
   return (
     <div className="space-y-8">
-      <div>
+      <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
+        <DialogContent>
+            <DialogHeader>
+                <DialogTitle>{editingCategory ? "Editar Categoría" : "Crear Nueva Categoría"}</DialogTitle>
+                <DialogDescription>
+                  {editingCategory ? `Actualiza los detalles de ${editingCategory.name}.` : "Rellena los detalles para registrar una nueva categoría."}
+                </DialogDescription>
+            </DialogHeader>
+            <CompetitionCategoryForm
+              onFormSubmit={() => {
+                setIsFormOpen(false);
+                fetchData();
+              }}
+              gameFormats={gameFormats}
+              category={editingCategory}
+            />
+        </DialogContent>
+      </Dialog>
+      
+      <div className="flex justify-between items-center">
         <h1 className="text-4xl font-headline font-bold text-primary flex items-center">
           <Tag className="mr-3 h-10 w-10" /> Gestionar Categorías de Competición
         </h1>
-        <p className="text-lg text-muted-foreground mt-1">Ver categorías existentes o crear una nueva.</p>
+        <Button onClick={handleCreateNew}>
+            <PlusCircle className="mr-2 h-4 w-4" /> Crear Nueva Categoría
+        </Button>
       </div>
 
       <Card className="shadow-xl">
@@ -101,7 +147,7 @@ export default function ManageCategoriesPage() {
              <div className="text-center py-10 border-2 border-dashed rounded-lg">
                 <Tag className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
                 <h2 className="text-xl font-semibold">No se Encontraron Categorías</h2>
-                <p className="text-muted-foreground">Crea una a continuación para empezar.</p>
+                <p className="text-muted-foreground">Crea una para empezar.</p>
             </div>
           ) : (
              <Table>
@@ -109,9 +155,9 @@ export default function ManageCategoriesPage() {
                   <TableRow>
                     <TableHead>Nombre de Categoría</TableHead>
                     <TableHead>Formato por Defecto</TableHead>
-                    <TableHead>Descripción</TableHead>
                     <TableHead>Nivel</TableHead>
                     <TableHead>Fecha de Creación</TableHead>
+                    <TableHead className="text-right">Acciones</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -121,27 +167,33 @@ export default function ManageCategoriesPage() {
                       <TableCell>
                         {gameFormats.find(f => f.id === cat.gameFormatId)?.name || 'N/A'}
                       </TableCell>
-                      <TableCell>{cat.description || 'N/A'}</TableCell>
                       <TableCell>{cat.level || 'N/A'}</TableCell>
                       <TableCell>{cat.createdAt ? format(cat.createdAt, 'PPP', { locale: es }) : 'N/A'}</TableCell>
+                      <TableCell className="text-right space-x-2">
+                        <Button variant="outline" size="sm" onClick={() => handleEdit(cat)}>
+                            <Edit className="mr-2 h-4 w-4" /> Editar
+                        </Button>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button variant="destructive" size="sm"><Trash2 className="mr-2 h-4 w-4" />Eliminar</Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
+                              <AlertDialogDescription>Esta acción no se puede deshacer. Esto eliminará permanentemente la categoría "{cat.name}".</AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                              <AlertDialogAction onClick={() => handleDelete(cat.id, cat.name)} className="bg-destructive hover:bg-destructive/80">Eliminar</AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
               </Table>
           )}
-        </CardContent>
-      </Card>
-
-      <Card className="shadow-xl">
-        <CardHeader>
-          <CardTitle className="text-3xl font-headline flex items-center">
-            <PlusCircle className="mr-3 h-8 w-8 text-primary" />
-            Crear Nueva Categoría
-          </CardTitle>
-          <CardDescription>Rellena los detalles para registrar una nueva categoría.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <CompetitionCategoryForm onFormSubmit={fetchData} gameFormats={gameFormats} />
         </CardContent>
       </Card>
     </div>

@@ -14,11 +14,12 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import type { GameFormatFormData } from "@/types";
+import type { GameFormat, GameFormatFormData } from "@/types";
 import { useToast } from "@/hooks/use-toast";
-import { createGameFormat } from "@/app/game-formats/actions";
+import { createGameFormat, updateGameFormat } from "@/app/game-formats/actions";
 import { useAuth } from "@/hooks/useAuth";
 import { Loader2 } from "lucide-react";
+import { useEffect } from "react";
 
 const formatSchema = z.object({
   name: z.string().min(3, "El nombre debe tener al menos 3 caracteres."),
@@ -31,19 +32,35 @@ const formatSchema = z.object({
 
 interface GameFormatFormProps {
   onFormSubmit: () => void;
+  format?: GameFormat | null;
 }
 
-export function GameFormatForm({ onFormSubmit }: GameFormatFormProps) {
+export function GameFormatForm({ onFormSubmit, format }: GameFormatFormProps) {
   const { toast } = useToast();
   const { user } = useAuth();
 
   const form = useForm<z.infer<typeof formatSchema>>({
     resolver: zodResolver(formatSchema),
     defaultValues: {
-      name: "",
-      description: "",
+      name: format?.name || "",
+      description: format?.description || "",
+      numPeriods: format?.numPeriods || undefined,
+      periodDurationMinutes: format?.periodDurationMinutes || undefined,
+      defaultTotalTimeouts: format?.defaultTotalTimeouts || undefined,
+      minPeriodsPlayerMustPlay: format?.minPeriodsPlayerMustPlay || undefined,
     },
   });
+
+  useEffect(() => {
+      form.reset({
+        name: format?.name || "",
+        description: format?.description || "",
+        numPeriods: format?.numPeriods || undefined,
+        periodDurationMinutes: format?.periodDurationMinutes || undefined,
+        defaultTotalTimeouts: format?.defaultTotalTimeouts || undefined,
+        minPeriodsPlayerMustPlay: format?.minPeriodsPlayerMustPlay || undefined,
+      })
+  }, [format, form]);
 
   async function onSubmit(values: z.infer<typeof formatSchema>) {
     if (!user) {
@@ -51,19 +68,21 @@ export function GameFormatForm({ onFormSubmit }: GameFormatFormProps) {
       return;
     }
 
-    const result = await createGameFormat(values, user.uid);
+    const result = format
+      ? await updateGameFormat(format.id, values, user.uid)
+      : await createGameFormat(values, user.uid);
 
     if (result.success) {
       toast({
-        title: "Formato Creado",
-        description: `El formato de partido "${values.name}" ha sido creado.`,
+        title: format ? "Formato Actualizado" : "Formato Creado",
+        description: `El formato "${values.name}" ha sido ${format ? 'actualizado' : 'creado'}.`,
       });
       form.reset();
       onFormSubmit();
     } else {
       toast({
         variant: "destructive",
-        title: "Error al Crear",
+        title: "Error en la Operación",
         description: result.error || "Ocurrió un error inesperado.",
       });
     }
@@ -154,7 +173,7 @@ export function GameFormatForm({ onFormSubmit }: GameFormatFormProps) {
         </div>
         <Button type="submit" disabled={form.formState.isSubmitting}>
           {form.formState.isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          Crear Formato de Partido
+          {format ? "Guardar Cambios" : "Crear Formato"}
         </Button>
       </form>
     </Form>

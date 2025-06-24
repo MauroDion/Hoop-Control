@@ -75,3 +75,41 @@ export async function createGameFormat(
     return { success: false, error: error.message || 'Failed to create format.' };
   }
 }
+
+export async function updateGameFormat(
+    formatId: string,
+    formData: GameFormatFormData,
+    userId: string
+): Promise<{ success: boolean; error?: string }> {
+    if (!userId) return { success: false, error: 'User not authenticated.' };
+    if (!adminDb) return { success: false, error: 'Database not initialized.' };
+    
+    try {
+        const formatRef = adminDb.collection('gameFormats').doc(formatId);
+        const updateData = {
+            ...formData,
+            numPeriods: Number(formData.numPeriods) || null,
+            periodDurationMinutes: Number(formData.periodDurationMinutes) || null,
+            defaultTotalTimeouts: Number(formData.defaultTotalTimeouts) || null,
+            minPeriodsPlayerMustPlay: Number(formData.minPeriodsPlayerMustPlay) || null,
+        };
+        await formatRef.update(updateData);
+        revalidatePath('/admin/game-formats');
+        return { success: true };
+    } catch (error: any) {
+        console.error(`Error updating format ${formatId}:`, error);
+        return { success: false, error: error.message || 'Failed to update format.' };
+    }
+}
+
+export async function deleteGameFormat(formatId: string): Promise<{ success: boolean; error?: string }> {
+    if (!adminDb) return { success: false, error: 'Database not initialized.' };
+    try {
+        await adminDb.collection('gameFormats').doc(formatId).delete();
+        revalidatePath('/admin/game-formats');
+        return { success: true };
+    } catch (error: any) {
+        console.error(`Error deleting format ${formatId}:`, error);
+        return { success: false, error: error.message || 'Failed to delete format.' };
+    }
+}

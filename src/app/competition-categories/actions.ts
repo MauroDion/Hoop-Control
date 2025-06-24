@@ -72,3 +72,39 @@ export async function createCompetitionCategory(
     return { success: false, error: error.message || 'Failed to create category.' };
   }
 }
+
+export async function updateCompetitionCategory(
+    categoryId: string,
+    formData: CompetitionCategoryFormData,
+    userId: string
+): Promise<{ success: boolean; error?: string }> {
+    if (!userId) return { success: false, error: 'User not authenticated.' };
+    if (!adminDb) return { success: false, error: 'Database not initialized.' };
+    
+    try {
+        const categoryRef = adminDb.collection('competitionCategories').doc(categoryId);
+        const updateData = {
+            ...formData,
+            level: Number(formData.level) || null,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        };
+        await categoryRef.update(updateData);
+        revalidatePath('/admin/competition-categories');
+        return { success: true };
+    } catch (error: any) {
+        console.error(`Error updating category ${categoryId}:`, error);
+        return { success: false, error: error.message || 'Failed to update category.' };
+    }
+}
+
+export async function deleteCompetitionCategory(categoryId: string): Promise<{ success: boolean; error?: string }> {
+    if (!adminDb) return { success: false, error: 'Database not initialized.' };
+    try {
+        await adminDb.collection('competitionCategories').doc(categoryId).delete();
+        revalidatePath('/admin/competition-categories');
+        return { success: true };
+    } catch (error: any) {
+        console.error(`Error deleting category ${categoryId}:`, error);
+        return { success: false, error: error.message || 'Failed to delete category.' };
+    }
+}

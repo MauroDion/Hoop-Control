@@ -65,14 +65,11 @@ export async function getAllGames(): Promise<Game[]> {
                 date: data.date.toDate(),
             } as Game;
         });
-        // Sort in-memory instead of relying on a Firestore index
+        // Sort in-memory to avoid needing a Firestore index
         games.sort((a, b) => a.date.getTime() - b.date.getTime());
         return games;
     } catch (error: any) {
         console.error("Error fetching all games:", error);
-         if (error.code === 'failed-precondition' && error.message.includes("index")) {
-             console.error("Firestore query failed. This might be due to a missing index. The query has been simplified to avoid this, but check your Firestore indexes if issues persist.");
-        }
         return [];
     }
 }
@@ -124,7 +121,6 @@ export async function getGamesByCoach(userId: string): Promise<Game[]> {
         
         const gamesRef = adminDb.collection('games');
         // Firestore 'in' queries are limited to 30 items in the array.
-        // If a coach can be on more than 30 teams, this will fail.
         // For now, this is a reasonable assumption.
         const homeGamesQuery = gamesRef.where('homeTeamId', 'in', teamIds).get();
         const awayGamesQuery = gamesRef.where('awayTeamId', 'in', teamIds).get();
