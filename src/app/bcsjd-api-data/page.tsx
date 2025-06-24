@@ -1,3 +1,4 @@
+
 "use client"; // This page needs to be a client component for useEffect and useState
 
 import React, { useEffect, useState } from 'react';
@@ -5,8 +6,9 @@ import { getBcsjdKeyMetrics } from '@/lib/bcsjdApi';
 import type { BcsjdApiDataItem } from '@/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { BarChart3, AlertTriangle, Loader2, RefreshCw, HelpCircle } from 'lucide-react';
+import { BarChart3, AlertTriangle, Loader2, RefreshCw, HelpCircle, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 
@@ -15,14 +17,21 @@ export default function BcsjdApiDataPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isForbiddenError, setIsForbiddenError] = useState(false);
+  const [isMockData, setIsMockData] = useState(false);
 
   const fetchData = async () => {
     setLoading(true);
     setError(null);
     setIsForbiddenError(false);
+    setIsMockData(false);
     try {
-      const apiData = await getBcsjdKeyMetrics();
-      setData(apiData);
+      const result = await getBcsjdKeyMetrics();
+      setData(result.data);
+      setIsMockData(result.isMock);
+      if (result.isMock) {
+         // This is not a critical error, just a state to show info to the user.
+         console.warn("Displaying mock data because the real API call failed.");
+      }
     } catch (err: any) {
       const errorMessage = err.message || "Fallo al obtener datos de la API de BCSJD.";
       setError(errorMessage);
@@ -140,6 +149,15 @@ export default function BcsjdApiDataPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
+          {isMockData && !error && (
+             <Alert className="mb-6 border-yellow-500 text-yellow-800">
+                <Info className="h-4 w-4 text-yellow-600" />
+                <AlertTitle>Modo de Demostración</AlertTitle>
+                <AlertDescription>
+                  Actualmente estás viendo datos de ejemplo. La conexión con la API real de BCSJD no se pudo establecer. Para conectar con datos reales, asegúrate de que las variables <code>NEXT_PUBLIC_BCSJD_API_BASE_URL</code> y <code>NEXT_PUBLIC_BCSJD_API_KEY</code> están configuradas correctamente en tu entorno.
+                </AlertDescription>
+            </Alert>
+          )}
           {renderContent()}
         </CardContent>
       </Card>
