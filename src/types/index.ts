@@ -177,6 +177,8 @@ export interface Season {
         competitionCategoryId: string;
         teamIds: string[];
     }[];
+    createdAt?: Date;
+    createdBy?: string;
 }
 
 export interface SeasonFormData {

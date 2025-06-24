@@ -184,7 +184,16 @@ export async function getAllTeams(): Promise<Team[]> {
     try {
         const teamsRef = adminDb.collection('teams');
         const querySnapshot = await teamsRef.orderBy('name', 'asc').get();
-        return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Team));
+        const teams = querySnapshot.docs.map(doc => {
+            const data = doc.data();
+            return {
+                id: doc.id,
+                ...data,
+                createdAt: data.createdAt ? data.createdAt.toDate() : new Date(),
+                updatedAt: data.updatedAt ? data.updatedAt.toDate() : new Date(),
+            } as Team;
+        });
+        return teams;
     } catch (e: any) {
         if (e.code === 'failed-precondition') {
             console.error("Firestore error: Missing index for teams collection on 'name' field.");
@@ -198,7 +207,15 @@ export async function getTeamsByCoach(userId: string): Promise<Team[]> {
     try {
         const teamsRef = adminDb.collection('teams');
         const querySnapshot = await teamsRef.where('coachIds', 'array-contains', userId).get();
-        return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Team));
+        return querySnapshot.docs.map(doc => {
+            const data = doc.data();
+             return {
+                id: doc.id,
+                ...data,
+                createdAt: data.createdAt ? data.createdAt.toDate() : new Date(),
+                updatedAt: data.updatedAt ? data.updatedAt.toDate() : new Date(),
+            } as Team;
+        });
     } catch (e: any) {
         console.error("Error getting teams by coach:", e);
         return [];

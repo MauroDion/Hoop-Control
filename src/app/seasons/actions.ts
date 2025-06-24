@@ -9,7 +9,14 @@ export async function getSeasons(): Promise<Season[]> {
     try {
         const seasonsRef = adminDb.collection('seasons');
         const snapshot = await seasonsRef.orderBy('name', 'desc').get();
-        return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Season));
+        return snapshot.docs.map(doc => {
+            const data = doc.data();
+            return {
+                id: doc.id,
+                ...data,
+                createdAt: data.createdAt ? data.createdAt.toDate() : undefined,
+            } as Season;
+        });
     } catch (error) {
         console.error("Error fetching seasons: ", error);
         return [];
