@@ -1,10 +1,11 @@
-
 "use client";
 
 import React, { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import Link from 'next/link';
+import { format } from 'date-fns';
+import { es } from 'date-fns/locale';
 
 // Actions
 import { getGameById, updateGameRoster } from '@/app/games/actions';
@@ -21,7 +22,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Loader2, AlertTriangle, ChevronLeft, Users, Save, ShieldCheck } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { format } from 'date-fns';
+
 
 export default function ManageGamePage() {
     const params = useParams();
@@ -46,7 +47,7 @@ export default function ManageGamePage() {
         setError(null);
         try {
             if (!gameId) {
-                setError("Game ID is missing from the URL.");
+                setError("Falta el ID del partido en la URL.");
                 return;
             }
             
@@ -56,7 +57,7 @@ export default function ManageGamePage() {
             ]);
 
             if (!gameData) {
-                setError("Game not found.");
+                setError("Partido no encontrado.");
                 setLoadingData(false);
                 return;
             }
@@ -79,7 +80,7 @@ export default function ManageGamePage() {
             setIsHomeTeam(isHome);
 
             if (!teamToManageId) {
-                setError("You are not the coach for either team in this game.");
+                setError("No eres el entrenador de ninguno de los equipos de este partido.");
                 setLoadingData(false);
                 return;
             }
@@ -94,7 +95,7 @@ export default function ManageGamePage() {
             setSelectedPlayers(new Set(initialSelected || []));
 
         } catch (err: any) {
-            setError(err.message || "Failed to load game data.");
+            setError(err.message || "Error al cargar los datos del partido.");
         } finally {
             setLoadingData(false);
         }
@@ -126,9 +127,9 @@ export default function ManageGamePage() {
         setSaving(true);
         const result = await updateGameRoster(game.id, Array.from(selectedPlayers), isHomeTeam);
         if (result.success) {
-            toast({ title: "Roster Saved", description: "The player roster has been updated for this game." });
+            toast({ title: "Convocatoria Guardada", description: "La lista de jugadores ha sido actualizada para este partido." });
         } else {
-            toast({ variant: "destructive", title: "Save Failed", description: result.error });
+            toast({ variant: "destructive", title: "Error al Guardar", description: result.error });
         }
         setSaving(false);
     };
@@ -137,7 +138,7 @@ export default function ManageGamePage() {
         return (
             <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)]">
                 <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-                <p className="text-lg text-muted-foreground">Loading game data...</p>
+                <p className="text-lg text-muted-foreground">Cargando datos del partido...</p>
             </div>
         );
     }
@@ -149,14 +150,14 @@ export default function ManageGamePage() {
                 <h1 className="text-2xl font-headline font-semibold text-destructive">Error</h1>
                 <p className="text-muted-foreground mb-4">{error}</p>
                 <Button asChild variant="outline">
-                    <Link href="/games">Back to Games List</Link>
+                    <Link href="/games">Volver a la Lista de Partidos</Link>
                 </Button>
             </div>
         );
     }
 
     if (!game) {
-        return null; // Should be covered by error state
+        return null;
     }
 
     return (
@@ -164,7 +165,7 @@ export default function ManageGamePage() {
             <Button variant="outline" size="sm" asChild>
                 <Link href="/games">
                     <ChevronLeft className="mr-2 h-4 w-4" />
-                    Back to Games List
+                    Volver a la Lista de Partidos
                 </Link>
             </Button>
 
@@ -174,24 +175,24 @@ export default function ManageGamePage() {
                        {game.homeTeamName} vs {game.awayTeamName}
                     </CardTitle>
                     <CardDescription className="text-lg">
-                       {format(game.date, 'PPPP p')} at {game.location}
+                       {format(game.date, 'PPPP p', { locale: es })} en {game.location}
                     </CardDescription>
                 </CardHeader>
             </Card>
 
             <Card className="shadow-xl">
                 <CardHeader>
-                    <CardTitle className="flex items-center"><ShieldCheck className="mr-3 h-6 w-6"/>Game Roster for {managedTeam?.name}</CardTitle>
+                    <CardTitle className="flex items-center"><ShieldCheck className="mr-3 h-6 w-6"/>Convocatoria para {managedTeam?.name}</CardTitle>
                     <CardDescription>
-                        Select the players who will be participating in this game.
+                        Selecciona los jugadores que participarán en este partido.
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
                     {players.length === 0 ? (
                          <div className="text-center py-10 border-2 border-dashed rounded-lg">
                             <Users className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-                            <h2 className="text-xl font-semibold">No Players on Roster</h2>
-                            <p className="text-muted-foreground">This team doesn't have any players yet. You can add players on the team management page.</p>
+                            <h2 className="text-xl font-semibold">No hay Jugadores en la Plantilla</h2>
+                            <p className="text-muted-foreground">Este equipo aún no tiene jugadores. Puedes añadirlos en la página de gestión del equipo.</p>
                         </div>
                     ) : (
                         <div className="space-y-4">
@@ -211,7 +212,7 @@ export default function ManageGamePage() {
                             </div>
                             <Button onClick={handleSaveRoster} disabled={saving}>
                                 {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-                                {saving ? 'Saving...' : 'Save Roster'}
+                                {saving ? 'Guardando...' : 'Guardar Convocatoria'}
                             </Button>
                         </div>
                     )}

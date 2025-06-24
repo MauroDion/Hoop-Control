@@ -1,4 +1,3 @@
-
 "use client";
 
 import { GameForm } from "@/components/games/GameForm";
@@ -51,7 +50,7 @@ export default function NewGamePage() {
         ]);
         
         if (!profile || (profile.profileTypeId !== 'coach' && profile.profileTypeId !== 'super_admin' && profile.profileTypeId !== 'coordinator')) {
-            setError("Access Denied. You must be a coach, coordinator, or admin to schedule games.");
+            setError("Acceso Denegado. Debes ser entrenador, coordinador o administrador para programar partidos.");
             return;
         }
 
@@ -63,7 +62,7 @@ export default function NewGamePage() {
         setSeasons(fetchedSeasons.filter(s => s.status === 'active')); // Only allow scheduling for active seasons
 
       } catch (err: any) {
-        setError("Failed to load data required for scheduling a game.");
+        setError("Error al cargar los datos necesarios para programar un partido.");
       } finally {
         setLoadingData(false);
       }
@@ -75,7 +74,7 @@ export default function NewGamePage() {
     return (
       <div className="flex items-center justify-center min-h-[calc(100vh-10rem)]">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
-        <p className="ml-4">Loading game scheduler...</p>
+        <p className="ml-4">Cargando programador de partidos...</p>
       </div>
     );
   }
@@ -86,7 +85,7 @@ export default function NewGamePage() {
         <AlertTriangle className="h-12 w-12 text-destructive mb-4" />
         <h1 className="text-2xl font-semibold text-destructive">Error</h1>
         <p className="text-muted-foreground mb-4">{error}</p>
-        <Button onClick={() => router.push('/dashboard')} className="mt-4">Go to Dashboard</Button>
+        <Button onClick={() => router.push('/dashboard')} className="mt-4">Ir al Panel</Button>
       </div>
     );
   }
@@ -96,16 +95,16 @@ export default function NewGamePage() {
       <Button variant="outline" size="sm" asChild className="mb-6">
         <Link href="/games">
           <ChevronLeft className="mr-2 h-4 w-4" />
-          Back to Games List
+          Volver a la Lista de Partidos
         </Link>
       </Button>
       <Card className="shadow-xl">
         <CardHeader>
           <CardTitle className="text-3xl font-headline flex items-center">
             <CalendarClock className="mr-3 h-8 w-8 text-primary" />
-            Schedule New Game
+            Programar Nuevo Partido
           </CardTitle>
-          <CardDescription>Fill in the details below to create a new game entry.</CardDescription>
+          <CardDescription>Rellena los detalles a continuación para crear un nuevo partido.</CardDescription>
         </CardHeader>
         <CardContent>
           <GameForm 

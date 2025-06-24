@@ -1,4 +1,3 @@
-
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -17,16 +16,16 @@ import { Loader2 } from "lucide-react";
 import React, { useState, useMemo, useEffect } from 'react';
 
 const gameFormSchema = z.object({
-  seasonId: z.string().min(1, "You must select a season."),
-  competitionCategoryId: z.string().min(1, "You must select a competition."),
-  homeTeamId: z.string().min(1, "You must select a home team."),
-  awayTeamId: z.string().min(1, "You must select an away team."),
-  date: z.string().min(1, "A date is required."),
-  time: z.string().min(1, "A time is required."),
-  location: z.string().min(3, "Location must be at least 3 characters."),
+  seasonId: z.string().min(1, "Debes seleccionar una temporada."),
+  competitionCategoryId: z.string().min(1, "Debes seleccionar una competición."),
+  homeTeamId: z.string().min(1, "Debes seleccionar un equipo local."),
+  awayTeamId: z.string().min(1, "Debes seleccionar un equipo visitante."),
+  date: z.string().min(1, "La fecha es obligatoria."),
+  time: z.string().min(1, "La hora es obligatoria."),
+  location: z.string().min(3, "La ubicación debe tener al menos 3 caracteres."),
   gameFormatId: z.string().optional().nullable(),
 }).refine(data => data.homeTeamId !== data.awayTeamId, {
-    message: "Home and away teams cannot be the same.",
+    message: "El equipo local y visitante no pueden ser el mismo.",
     path: ["awayTeamId"],
 });
 
@@ -102,25 +101,24 @@ export function GameForm({ coachTeams, allTeams, gameFormats, competitionCategor
 
   async function onSubmit(values: z.infer<typeof gameFormSchema>) {
     if (!user) {
-      toast({ variant: "destructive", title: "Authentication Error", description: "You must be logged in." });
+      toast({ variant: "destructive", title: "Error de autenticación", description: "Debes iniciar sesión." });
       return;
     }
     
-    // The form data already matches GameFormData type
     const result = await createGame(values, user.uid);
 
     if (result.success) {
       toast({
-        title: "Game Scheduled",
-        description: `The game has been successfully scheduled.`,
+        title: "Partido Programado",
+        description: `El partido ha sido programado con éxito.`,
       });
       router.push("/games");
       router.refresh();
     } else {
       toast({
         variant: "destructive",
-        title: "Scheduling Failed",
-        description: result.error || "An unexpected error occurred.",
+        title: "Error al Programar",
+        description: result.error || "Ocurrió un error inesperado.",
       });
     }
   }
@@ -133,7 +131,7 @@ export function GameForm({ coachTeams, allTeams, gameFormats, competitionCategor
           name="seasonId"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>1. Select Season</FormLabel>
+              <FormLabel>1. Selecciona la Temporada</FormLabel>
               <Select onValueChange={value => {
                   field.onChange(value);
                   setValue('competitionCategoryId', '');
@@ -142,7 +140,7 @@ export function GameForm({ coachTeams, allTeams, gameFormats, competitionCategor
               }} defaultValue={field.value}>
                 <FormControl>
                   <SelectTrigger>
-                    <SelectValue placeholder="Select an active season" />
+                    <SelectValue placeholder="Selecciona una temporada activa" />
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
@@ -161,7 +159,7 @@ export function GameForm({ coachTeams, allTeams, gameFormats, competitionCategor
           name="competitionCategoryId"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>2. Select Competition</FormLabel>
+              <FormLabel>2. Selecciona la Competición</FormLabel>
               <Select onValueChange={value => {
                   field.onChange(value);
                   setValue('homeTeamId', '');
@@ -169,7 +167,7 @@ export function GameForm({ coachTeams, allTeams, gameFormats, competitionCategor
               }} value={field.value} disabled={!selectedSeasonId || availableCompetitions.length === 0}>
                 <FormControl>
                   <SelectTrigger>
-                    <SelectValue placeholder={!selectedSeasonId ? "First select a season" : "Select a competition"} />
+                    <SelectValue placeholder={!selectedSeasonId ? "Primero selecciona una temporada" : "Selecciona una competición"} />
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
@@ -188,11 +186,11 @@ export function GameForm({ coachTeams, allTeams, gameFormats, competitionCategor
           name="homeTeamId"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>3. Select Home Team (Your Team)</FormLabel>
+              <FormLabel>3. Selecciona el Equipo Local (Tu Equipo)</FormLabel>
               <Select onValueChange={field.onChange} value={field.value} disabled={!selectedCompetitionId || homeTeamOptions.length === 0}>
                 <FormControl>
                   <SelectTrigger>
-                    <SelectValue placeholder={!selectedCompetitionId ? "First select competition" : "Select your team"} />
+                    <SelectValue placeholder={!selectedCompetitionId ? "Primero selecciona una competición" : "Selecciona tu equipo"} />
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
@@ -201,7 +199,7 @@ export function GameForm({ coachTeams, allTeams, gameFormats, competitionCategor
                   ))}
                 </SelectContent>
               </Select>
-              {homeTeamOptions.length === 0 && selectedCompetitionId && <p className="text-sm text-muted-foreground mt-1">You do not coach any teams registered in this competition.</p>}
+              {homeTeamOptions.length === 0 && selectedCompetitionId && <p className="text-sm text-muted-foreground mt-1">No entrenas a ningún equipo registrado en esta competición.</p>}
               <FormMessage />
             </FormItem>
           )}
@@ -212,11 +210,11 @@ export function GameForm({ coachTeams, allTeams, gameFormats, competitionCategor
           name="awayTeamId"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>4. Select Away Team (Opponent)</FormLabel>
+              <FormLabel>4. Selecciona el Equipo Visitante (Oponente)</FormLabel>
               <Select onValueChange={field.onChange} value={field.value} disabled={!selectedHomeTeamId || awayTeamOptions.length === 0}>
                 <FormControl>
                   <SelectTrigger>
-                    <SelectValue placeholder={!selectedHomeTeamId ? "First select home team" : "Select opponent"} />
+                    <SelectValue placeholder={!selectedHomeTeamId ? "Primero selecciona el equipo local" : "Selecciona el oponente"} />
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
@@ -236,7 +234,7 @@ export function GameForm({ coachTeams, allTeams, gameFormats, competitionCategor
             name="date"
             render={({ field }) => (
                 <FormItem>
-                <FormLabel>Date</FormLabel>
+                <FormLabel>Fecha</FormLabel>
                 <FormControl>
                     <Input type="date" {...field} />
                 </FormControl>
@@ -249,7 +247,7 @@ export function GameForm({ coachTeams, allTeams, gameFormats, competitionCategor
             name="time"
             render={({ field }) => (
                 <FormItem>
-                <FormLabel>Time</FormLabel>
+                <FormLabel>Hora</FormLabel>
                 <FormControl>
                     <Input type="time" {...field} />
                 </FormControl>
@@ -264,9 +262,9 @@ export function GameForm({ coachTeams, allTeams, gameFormats, competitionCategor
           name="location"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Location</FormLabel>
+              <FormLabel>Ubicación</FormLabel>
               <FormControl>
-                <Input placeholder="e.g., City Park, Field 4" {...field} />
+                <Input placeholder="Ej: Polideportivo Municipal, Pista 4" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -274,15 +272,15 @@ export function GameForm({ coachTeams, allTeams, gameFormats, competitionCategor
         />
 
         <FormItem>
-            <FormLabel>Game Format</FormLabel>
+            <FormLabel>Formato del Partido</FormLabel>
             <FormControl>
                 <Input 
-                    value={selectedGameFormatName || "Automatically selected based on competition"} 
+                    value={selectedGameFormatName || "Se selecciona automáticamente según la competición"} 
                     disabled 
                 />
             </FormControl>
             <FormDescription>
-                The game format is determined by the selected competition.
+                El formato del partido lo determina la categoría de la competición.
             </FormDescription>
             <FormMessage />
         </FormItem>
@@ -291,10 +289,10 @@ export function GameForm({ coachTeams, allTeams, gameFormats, competitionCategor
           {form.formState.isSubmitting ? (
             <>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Scheduling Game...
+              Programando Partido...
             </>
           ) : (
-            "Schedule Game"
+            "Programar Partido"
           )}
         </Button>
       </form>

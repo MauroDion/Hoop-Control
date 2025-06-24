@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useEffect, useState } from 'react';
@@ -13,6 +12,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Loader2, AlertTriangle, CalendarClock, PlusCircle, Shield, Settings } from 'lucide-react';
 import Link from 'next/link';
 import { format } from 'date-fns';
+import { es } from 'date-fns/locale';
 
 export default function GamesPage() {
   const { user, loading: authLoading } = useAuth();
@@ -39,8 +39,8 @@ export default function GamesPage() {
           getGamesByCoach(user.uid)
         ]);
 
-        if (!profile || profile.profileTypeId !== 'coach') {
-           setError("Access Denied. You must be a coach to manage games.");
+        if (!profile || (profile.profileTypeId !== 'coach' && profile.profileTypeId !== 'coordinator' && profile.profileTypeId !== 'super_admin')) {
+           setError("Acceso Denegado. Debes ser entrenador, coordinador o administrador para gestionar partidos.");
            setLoading(false);
            return;
         }
@@ -48,7 +48,7 @@ export default function GamesPage() {
         setUserProfile(profile);
         setGames(fetchedGames);
       } catch (err: any) {
-        setError("Failed to load games data.");
+        setError("Error al cargar los datos de los partidos.");
       } finally {
         setLoading(false);
       }
@@ -70,7 +70,7 @@ export default function GamesPage() {
         <AlertTriangle className="h-12 w-12 text-destructive mb-4" />
         <h1 className="text-2xl font-semibold text-destructive">Error</h1>
         <p className="text-muted-foreground mb-4">{error}</p>
-        <Button onClick={() => router.push('/dashboard')} className="mt-4">Go to Dashboard</Button>
+        <Button onClick={() => router.push('/dashboard')} className="mt-4">Ir al Panel</Button>
       </div>
     );
   }
@@ -79,51 +79,51 @@ export default function GamesPage() {
     <div className="space-y-8">
        <div className="flex justify-between items-center">
         <h1 className="text-4xl font-headline font-bold text-primary flex items-center">
-          <CalendarClock className="mr-3 h-10 w-10" /> My Games
+          <CalendarClock className="mr-3 h-10 w-10" /> Mis Partidos
         </h1>
         <Button asChild>
           <Link href="/games/new">
-            <PlusCircle className="mr-2 h-5 w-5" /> Schedule New Game
+            <PlusCircle className="mr-2 h-5 w-5" /> Programar Partido
           </Link>
         </Button>
       </div>
 
       <Card className="shadow-xl">
         <CardHeader>
-          <CardTitle>Upcoming & Recent Games</CardTitle>
+          <CardTitle>Partidos Próximos y Recientes</CardTitle>
           <CardDescription>
-            List of all games scheduled for your teams.
+            Lista de todos los partidos programados para tus equipos.
           </CardDescription>
         </CardHeader>
         <CardContent>
            {games.length === 0 ? (
              <div className="text-center py-10 border-2 border-dashed rounded-lg">
                 <Shield className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-                <h2 className="text-xl font-semibold">No Games Found</h2>
-                <p className="text-muted-foreground">You have not scheduled any games yet.</p>
+                <h2 className="text-xl font-semibold">No se Encontraron Partidos</h2>
+                <p className="text-muted-foreground">Aún no has programado ningún partido.</p>
             </div>
           ) : (
              <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Matchup</TableHead>
-                    <TableHead>Location</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
+                    <TableHead>Fecha</TableHead>
+                    <TableHead>Enfrentamiento</TableHead>
+                    <TableHead>Lugar</TableHead>
+                    <TableHead>Estado</TableHead>
+                    <TableHead className="text-right">Acciones</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {games.map((game) => (
                     <TableRow key={game.id}>
-                      <TableCell>{format(game.date, 'PPp')}</TableCell>
+                      <TableCell>{format(game.date, 'PPp', { locale: es })}</TableCell>
                       <TableCell className="font-medium">{game.homeTeamName} vs {game.awayTeamName}</TableCell>
                       <TableCell>{game.location}</TableCell>
                       <TableCell className="capitalize">{game.status}</TableCell>
                       <TableCell className="text-right">
                         <Button asChild size="sm" variant="outline">
                           <Link href={`/games/${game.id}`}>
-                            <Settings className="mr-2 h-4 w-4" /> Manage Game
+                            <Settings className="mr-2 h-4 w-4" /> Gestionar Partido
                           </Link>
                         </Button>
                       </TableCell>
