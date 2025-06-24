@@ -179,6 +179,15 @@ export interface Season {
     }[];
 }
 
+export interface SeasonFormData {
+  name: string;
+  status: 'active' | 'archived' | 'upcoming';
+  competitions: {
+      competitionCategoryId: string;
+      teamIds: string[];
+  }[];
+}
+
 export interface Game {
     id: string;
     homeTeamId: string;
