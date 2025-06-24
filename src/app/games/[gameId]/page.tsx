@@ -20,7 +20,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
-import { Loader2, AlertTriangle, ChevronLeft, Users, Save, ShieldCheck } from 'lucide-react';
+import { Loader2, AlertTriangle, ChevronLeft, Users, Save, ShieldCheck, Gamepad2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 
@@ -179,6 +179,24 @@ export default function ManageGamePage() {
                     </CardDescription>
                 </CardHeader>
             </Card>
+
+            {['scheduled', 'inprogress'].includes(game.status) && (
+                 <Card className="shadow-xl bg-green-50 border-green-200">
+                    <CardHeader>
+                        <CardTitle className="flex items-center text-green-800"><Gamepad2 className="mr-3 h-6 w-6"/>Panel de Partido en Vivo</CardTitle>
+                        <CardDescription className="text-green-700">
+                            {game.status === 'scheduled' ? 'La convocatoria está lista. Es hora de empezar el partido.' : 'El partido está en progreso. Ve al panel para continuar.'}
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <Button asChild size="lg" className="bg-green-600 hover:bg-green-700 w-full">
+                            <Link href={`/games/${game.id}/live`}>
+                                {game.status === 'scheduled' ? 'Empezar Partido y Registrar Puntuación' : 'Ir al Partido en Vivo'}
+                            </Link>
+                        </Button>
+                    </CardContent>
+                </Card>
+            )}
 
             <Card className="shadow-xl">
                 <CardHeader>

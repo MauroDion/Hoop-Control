@@ -196,3 +196,28 @@ export async function updateGameRoster(
         return { success: false, error: error.message || "Failed to update roster." };
     }
 }
+
+export async function updateLiveGameState(
+  gameId: string,
+  updates: Partial<Pick<Game, 'status' | 'homeTeamScore' | 'awayTeamScore' | 'currentPeriod'>>
+): Promise<{ success: boolean; error?: string }> {
+  if (!adminDb) return { success: false, error: "La base de datos no está inicializada." };
+  
+  try {
+    const gameRef = adminDb.collection('games').doc(gameId);
+    
+    const updateData: { [key: string]: any } = { 
+        ...updates,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    };
+
+    await gameRef.update(updateData);
+    
+    revalidatePath(`/games/${gameId}/live`);
+    revalidatePath(`/games/${gameId}`);
+    return { success: true };
+  } catch (error: any) {
+    console.error("Error al actualizar el estado del partido en vivo:", error);
+    return { success: false, error: error.message || "No se pudo actualizar el estado del partido." };
+  }
+}

@@ -203,6 +203,9 @@ export interface Game {
     date: Date;
     location: string;
     status: 'scheduled' | 'inprogress' | 'completed' | 'cancelled';
+    homeTeamScore?: number;
+    awayTeamScore?: number;
+    currentPeriod?: number;
     seasonId: string;
     competitionCategoryId: string;
     gameFormatId?: string | null;
