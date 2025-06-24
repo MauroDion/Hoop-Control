@@ -82,3 +82,32 @@ export async function createClub(
     return { success: false, error: error.message || 'Failed to create club.' };
   }
 }
+
+// New action to update club approval status
+export async function updateClubStatus(
+  clubId: string,
+  approved: boolean
+): Promise<{ success: boolean; error?: string }> {
+  console.log(`ClubActions: Attempting to update approved status for club ID: ${clubId} to '${approved}'.`);
+  if (!clubId) {
+    return { success: false, error: 'Club ID is required.' };
+  }
+
+  if (!adminDb) {
+    console.error("ClubActions: Firebase Admin SDK is not initialized.");
+    return { success: false, error: 'Server configuration error.' };
+  }
+
+  try {
+    const clubRef = adminDb.collection('clubs').doc(clubId);
+    await clubRef.update({
+      approved: approved
+    });
+    console.log(`ClubActions: Successfully updated approved status for club ID: ${clubId} to '${approved}'.`);
+    revalidatePath('/clubs'); // Revalidate the admin page
+    return { success: true };
+  } catch (error: any) {
+    console.error(`ClubActions: Error updating status for club ID ${clubId}:`, error.message, error.stack);
+    return { success: false, error: error.message || 'Failed to update club status.' };
+  }
+}
