@@ -1,5 +1,5 @@
 import { initializeApp, getApps, type FirebaseApp } from 'firebase/app';
-import { getAuth, browserLocalPersistence, browserSessionPersistence, type Auth } from 'firebase/auth';
+import { getAuth, browserSessionPersistence, type Auth } from 'firebase/auth';
 import { getFirestore, type Firestore } from 'firebase/firestore';
 import { firebaseConfig } from './config';
 
@@ -11,9 +11,9 @@ if (getApps().length === 0) {
   try {
     app = initializeApp(firebaseConfig);
     auth = getAuth(app);
-    // Persistence set to 'local' for "Remember me" functionality by default.
-    // Can be changed to 'session' for session-only persistence or 'none'.
-    auth.setPersistence(browserLocalPersistence); 
+    // Persistence set to 'session' to ensure logout on tab close.
+    // This makes it easier to test the auth flow during development.
+    auth.setPersistence(browserSessionPersistence); 
     db = getFirestore(app);
   } catch (error) {
     console.error("Error initializing Firebase:", error);
