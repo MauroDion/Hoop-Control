@@ -5,7 +5,6 @@ import { auth } from '@/lib/firebase/client';
 import { onAuthStateChanged, signOut as firebaseSignOut } from 'firebase/auth';
 import React, { createContext, useContext, useEffect, useState, ReactNode, useCallback, useRef } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 
 const INACTIVITY_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
@@ -21,7 +20,6 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<FirebaseUser | null>(null);
   const [loading, setLoading] = useState(true);
-  const router = useRouter();
   const { toast } = useToast();
   const inactivityTimer = useRef<NodeJS.Timeout>();
 
@@ -44,16 +42,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         } else {
             toast({ title: "Sesión Cerrada", description: "Has cerrado sesión correctamente." });
         }
-        router.replace('/login');
-        router.refresh();
+        // Force a full page reload to the login page. This is more robust for clearing state.
+        window.location.href = '/login';
       } catch (clientSignOutError: any) {
         console.error('AuthProvider: Critical error during client-side signOut:', clientSignOutError);
         toast({ variant: "destructive", title: "Fallo en Cierre de Sesión Local", description: clientSignOutError.message });
-        router.replace('/login');
-        router.refresh();
+        // Force redirect even on error.
+        window.location.href = '/login';
       }
     }
-  }, [router, toast]);
+  }, [toast]);
 
   useEffect(() => {
     const handleInactivity = () => {
