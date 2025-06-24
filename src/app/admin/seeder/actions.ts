@@ -35,6 +35,23 @@ async function deleteQueryBatch(query: admin.firestore.Query, resolve: (value: u
     });
 }
 
+// --- Data for Seeder ---
+const firstNamesMasculine = ["Hugo", "Lucas", "Mateo", "Leo", "Daniel", "Pablo", "Álvaro", "Adrián", "Manuel", "Enzo", "Martín", "Javier", "Marcos", "Alejandro", "David"];
+const firstNamesFeminine = ["Lucía", "Sofía", "Martina", "María", "Julia", "Paula", "Valeria", "Emma", "Daniela", "Carla", "Alba", "Noa", "Olivia", "Sara", "Carmen"];
+const lastNames = ["García", "Rodríguez", "González", "Fernández", "López", "Martínez", "Sánchez", "Pérez", "Gómez", "Martín", "Jiménez", "Ruiz", "Hernández", "Díaz", "Moreno", "Álvarez", "Romero"];
+
+function getRandomItem<T>(arr: T[]): T {
+    return arr[Math.floor(Math.random() * arr.length)];
+}
+
+function generatePlayerName(isFeminine: boolean) {
+    const firstName = isFeminine ? getRandomItem(firstNamesFeminine) : getRandomItem(firstNamesMasculine);
+    return {
+        firstName,
+        lastName: `${getRandomItem(lastNames)} ${getRandomItem(lastNames)}`
+    }
+}
+
 
 export async function seedDatabase(): Promise<{ success: boolean; error?: string }> {
     if (!adminDb) {
@@ -43,17 +60,8 @@ export async function seedDatabase(): Promise<{ success: boolean; error?: string
 
     try {
         console.log('Iniciando el proceso de borrado de datos existentes...');
-        // Clean up existing data to prevent duplicates and conflicts
-        const collectionsToDelete = [
-            'gameFormats', 
-            'competitionCategories', 
-            'clubs', 
-            'user_profiles_seeder_temp', // Using a temporary name to avoid deleting real users
-            'teams', 
-            'players', 
-            'seasons'
-        ];
-        
+        // WARNING: This will delete all users, teams, players etc.
+        const collectionsToDelete = ['gameFormats', 'competitionCategories', 'clubs', 'user_profiles', 'teams', 'players', 'seasons'];
         for (const collection of collectionsToDelete) {
             console.log(`Borrando colección: ${collection}...`);
             await deleteCollection(collection);
@@ -72,79 +80,111 @@ export async function seedDatabase(): Promise<{ success: boolean; error?: string
         batch.set(adminDb.collection('gameFormats').doc(gameFormat3v3.id), gameFormat3v3);
 
         // --- 2. Competition Categories ---
-        const catU12M = { id: 'u12-masculino', name: 'U12 Masculino', level: 12, gameFormatId: gameFormat5v5.id };
-        const catU14F = { id: 'u14-femenino', name: 'U14 Femenino', level: 14, gameFormatId: gameFormat5v5.id };
-        const catSenior3v3 = { id: 'senior-3v3', name: 'Senior 3v3 Mixto', level: 99, gameFormatId: gameFormat3v3.id };
-        batch.set(adminDb.collection('competitionCategories').doc(catU12M.id), catU12M);
-        batch.set(adminDb.collection('competitionCategories').doc(catU14F.id), catU14F);
-        batch.set(adminDb.collection('competitionCategories').doc(catSenior3v3.id), catSenior3v3);
+        const categories = [
+            { id: 'u10-mixto', name: 'U10 Mixto', level: 10, gameFormatId: gameFormat5v5.id, isFeminine: false },
+            { id: 'u12-masculino', name: 'U12 Masculino', level: 12, gameFormatId: gameFormat5v5.id, isFeminine: false },
+            { id: 'u14-femenino', name: 'U14 Femenino', level: 14, gameFormatId: gameFormat5v5.id, isFeminine: true },
+            { id: 'u16-masculino', name: 'U16 Masculino', level: 16, gameFormatId: gameFormat5v5.id, isFeminine: false },
+            { id: 'senior-femenino', name: 'Senior Femenino', level: 99, gameFormatId: gameFormat5v5.id, isFeminine: true },
+        ];
+        categories.forEach(cat => batch.set(adminDb.collection('competitionCategories').doc(cat.id), {name: cat.name, level: cat.level, gameFormatId: cat.gameFormatId}));
 
         // --- 3. Clubs ---
-        const clubEstudiantes = { id: 'club-estudiantes', name: 'Club Estudiantes Madrid', shortName: 'ESTU', city_name: 'Madrid', province_name: 'Madrid', approved: true, createdAt: serverTimestamp };
-        const clubValencia = { id: 'club-valencia', name: 'Valencia Basket Club', shortName: 'VBC', city_name: 'Valencia', province_name: 'Valencia', approved: true, createdAt: serverTimestamp };
-        batch.set(adminDb.collection('clubs').doc(clubEstudiantes.id), clubEstudiantes);
-        batch.set(adminDb.collection('clubs').doc(clubValencia.id), clubValencia);
-
-        // --- 4. Dummy Users (Coaches & Coordinators) ---
-        // NOTE: These are only Firestore profiles. Corresponding Auth users must be created manually for them to log in.
-        const users = [
-            { uid: 'coach-01', displayName: 'Ana García', email: 'ana.coach@example.com', profileTypeId: 'coach', clubId: clubEstudiantes.id, status: 'approved' },
-            { uid: 'coach-02', displayName: 'Carlos López', email: 'carlos.coach@example.com', profileTypeId: 'coach', clubId: clubEstudiantes.id, status: 'approved' },
-            { uid: 'coach-03', displayName: 'Sara Martín', email: 'sara.coach@example.com', profileTypeId: 'coach', clubId: clubValencia.id, status: 'approved' },
-            { uid: 'coord-01', displayName: 'David Fernández', email: 'david.coord@example.com', profileTypeId: 'coordinator', clubId: clubEstudiantes.id, status: 'approved' },
+        const clubs = [
+            { id: 'club-estudiantes', name: 'Club Estudiantes Madrid', shortName: 'ESTU', city_name: 'Madrid', province_name: 'Madrid' },
+            { id: 'club-valencia', name: 'Valencia Basket Club', shortName: 'VBC', city_name: 'Valencia', province_name: 'Valencia' },
+            { id: 'club-baskonia', name: 'Saski Baskonia', shortName: 'BKN', city_name: 'Vitoria-Gasteiz', province_name: 'Álava' },
+            { id: 'club-joventut', name: 'Club Joventut Badalona', shortName: 'CJB', city_name: 'Badalona', province_name: 'Barcelona' },
+            { id: 'club-unicaja', name: 'Unicaja Málaga', shortName: 'UNI', city_name: 'Málaga', province_name: 'Málaga' },
         ];
-        users.forEach(user => {
-            batch.set(adminDb.collection('user_profiles').doc(user.uid), { ...user, createdAt: serverTimestamp, updatedAt: serverTimestamp });
-        });
+        clubs.forEach(club => batch.set(adminDb.collection('clubs').doc(club.id), {...club, approved: true, createdAt: serverTimestamp}));
 
-        // --- 5. Teams ---
-        const teams = [
-            { id: 'estu-u12-a', name: 'Estudiantes U12 A', clubId: clubEstudiantes.id, competitionCategoryId: catU12M.id, coachIds: ['coach-01'], coordinatorIds: ['coord-01'] },
-            { id: 'estu-u12-b', name: 'Estudiantes U12 B', clubId: clubEstudiantes.id, competitionCategoryId: catU12M.id, coachIds: ['coach-02'], coordinatorIds: ['coord-01'] },
-            { id: 'val-u14-fem', name: 'Valencia U14 Femenino', clubId: clubValencia.id, competitionCategoryId: catU14F.id, coachIds: ['coach-03'] },
-        ];
-        teams.forEach(team => {
-            batch.set(adminDb.collection('teams').doc(team.id), { ...team, createdAt: serverTimestamp, updatedAt: serverTimestamp });
-        });
+        const allTeamsData = [];
 
-        // --- 6. Players ---
-        const players = [
-            // Estudiantes U12 A
-            { firstName: 'Hugo', lastName: 'Gomez', jerseyNumber: 4, position: 'Base', teamId: 'estu-u12-a' },
-            { firstName: 'Lucas', lastName: 'Vazquez', jerseyNumber: 5, position: 'Escolta', teamId: 'estu-u12-a' },
-            { firstName: 'Mateo', lastName: 'Ruiz', jerseyNumber: 7, position: 'Alero', teamId: 'estu-u12-a' },
-            { firstName: 'Leo', lastName: 'Jimenez', jerseyNumber: 10, position: 'Ala-Pívot', teamId: 'estu-u12-a' },
-            { firstName: 'Daniel', lastName: 'Moreno', jerseyNumber: 12, position: 'Pívot', teamId: 'estu-u12-a' },
-            // Estudiantes U12 B
-            { firstName: 'Pablo', lastName: 'Alvarez', jerseyNumber: 6, position: 'Base', teamId: 'estu-u12-b' },
-            { firstName: 'Álvaro', lastName: 'Romero', jerseyNumber: 8, position: 'Escolta', teamId: 'estu-u12-b' },
-            // Valencia U14 Femenino
-            { firstName: 'Lucía', lastName: 'Sanz', jerseyNumber: 4, position: 'Base', teamId: 'val-u14-fem' },
-            { firstName: 'Martina', lastName: 'Castillo', jerseyNumber: 5, position: 'Escolta', teamId: 'val-u14-fem' },
-            { firstName: 'Sofía', lastName: 'Garrido', jerseyNumber: 9, position: 'Alero', teamId: 'val-u14-fem' },
-        ];
-        players.forEach(player => {
-            const playerRef = adminDb.collection('players').doc();
-            batch.set(playerRef, { ...player, createdAt: serverTimestamp });
-        });
-        
-        // --- 7. Seasons ---
+        // --- 4. Users, Teams, Players ---
+        let userCounter = 1;
+        for (const club of clubs) {
+            // Create 1 Coordinator per Club
+            const coordName = `${getRandomItem(firstNamesMasculine)} ${getRandomItem(lastNames)}`;
+            const coordId = `user-coord-${userCounter}`;
+            const coordinator = {
+                uid: coordId,
+                displayName: coordName,
+                email: `${coordName.toLowerCase().replace(/\s/g, '.')}@example.com`,
+                profileTypeId: 'coordinator',
+                clubId: club.id,
+                status: 'approved',
+                createdAt: serverTimestamp,
+                updatedAt: serverTimestamp,
+            };
+            batch.set(adminDb.collection('user_profiles').doc(coordId), coordinator);
+            userCounter++;
+            
+            for(const category of categories) {
+                 // Create 1-2 Coaches per Team
+                const coachIds = [];
+                const numCoaches = 1 + Math.floor(Math.random() * 2); // 1 or 2
+                 for (let i = 0; i < numCoaches; i++) {
+                    const coachName = `${getRandomItem(firstNamesFeminine)} ${getRandomItem(lastNames)}`;
+                    const coachId = `user-coach-${userCounter}`;
+                    coachIds.push(coachId);
+                    const coach = {
+                        uid: coachId,
+                        displayName: coachName,
+                        email: `${coachName.toLowerCase().replace(/\s/g, '.')}@example.com`,
+                        profileTypeId: 'coach',
+                        clubId: club.id,
+                        status: 'approved',
+                        createdAt: serverTimestamp,
+                        updatedAt: serverTimestamp,
+                    };
+                    batch.set(adminDb.collection('user_profiles').doc(coachId), coach);
+                    userCounter++;
+                 }
+
+                // Create 1 Team per Category per Club
+                const teamId = `${club.shortName?.toLowerCase()}-${category.id}`;
+                const team = {
+                    id: teamId,
+                    name: `${club.name} ${category.name}`,
+                    clubId: club.id,
+                    competitionCategoryId: category.id,
+                    coachIds: coachIds,
+                    coordinatorIds: [coordId],
+                    createdAt: serverTimestamp,
+                    updatedAt: serverTimestamp
+                };
+                batch.set(adminDb.collection('teams').doc(team.id), team);
+                allTeamsData.push(team);
+
+                // Create 8-9 Players per Team
+                const numPlayers = 8 + Math.floor(Math.random() * 2);
+                for (let p = 0; p < numPlayers; p++) {
+                    const playerName = generatePlayerName(category.isFeminine);
+                    const player = {
+                        ...playerName,
+                        jerseyNumber: 4 + p,
+                        position: ['Base', 'Escolta', 'Alero', 'Ala-Pívot', 'Pívot'][p % 5],
+                        teamId: team.id,
+                        createdAt: serverTimestamp
+                    };
+                    batch.set(adminDb.collection('players').doc(), player);
+                }
+            }
+        }
+
+        // --- 5. Season ---
         const season2425 = {
-            id: 'season-24-25',
             name: 'Temporada 2024-2025',
             status: 'active',
-            competitions: [
-                {
-                    competitionCategoryId: catU12M.id,
-                    teamIds: ['estu-u12-a', 'estu-u12-b'],
-                },
-                {
-                    competitionCategoryId: catU14F.id,
-                    teamIds: ['val-u14-fem'],
-                },
-            ]
+            competitions: categories.map(category => {
+                return {
+                    competitionCategoryId: category.id,
+                    teamIds: allTeamsData.filter(t => t.competitionCategoryId === category.id).map(t => t.id)
+                }
+            })
         };
-        batch.set(adminDb.collection('seasons').doc(season2425.id), season2425);
+        batch.set(adminDb.collection('seasons').doc('season-24-25'), season2425);
         
         await batch.commit();
 

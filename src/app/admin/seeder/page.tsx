@@ -9,6 +9,17 @@ import { Loader2, AlertTriangle, Database, Wand2 } from 'lucide-react';
 import { seedDatabase } from './actions';
 import { useToast } from '@/hooks/use-toast';
 import { getUserProfileById } from '@/app/users/actions';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 export default function SeederPage() {
   const { user, loading: authLoading } = useAuth();
@@ -72,10 +83,10 @@ export default function SeederPage() {
         <CardHeader>
           <CardTitle className="text-3xl font-headline flex items-center">
             <Database className="mr-3 h-8 w-8 text-primary" />
-            Poblador de Base de Datos
+            Poblador de Base de Datos (Seeder)
           </CardTitle>
           <CardDescription>
-            Usa esta herramienta para llenar tu base de datos de Firestore con datos de ejemplo para clubs, equipos, jugadores y más.
+            Herramienta de desarrollo para llenar Firestore con un conjunto completo de datos de prueba.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -92,13 +103,39 @@ export default function SeederPage() {
                 <Wand2 className="mx-auto h-12 w-12 text-muted-foreground mb-4"/>
                 <h3 className="text-xl font-semibold">¿Listo para empezar?</h3>
                 <p className="text-muted-foreground my-2">
-                    Hacer clic en el botón de abajo borrará las colecciones existentes y las llenará con nuevos datos de prueba. 
-                    Esta acción no se puede deshacer.
+                    Hacer clic en el botón de abajo borrará las colecciones existentes (incluyendo **todos los perfiles de usuario**) y las llenará con un nuevo conjunto de datos de prueba: 5 clubs, 5 categorías por club, 25 equipos, ~200 jugadores y 1 temporada activa.
                 </p>
-                <Button onClick={handleSeedDatabase} disabled={loading} size="lg">
-                    {loading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Database className="mr-2 h-5 w-5" />}
-                    {loading ? 'Poblando...' : 'Poblar Base de Datos de Prueba'}
-                </Button>
+                <p className="text-sm font-bold text-destructive my-4">
+                    <AlertTriangle className="inline-block h-4 w-4 mr-1" />
+                    ¡Esta acción no se puede deshacer!
+                </p>
+                
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                     <Button disabled={loading} size="lg" variant="destructive">
+                        {loading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Database className="mr-2 h-5 w-5" />}
+                        {loading ? 'Poblando...' : 'Poblar Base de Datos de Prueba'}
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>¿Estás absolutamente seguro?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Esta acción es irreversible. Se borrarán permanentemente las colecciones de usuarios, clubs, equipos, jugadores y temporadas, y se reemplazarán con datos de prueba.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={handleSeedDatabase}
+                        className="bg-destructive hover:bg-destructive/80"
+                      >
+                        Sí, poblar la base de datos
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+
             </div>
           )}
 
