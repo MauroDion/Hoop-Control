@@ -2,13 +2,18 @@
 
 import type { User as FirebaseUser } from 'firebase/auth';
 import { auth } from '@/lib/firebase/client';
-import { onAuthStateChanged } from 'firebase/auth';
-import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { onAuthStateChanged, signOut as firebaseSignOut } from 'firebase/auth';
+import React, { createContext, useContext, useEffect, useState, ReactNode, useCallback, useRef } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useRouter } from 'next/navigation';
+import { useToast } from '@/hooks/use-toast';
+
+const INACTIVITY_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
 
 interface AuthContextType {
   user: FirebaseUser | null;
   loading: boolean;
+  logout: (isAutoLogout?: boolean) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -16,22 +21,89 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<FirebaseUser | null>(null);
   const [loading, setLoading] = useState(true);
+  const router = useRouter();
+  const { toast } = useToast();
+  const inactivityTimer = useRef<NodeJS.Timeout>();
+
+  const logout = useCallback(async (isAutoLogout: boolean = false) => {
+    if (inactivityTimer.current) {
+        clearTimeout(inactivityTimer.current);
+    }
+    
+    console.log("AuthProvider: Logout process initiated.");
+    try {
+      await fetch('/api/auth/session-logout', { method: 'POST' });
+    } catch (error: any) {
+      console.error('AuthProvider: API call to /api/auth/session-logout failed:', error);
+    } finally {
+      try {
+        await firebaseSignOut(auth);
+        console.log("AuthProvider: Client-side firebaseSignOut() completed.");
+        if (isAutoLogout) {
+            toast({ title: "Sesión Cerrada Automáticamente", description: "Has sido desconectado por inactividad." });
+        } else {
+            toast({ title: "Sesión Cerrada", description: "Has cerrado sesión correctamente." });
+        }
+        router.push('/login');
+        router.refresh();
+      } catch (clientSignOutError: any) {
+        console.error('AuthProvider: Critical error during client-side signOut:', clientSignOutError);
+        toast({ variant: "destructive", title: "Fallo en Cierre de Sesión Local", description: clientSignOutError.message });
+        router.push('/login');
+        router.refresh();
+      }
+    }
+  }, [router, toast]);
 
   useEffect(() => {
+    const handleInactivity = () => {
+        logout(true);
+    };
+
+    const resetInactivityTimer = () => {
+        if (inactivityTimer.current) {
+            clearTimeout(inactivityTimer.current);
+        }
+        inactivityTimer.current = setTimeout(handleInactivity, INACTIVITY_TIMEOUT_MS);
+    };
+
+    const events: (keyof WindowEventMap)[] = ['mousemove', 'keydown', 'mousedown', 'touchstart', 'scroll'];
+    
+    const setupInactivityListeners = () => {
+        events.forEach(event => window.addEventListener(event, resetInactivityTimer));
+        resetInactivityTimer();
+    };
+
+    const cleanupInactivityListeners = () => {
+        events.forEach(event => window.removeEventListener(event, resetInactivityTimer));
+        if (inactivityTimer.current) {
+            clearTimeout(inactivityTimer.current);
+        }
+    };
+
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
       setUser(firebaseUser);
       setLoading(false);
+      if (firebaseUser) {
+        setupInactivityListeners();
+      } else {
+        cleanupInactivityListeners();
+      }
     }, (error) => {
       console.error("Auth state change error:", error);
       setUser(null);
       setLoading(false);
+      cleanupInactivityListeners();
     });
 
-    return () => unsubscribe();
-  }, []);
+    return () => {
+        unsubscribe();
+        cleanupInactivityListeners();
+    };
+  }, [logout]);
+
 
   if (loading) {
-    // Simple full-page loading skeleton
     return (
       <div className="flex flex-col min-h-screen">
         <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -53,10 +125,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       </div>
     );
   }
-  
 
   return (
-    <AuthContext.Provider value={{ user, loading }}>
+    <AuthContext.Provider value={{ user, loading, logout }}>
       {children}
     </AuthContext.Provider>
   );

@@ -13,59 +13,10 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useAuth } from '@/hooks/useAuth';
-import { signOut as firebaseClientSignOut } from 'firebase/auth'; // Renamed to avoid conflict
-import { auth } from '@/lib/firebase/client';
-import { useRouter } from 'next/navigation';
 import { LogOut, UserCircle, Settings } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
 
 export default function UserNav() {
-  const { user } = useAuth();
-  const router = useRouter();
-  const { toast } = useToast();
-
-  const handleLogout = async () => {
-    console.log("UserNav: Logout process initiated.");
-    try {
-      // Step 1: Attempt to clear the server session cookie.
-      console.log("UserNav: Attempting to call /api/auth/session-logout endpoint.");
-      const response = await fetch('/api/auth/session-logout', {
-        method: 'POST',
-      });
-
-      if (!response.ok) {
-        // If the server call fails, log the error but DO NOT stop the logout process.
-        const errorData = await response.json();
-        console.error('UserNav: Server-side session logout failed. Response:', errorData.error);
-        toast({ variant: "destructive", title: "Aviso de Cierre de Sesión", description: "No se pudo limpiar la sesión del servidor. Cerrando sesión localmente." });
-      } else {
-        console.log("UserNav: Server responded OK. Session cookie should be cleared.");
-      }
-    } catch (error: any) {
-      // Also catch network errors, but again, DO NOT stop the logout process.
-      console.error('UserNav: API call to /api/auth/session-logout failed:', error);
-      toast({ variant: "destructive", title: "Error de Cierre de Sesión", description: `No se pudo contactar el servicio de cierre de sesión: ${error.message}` });
-    } finally {
-      // Step 2: ALWAYS perform client-side sign-out and redirect.
-      // This ensures the user is logged out on the client regardless of server state.
-      try {
-        await firebaseClientSignOut(auth);
-        console.log("UserNav: Client-side firebaseClientSignOut() completed.");
-        toast({ title: "Sesión Cerrada", description: "Has cerrado sesión correctamente." });
-        
-        // Step 3: Redirect to a clean login page.
-        router.push('/login'); 
-        router.refresh(); // Crucial to ensure the app state is completely reset.
-        console.log("UserNav: Redirected to /login and refreshed router state.");
-      } catch (clientSignOutError: any) {
-        console.error('UserNav: Critical error during client-side signOut:', clientSignOutError);
-        toast({ variant: "destructive", title: "Fallo en Cierre de Sesión Local", description: clientSignOutError.message });
-        // Still force redirect even if client signout fails for some reason.
-        router.push('/login');
-        router.refresh();
-      }
-    }
-  };
+  const { user, logout } = useAuth(); // Get the centralized logout function
 
   if (!user) {
     return null;
@@ -114,7 +65,7 @@ export default function UserNav() {
           </DropdownMenuItem>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={handleLogout} className="flex items-center cursor-pointer">
+        <DropdownMenuItem onClick={() => logout(false)} className="flex items-center cursor-pointer">
           <LogOut className="mr-2 h-4 w-4" />
           Cerrar Sesión
         </DropdownMenuItem>
