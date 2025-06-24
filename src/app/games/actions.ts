@@ -2,7 +2,7 @@
 import { adminDb } from '@/lib/firebase/admin';
 import admin from 'firebase-admin';
 import { revalidatePath } from 'next/cache';
-import type { Game, GameFormData, Team } from '@/types';
+import type { Game, GameFormData, Team, TeamStats } from '@/types';
 import { getTeamsByCoach as getCoachTeams } from '@/app/teams/actions';
 
 // Action to create a new game
@@ -24,6 +24,13 @@ export async function createGame(formData: GameFormData, userId: string): Promis
 
         const gameDateTime = new Date(`${formData.date}T${formData.time}`);
         
+        const initialStats: TeamStats = {
+            onePointAttempts: 0, onePointMade: 0,
+            twoPointAttempts: 0, twoPointMade: 0,
+            threePointAttempts: 0, threePointMade: 0,
+            fouls: 0, timeouts: 0, steals: 0,
+        };
+
         const newGameData = {
             homeTeamId: formData.homeTeamId,
             homeTeamClubId: homeTeamData.clubId,
@@ -40,9 +47,10 @@ export async function createGame(formData: GameFormData, userId: string): Promis
             createdBy: userId,
             createdAt: admin.firestore.FieldValue.serverTimestamp(),
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-            // Initialize live game fields
             homeTeamScore: 0,
             awayTeamScore: 0,
+            homeTeamStats: initialStats,
+            awayTeamStats: initialStats,
             currentPeriod: 1,
             isTimerRunning: false,
             periodTimeRemainingSeconds: 0,
@@ -62,22 +70,19 @@ export async function getAllGames(): Promise<Game[]> {
     if (!adminDb) return [];
     try {
         const gamesRef = adminDb.collection('games');
-        const snapshot = await gamesRef.get();
-        const games = snapshot.docs.map(doc => {
+        const snapshot = await gamesRef.orderBy('name', 'desc').get();
+        return snapshot.docs.map(doc => {
             const data = doc.data();
             return {
                 id: doc.id,
                 ...data,
                 date: data.date.toDate(),
-                createdAt: data.createdAt.toDate(),
-                updatedAt: data.updatedAt.toDate(),
+                createdAt: data.createdAt ? data.createdAt.toDate() : undefined,
+                updatedAt: data.updatedAt ? data.updatedAt.toDate() : undefined,
             } as Game;
         });
-        
-        games.sort((a, b) => a.date.getTime() - b.date.getTime());
-        return games;
-    } catch (error: any) {
-        console.error("Error fetching all games:", error);
+    } catch (error) {
+        console.error("Error fetching seasons: ", error);
         return [];
     }
 }
@@ -213,7 +218,7 @@ export async function updateGameRoster(
 
 export async function updateLiveGameState(
   gameId: string,
-  updates: Partial<Pick<Game, 'status' | 'homeTeamScore' | 'awayTeamScore' | 'currentPeriod' | 'periodTimeRemainingSeconds' | 'isTimerRunning'>>
+  updates: Partial<Pick<Game, 'status' | 'currentPeriod' | 'periodTimeRemainingSeconds' | 'isTimerRunning'>>
 ): Promise<{ success: boolean; error?: string }> {
   if (!adminDb) return { success: false, error: "La base de datos no está inicializada." };
   
@@ -227,12 +232,49 @@ export async function updateLiveGameState(
 
     await gameRef.update(updateData);
     
-    // Do not revalidate paths here to avoid flicker on the client listening in real-time
-    // revalidatePath(`/games/${gameId}/live`);
-    // revalidatePath(`/games/${gameId}`);
     return { success: true };
   } catch (error: any) {
     console.error("Error al actualizar el estado del partido en vivo:", error);
     return { success: false, error: error.message || "No se pudo actualizar el estado del partido." };
   }
+}
+
+export async function recordShot(
+  gameId: string,
+  team: 'home' | 'away',
+  points: 1 | 2 | 3,
+  type: 'made' | 'miss'
+): Promise<{ success: boolean; error?: string }> {
+  if (!adminDb) return { success: false, error: 'Database not initialized' };
+  const gameRef = adminDb.collection('games').doc(gameId);
+  const updates: { [key: string]: any } = {};
+  const statPrefix = team === 'home' ? 'homeTeamStats' : 'awayTeamStats';
+  const pointField = points === 1 ? 'onePoint' : points === 2 ? 'twoPoint' : 'threePoint';
+  
+  updates[`${statPrefix}.${pointField}Attempts`] = admin.firestore.FieldValue.increment(1);
+
+  if (type === 'made') {
+    updates[`${statPrefix}.${pointField}Made`] = admin.firestore.FieldValue.increment(1);
+    updates[`${team}TeamScore`] = admin.firestore.FieldValue.increment(points);
+  }
+  
+  await gameRef.update(updates);
+  return { success: true };
+}
+
+export async function incrementGameStat(
+  gameId: string,
+  team: 'home' | 'away',
+  stat: 'fouls' | 'timeouts' | 'steals',
+  value: number
+): Promise<{ success: boolean; error?: string }> {
+  if (!adminDb) return { success: false, error: 'Database not initialized' };
+  const gameRef = adminDb.collection('games').doc(gameId);
+  const updates: { [key: string]: any } = {};
+  const statPrefix = team === 'home' ? 'homeTeamStats' : 'awayTeamStats';
+
+  updates[`${statPrefix}.${stat}`] = admin.firestore.FieldValue.increment(value);
+  
+  await gameRef.update(updates);
+  return { success: true };
 }

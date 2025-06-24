@@ -192,6 +192,18 @@ export interface SeasonFormData {
   }[];
 }
 
+export interface TeamStats {
+    onePointAttempts: number;
+    onePointMade: number;
+    twoPointAttempts: number;
+    twoPointMade: number;
+    threePointAttempts: number;
+    threePointMade: number;
+    fouls: number;
+    timeouts: number;
+    steals: number;
+}
+
 export interface Game {
     id: string;
     homeTeamId: string;
@@ -210,6 +222,8 @@ export interface Game {
     awayTeamPlayerIds?: string[];
     homeTeamScore?: number;
     awayTeamScore?: number;
+    homeTeamStats?: TeamStats;
+    awayTeamStats?: TeamStats;
     currentPeriod?: number;
     periodTimeRemainingSeconds?: number;
     isTimerRunning?: boolean;

@@ -1,25 +1,27 @@
 "use client";
 
-import React, { useEffect, useState, useCallback } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import React, { useEffect, useState } from 'react';
+import { useParams } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import Link from 'next/link';
 
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '@/lib/firebase/client';
-import { updateLiveGameState } from '@/app/games/actions';
-import { getGameFormatById } from '@/app/game-formats/actions';
-import type { Game, GameFormat } from '@/types';
+import { updateLiveGameState, getGameFormatById, recordShot, incrementGameStat } from '@/app/games/actions';
+import type { Game, GameFormat, TeamStats } from '@/types';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Loader2, AlertTriangle, ChevronLeft, Gamepad2, Minus, Plus, Play, Flag, Pause, TimerReset, FastForward, Timer as TimerIcon } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { Separator } from '@/components/ui/separator';
 
-const ScoreButton = ({ children, onClick, ...props }: React.ComponentProps<typeof Button>) => (
-    <Button variant="outline" size="lg" className="text-xl font-bold" onClick={onClick} {...props}>
-        {children}
-    </Button>
+const StatButton = ({ children, ...props }: React.ComponentProps<typeof Button>) => (
+    <Button variant="outline" size="sm" {...props}>{children}</Button>
+);
+
+const ShotButton = ({ children, ...props }: React.ComponentProps<typeof Button>) => (
+    <Button variant="secondary" className="w-full" {...props}>{children}</Button>
 );
 
 export default function LiveGamePage() {
@@ -34,7 +36,6 @@ export default function LiveGamePage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
-    // Real-time listener for game updates
     useEffect(() => {
         if (!gameId) {
             setError("ID del partido no encontrado.");
@@ -65,7 +66,6 @@ export default function LiveGamePage() {
         return () => unsubscribe();
     }, [gameId, gameFormat]);
 
-    // Effect for client-side timer tick-down
     useEffect(() => {
         if (game?.isTimerRunning && displayTime > 0) {
             const timerId = setInterval(() => {
@@ -75,7 +75,6 @@ export default function LiveGamePage() {
         }
     }, [game?.isTimerRunning, displayTime]);
 
-    // Effect to sync local display time with server state
     useEffect(() => {
         if (game?.periodTimeRemainingSeconds !== undefined) {
             setDisplayTime(game.periodTimeRemainingSeconds);
@@ -88,13 +87,21 @@ export default function LiveGamePage() {
             toast({ variant: 'destructive', title: 'Error al Actualizar', description: result.error });
         }
     };
-
-    const handleScoreChange = (team: 'home' | 'away', points: number) => {
+    
+    const handleRecordShot = async (team: 'home' | 'away', points: 1 | 2 | 3, type: 'made' | 'miss') => {
         if (!game || game.status !== 'inprogress') return;
-        const currentScore = team === 'home' ? game.homeTeamScore || 0 : game.awayTeamScore || 0;
-        const newScore = Math.max(0, currentScore + points);
+        const result = await recordShot(gameId, team, points, type);
+        if (!result.success) {
+             toast({ variant: 'destructive', title: 'Error al registrar tiro', description: result.error });
+        }
+    };
 
-        handleUpdate(team === 'home' ? { homeTeamScore: newScore } : { awayTeamScore: newScore });
+    const handleIncrementStat = async (team: 'home' | 'away', stat: 'fouls' | 'timeouts' | 'steals', value: number) => {
+         if (!game || game.status !== 'inprogress') return;
+         const result = await incrementGameStat(gameId, team, stat, value);
+         if (!result.success) {
+             toast({ variant: 'destructive', title: `Error al registrar ${stat}`, description: result.error });
+        }
     };
 
     const handleToggleTimer = () => {
@@ -153,6 +160,65 @@ export default function LiveGamePage() {
     
     if (!game) return null;
 
+    const TeamPanel = ({ teamType }: { teamType: 'home' | 'away' }) => {
+        const teamName = teamType === 'home' ? game.homeTeamName : game.awayTeamName;
+        const teamStats = (teamType === 'home' ? game.homeTeamStats : game.awayTeamStats) || {} as TeamStats;
+        const score = teamType === 'home' ? game.homeTeamScore : game.awayTeamScore;
+
+        return (
+            <Card className="shadow-lg">
+                <CardHeader>
+                    <CardTitle className="truncate">{teamName}</CardTitle>
+                    <CardDescription>Equipo {teamType === 'home' ? 'Local' : 'Visitante'}</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                    <div className="text-8xl font-bold text-primary text-center">{score ?? 0}</div>
+                    
+                    <Separator />
+                    
+                    <div className="space-y-3">
+                        <h4 className="font-medium text-center">Registro de Tiros</h4>
+                        <div className="grid grid-cols-2 gap-2">
+                           <ShotButton onClick={() => handleRecordShot(teamType, 1, 'made')}>+1 Pto</ShotButton>
+                           <ShotButton variant="destructive" onClick={() => handleRecordShot(teamType, 1, 'miss')}>Fallo 1 Pto</ShotButton>
+                           <ShotButton onClick={() => handleRecordShot(teamType, 2, 'made')}>+2 Ptos</ShotButton>
+                           <ShotButton variant="destructive" onClick={() => handleRecordShot(teamType, 2, 'miss')}>Fallo 2 Ptos</ShotButton>
+                           <ShotButton onClick={() => handleRecordShot(teamType, 3, 'made')}>+3 Ptos</ShotButton>
+                           <ShotButton variant="destructive" onClick={() => handleRecordShot(teamType, 3, 'miss')}>Fallo 3 Ptos</ShotButton>
+                        </div>
+                    </div>
+                    
+                    <Separator />
+
+                    <div className="space-y-3">
+                         <h4 className="font-medium text-center">Otras Estadísticas</h4>
+                         <div className="flex justify-between items-center">
+                            <span className="font-semibold">Faltas: {teamStats.fouls ?? 0}</span>
+                            <div className="space-x-1">
+                                <StatButton size="icon" onClick={() => handleIncrementStat(teamType, 'fouls', 1)}><Plus/></StatButton>
+                                <StatButton size="icon" onClick={() => handleIncrementStat(teamType, 'fouls', -1)}><Minus/></StatButton>
+                            </div>
+                         </div>
+                         <div className="flex justify-between items-center">
+                            <span className="font-semibold">T. Muertos: {teamStats.timeouts ?? 0}</span>
+                             <div className="space-x-1">
+                                <StatButton size="icon" onClick={() => handleIncrementStat(teamType, 'timeouts', 1)}><Plus/></StatButton>
+                                <StatButton size="icon" onClick={() => handleIncrementStat(teamType, 'timeouts', -1)}><Minus/></StatButton>
+                            </div>
+                         </div>
+                          <div className="flex justify-between items-center">
+                            <span className="font-semibold">Robos: {teamStats.steals ?? 0}</span>
+                             <div className="space-x-1">
+                                <StatButton size="icon" onClick={() => handleIncrementStat(teamType, 'steals', 1)}><Plus/></StatButton>
+                                <StatButton size="icon" onClick={() => handleIncrementStat(teamType, 'steals', -1)}><Minus/></StatButton>
+                            </div>
+                         </div>
+                    </div>
+                </CardContent>
+            </Card>
+        )
+    }
+
     return (
         <div className="space-y-8">
              <Button variant="outline" size="sm" asChild>
@@ -168,7 +234,7 @@ export default function LiveGamePage() {
                 </CardHeader>
                 <CardContent>
                     {game.status === 'scheduled' && (
-                        <Button size="lg" className="w-full bg-green-600 hover:bg-green-700" onClick={() => handleUpdate({ status: 'inprogress', homeTeamScore: 0, awayTeamScore: 0, currentPeriod: 1, isTimerRunning: false, periodTimeRemainingSeconds: (gameFormat?.periodDurationMinutes || 10) * 60 })}>
+                        <Button size="lg" className="w-full bg-green-600 hover:bg-green-700" onClick={() => handleUpdate({ status: 'inprogress', periodTimeRemainingSeconds: (gameFormat?.periodDurationMinutes || 10) * 60 })}>
                             <Play className="mr-2 h-5 w-5"/> Empezar Partido
                         </Button>
                     )}
@@ -197,7 +263,7 @@ export default function LiveGamePage() {
                                 {game.isTimerRunning ? 'Pausar' : 'Iniciar'}
                             </Button>
                              <Button onClick={handleNextPeriod} disabled={game.status !== 'inprogress' || game.isTimerRunning || (game.currentPeriod || 0) >= (gameFormat?.numPeriods || 4)} variant="outline" size="lg">
-                                <FastForward className="mr-2"/> Siguiente
+                                <FastForward className="mr-2"/> Siguiente Per.
                             </Button>
                              <Button onClick={handleResetTimer} disabled={game.status !== 'inprogress'} variant="secondary" size="icon" aria-label="Reiniciar cronómetro"><TimerReset/></Button>
                         </div>
@@ -206,37 +272,8 @@ export default function LiveGamePage() {
             )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <Card className="shadow-lg">
-                    <CardHeader>
-                        <CardTitle className="truncate">{game.homeTeamName}</CardTitle>
-                        <CardDescription>Equipo Local</CardDescription>
-                    </CardHeader>
-                    <CardContent className="text-center space-y-4">
-                        <div className="text-8xl font-bold text-primary">{game.homeTeamScore ?? 0}</div>
-                        <div className="grid grid-cols-4 gap-2">
-                             <ScoreButton disabled={game.status !== 'inprogress'} onClick={() => handleScoreChange('home', 1)}>+1</ScoreButton>
-                             <ScoreButton disabled={game.status !== 'inprogress'} onClick={() => handleScoreChange('home', 2)}>+2</ScoreButton>
-                             <ScoreButton disabled={game.status !== 'inprogress'} onClick={() => handleScoreChange('home', 3)}>+3</ScoreButton>
-                             <ScoreButton disabled={game.status !== 'inprogress'} variant="destructive" onClick={() => handleScoreChange('home', -1)}><Minus/></ScoreButton>
-                        </div>
-                    </CardContent>
-                </Card>
-
-                <Card className="shadow-lg">
-                    <CardHeader>
-                        <CardTitle className="truncate">{game.awayTeamName}</CardTitle>
-                        <CardDescription>Equipo Visitante</CardDescription>
-                    </CardHeader>
-                    <CardContent className="text-center space-y-4">
-                        <div className="text-8xl font-bold text-primary">{game.awayTeamScore ?? 0}</div>
-                        <div className="grid grid-cols-4 gap-2">
-                             <ScoreButton disabled={game.status !== 'inprogress'} onClick={() => handleScoreChange('away', 1)}>+1</ScoreButton>
-                             <ScoreButton disabled={game.status !== 'inprogress'} onClick={() => handleScoreChange('away', 2)}>+2</ScoreButton>
-                             <ScoreButton disabled={game.status !== 'inprogress'} onClick={() => handleScoreChange('away', 3)}>+3</ScoreButton>
-                             <ScoreButton disabled={game.status !== 'inprogress'} variant="destructive" onClick={() => handleScoreChange('away', -1)}><Minus/></ScoreButton>
-                        </div>
-                    </CardContent>
-                </Card>
+                <TeamPanel teamType="home" />
+                <TeamPanel teamType="away" />
             </div>
         </div>
     )
