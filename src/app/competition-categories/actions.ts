@@ -1,42 +1,8 @@
 
 'use server';
 
-import type { CompetitionCategory, CompetitionCategoryFormData } from '@/types';
+import type { CompetitionCategory } from '@/types';
 import { adminDb } from '@/lib/firebase/admin';
-import admin from 'firebase-admin';
-import { revalidatePath } from 'next/cache';
-
-export async function createCompetitionCategory(
-  formData: CompetitionCategoryFormData,
-  userId: string
-): Promise<{ success: boolean; error?: string; id?: string }> {
-  if (!userId) {
-    return { success: false, error: 'User not authenticated.' };
-  }
-  // Ideally, we'd check if the user is a super_admin here using their profile.
-  // For now, we trust the UI layer has done this check.
-
-  if (!adminDb) {
-    return { success: false, error: 'Firebase Admin SDK not initialized.' };
-  }
-
-  try {
-    const newCategoryData = {
-      ...formData,
-      level: formData.level ? Number(formData.level) : 0,
-      gameFormatId: formData.gameFormatId || null,
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-    };
-
-    const docRef = await adminDb.collection('competitionCategories').add(newCategoryData);
-    revalidatePath('/admin/competition-categories'); // Revalidate the management page
-    return { success: true, id: docRef.id };
-  } catch (error: any) {
-    console.error('Error creating competition category:', error);
-    return { success: false, error: error.message || 'Failed to create category.' };
-  }
-}
 
 export async function getCompetitionCategories(): Promise<CompetitionCategory[]> {
   console.log("CompetitionCategoryActions: Attempting to fetch competition categories from Firestore using Admin SDK.");

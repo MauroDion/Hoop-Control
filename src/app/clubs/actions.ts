@@ -8,7 +8,6 @@ import { revalidatePath } from 'next/cache';
 
 // This function will be used by the registration form to populate the clubs dropdown.
 // It fetches all clubs to ensure new users can register.
-// NOTE: The filter for `approved == true` has been temporarily removed to facilitate development.
 export async function getApprovedClubs(): Promise<Club[]> {
   console.log("ClubActions: Attempting to fetch all clubs from Firestore using Admin SDK.");
   if (!adminDb) {
@@ -18,7 +17,6 @@ export async function getApprovedClubs(): Promise<Club[]> {
   try {
     const clubsCollectionRef = adminDb.collection('clubs');
     // Query for all clubs and order them alphabetically by name
-    // The `where('approved', '==', true)` has been removed for now.
     const q = clubsCollectionRef.orderBy('name', 'asc');
     const querySnapshot = await q.get();
 
@@ -105,9 +103,45 @@ export async function updateClubStatus(
     });
     console.log(`ClubActions: Successfully updated approved status for club ID: ${clubId} to '${approved}'.`);
     revalidatePath('/clubs'); // Revalidate the admin page
+    revalidatePath(`/clubs/${clubId}`); // Revalidate the detail page
     return { success: true };
   } catch (error: any) {
     console.error(`ClubActions: Error updating status for club ID ${clubId}:`, error.message, error.stack);
     return { success: false, error: error.message || 'Failed to update club status.' };
   }
+}
+
+export async function getClubById(clubId: string): Promise<Club | null> {
+    if (!adminDb) {
+      console.error("ClubActions (getClubById): Admin SDK not initialized.");
+      return null;
+    }
+    if (!clubId) {
+      return null;
+    }
+    try {
+        const clubDocRef = adminDb.collection('clubs').doc(clubId);
+        const docSnap = await clubDocRef.get();
+
+        if (!docSnap.exists) {
+            console.warn(`ClubActions: No club found with ID: ${clubId}`);
+            return null;
+        }
+
+        const data = docSnap.data()!;
+        return {
+            id: docSnap.id,
+            name: data.name || `Unnamed Club (ID: ${docSnap.id})`,
+            shortName: data.shortName,
+            province_name: data.province_name,
+            city_name: data.city_name,
+            logoUrl: data.logoUrl,
+            approved: data.approved,
+            createdAt: data.createdAt ? data.createdAt.toDate() : undefined,
+        } as Club;
+
+    } catch (error: any) {
+        console.error(`ClubActions: Error fetching club by ID ${clubId}:`, error.message, error.stack);
+        return null;
+    }
 }

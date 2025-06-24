@@ -117,31 +117,6 @@ export interface TeamFormData {
   city?: string | null;
 }
 
-export interface Season {
-  id: string;
-  name: string;
-  startDate: Date;
-  endDate: Date;
-  status: 'draft' | 'active' | 'archived';
-  competitions: Array<{
-    competitionCategoryId: string;
-    teamIds: string[];
-  }>;
-  createdBy?: string; // UID
-  createdAt?: Date;
-}
-
-export interface SeasonFormData {
-  name: string;
-  startDate: string;
-  endDate: string;
-  status: 'draft' | 'active' | 'archived';
-  competitions: Array<{
-    competitionCategoryId: string;
-    teamIds: string[];
-  }>;
-}
-
 export interface GameFormat {
   id: string; // Firestore document ID
   name: string;
@@ -196,37 +171,4 @@ export interface PlayerFormData {
   lastName: string;
   jerseyNumber?: number | null;
   position?: string | null;
-}
-
-export interface Game {
-  id: string;
-  homeTeamId: string;
-  awayTeamId: string;
-  homeTeamName: string; // denormalized
-  awayTeamName: string; // denormalized
-  date: Date;
-  location: string;
-  status: 'scheduled' | 'in-progress' | 'completed' | 'cancelled';
-  homeTeamPlayerIds?: string[];
-  awayTeamPlayerIds?: string[];
-  homeTeamScore?: number;
-  awayTeamScore?: number;
-  createdBy: string; // user id
-  createdAt: Date;
-  updatedAt: Date;
-  // New fields for season integration
-  seasonId: string;
-  gameFormatId?: string | null;
-  competitionCategoryId: string;
-}
-
-export interface GameFormData {
-  homeTeamId: string;
-  awayTeamId: string;
-  date: string; // From date input
-  time: string; // From time input
-  location: string;
-  seasonId: string;
-  competitionCategoryId: string;
-  gameFormatId?: string | null;
 }

@@ -1,42 +1,8 @@
 
 'use server';
 
-import type { GameFormat, GameFormatFormData } from '@/types';
+import type { GameFormat } from '@/types';
 import { adminDb } from '@/lib/firebase/admin';
-import admin from 'firebase-admin';
-import { revalidatePath } from 'next/cache';
-
-export async function createGameFormat(
-  formData: GameFormatFormData,
-  userId: string
-): Promise<{ success: boolean; error?: string; id?: string }> {
-  if (!userId) {
-    return { success: false, error: 'User not authenticated.' };
-  }
-  if (!adminDb) {
-    return { success: false, error: 'Firebase Admin SDK not initialized.' };
-  }
-
-  try {
-    const newFormatData = {
-      ...formData,
-      numPeriods: formData.numPeriods ? Number(formData.numPeriods) : null,
-      periodDurationMinutes: formData.periodDurationMinutes ? Number(formData.periodDurationMinutes) : null,
-      defaultTotalTimeouts: formData.defaultTotalTimeouts ? Number(formData.defaultTotalTimeouts) : null,
-      minPeriodsPlayerMustPlay: formData.minPeriodsPlayerMustPlay ? Number(formData.minPeriodsPlayerMustPlay) : null,
-      createdBy: userId,
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
-    };
-
-    const docRef = await adminDb.collection('gameFormats').add(newFormatData);
-    revalidatePath('/admin/game-formats');
-    return { success: true, id: docRef.id };
-  } catch (error: any) {
-    console.error('Error creating game format:', error);
-    return { success: false, error: error.message || 'Failed to create game format.' };
-  }
-}
-
 
 export async function getGameFormats(): Promise<GameFormat[]> {
   console.log("GameFormatActions: Attempting to fetch game formats from Firestore using Admin SDK.");

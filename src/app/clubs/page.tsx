@@ -4,13 +4,14 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { getUserProfileById } from '@/app/users/actions';
 import { getApprovedClubs, updateClubStatus } from '@/app/clubs/actions';
 import type { Club } from '@/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, AlertTriangle, Building, PlusCircle, CheckCircle, XCircle } from 'lucide-react';
+import { Loader2, AlertTriangle, Building, PlusCircle, CheckCircle, XCircle, Settings } from 'lucide-react';
 import { ClubForm } from '@/components/clubs/ClubForm';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
@@ -152,6 +153,11 @@ export default function ManageClubsPage() {
                             </Badge>
                         </TableCell>
                         <TableCell className="text-right space-x-2">
+                             <Button asChild variant="outline" size="sm">
+                                <Link href={`/clubs/${club.id}`}>
+                                  <Settings className="mr-1 h-4 w-4" /> Manage
+                                </Link>
+                              </Button>
                              {club.approved !== true && (
                                 <AlertDialog>
                                   <AlertDialogTrigger asChild>
