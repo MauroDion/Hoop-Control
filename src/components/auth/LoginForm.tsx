@@ -39,7 +39,7 @@ export function LoginForm() {
     defaultValues: {
       email: "",
       password: "",
-      rememberMe: false,
+      rememberMe: true, // Default to persistent
     },
   });
 
@@ -91,13 +91,9 @@ export function LoginForm() {
     }
   }
 
-  const handleCancel = () => {
-    router.push("/"); // Redirect to the main page
-  };
-
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
         <FormField
           control={form.control}
           name="email"
@@ -154,14 +150,9 @@ export function LoginForm() {
             </Button>
           </Link>
         </div>
-        <div className="space-y-2">
-            <Button type="submit" className="w-full" disabled={form.formState.isSubmitting}>
-            {form.formState.isSubmitting ? "Iniciando sesión..." : "Iniciar Sesión"}
-            </Button>
-            <Button type="button" variant="outline" className="w-full" onClick={handleCancel}>
-            Cancelar
-            </Button>
-        </div>
+        <Button type="submit" className="w-full" disabled={form.formState.isSubmitting}>
+          {form.formState.isSubmitting ? "Iniciando sesión..." : "Iniciar Sesión"}
+        </Button>
       </form>
     </Form>
   );

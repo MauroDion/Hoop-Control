@@ -1,5 +1,5 @@
 import { initializeApp, getApps, type FirebaseApp } from 'firebase/app';
-import { getAuth, type Auth } from 'firebase/auth';
+import { getAuth, browserLocalPersistence, type Auth } from 'firebase/auth';
 import { getFirestore, type Firestore } from 'firebase/firestore';
 import { firebaseConfig } from './config';
 
@@ -11,8 +11,9 @@ if (getApps().length === 0) {
   try {
     app = initializeApp(firebaseConfig);
     auth = getAuth(app);
-    // Persistence is now handled dynamically in the LoginForm component
-    // before the user signs in.
+    // Persistence set to 'local' for "Remember me" functionality by default.
+    // This can be changed dynamically before sign-in for session-only persistence.
+    auth.setPersistence(browserLocalPersistence); 
     db = getFirestore(app);
   } catch (error) {
     console.error("Error initializing Firebase:", error);

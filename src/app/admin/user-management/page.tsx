@@ -28,22 +28,29 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 
+type PageState = 'loading' | 'error' | 'success';
+
 export default function UserManagementPage() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
 
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [pageState, setPageState] = useState<PageState>('loading');
   const [profiles, setProfiles] = useState<UserProfileAdminView[]>([]);
   const [clubs, setClubs] = useState<Club[]>([]);
   const [profileTypes, setProfileTypes] = useState<ProfileTypeOption[]>([]);
-  const [loadingData, setLoadingData] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchPageData = useCallback(async () => {
-    setLoadingData(true);
-    setError(null);
+  const loadData = useCallback(async () => {
+    setPageState('loading');
     try {
+      const profile = await getUserProfileById(user!.uid);
+      if (!profile || profile.profileTypeId !== 'super_admin') {
+        setError("Acceso Denegado. Debes ser Super Admin para ver esta página.");
+        setPageState('error');
+        return;
+      }
+
       const [fetchedProfiles, fetchedClubs, fetchedProfileTypes] = await Promise.all([
         getAllUserProfiles(),
         getApprovedClubs(),
@@ -53,54 +60,31 @@ export default function UserManagementPage() {
       setProfiles(fetchedProfiles);
       setClubs(fetchedClubs);
       setProfileTypes(fetchedProfileTypes);
-
+      setPageState('success');
     } catch (err: any) {
-      setError(err.message || "Fallo al cargar los datos. Revisa las reglas de Firestore y los logs del servidor.");
-      toast({ variant: "destructive", title: "Error al Cargar Datos", description: err.message || "No se pudieron cargar los datos necesarios." });
-    } finally {
-      setLoadingData(false);
+      setError(err.message || "Fallo al cargar los datos de administración.");
+      setPageState('error');
+      toast({ variant: "destructive", title: "Error de Carga", description: err.message });
     }
-  }, [toast]);
-  
+  }, [user, toast]);
+
   useEffect(() => {
     if (authLoading) {
-      return; // Wait for auth to resolve.
+      return;
     }
     if (!user) {
       router.replace('/login?redirect=/admin/user-management');
       return;
     }
-
-    // User is authenticated, now check permissions and fetch data
-    const loadAdminData = async () => {
-      setLoadingData(true);
-      setError(null);
-      try {
-        const profile = await getUserProfileById(user.uid);
-        if (profile?.profileTypeId === 'super_admin') {
-          setIsAdmin(true);
-          await fetchPageData();
-        } else {
-          setIsAdmin(false);
-          setError("Acceso Denegado. Debes ser Super Admin para ver esta página.");
-        }
-      } catch (err: any) {
-        setError("No se pudieron cargar los datos de administración.");
-        toast({ variant: "destructive", title: "Error de Carga", description: err.message });
-      } finally {
-        setLoadingData(false);
-      }
-    };
-
-    loadAdminData();
-  }, [user, authLoading, router, toast, fetchPageData]);
+    loadData();
+  }, [user, authLoading, router, loadData]);
 
 
   const handleStatusUpdate = async (uid: string, newStatus: UserProfileStatus, displayName: string | null) => {
     const result = await updateUserProfileStatus(uid, newStatus);
     if (result.success) {
       toast({ title: "Estado Actualizado", description: `El estado del usuario ${displayName || uid} cambió a ${newStatus}.` });
-      await fetchPageData(); // Refresh data
+      await loadData();
     } else {
       toast({ variant: "destructive", title: "Fallo al Actualizar", description: result.error });
     }
@@ -119,26 +103,22 @@ export default function UserManagementPage() {
   }, [profiles, clubs, profileTypes]);
 
 
-  if (authLoading || loadingData) {
+  if (pageState === 'loading' || authLoading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)]">
         <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-        <p className="text-lg text-muted-foreground">
-          {authLoading ? "Autenticando..." : "Cargando datos de usuario..."}
-        </p>
+        <p className="text-lg text-muted-foreground">Cargando datos de administración...</p>
       </div>
     );
   }
 
-  if (error) {
+  if (pageState === 'error') {
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)] text-center p-6">
         <AlertTriangle className="h-12 w-12 text-destructive mb-4" />
         <h1 className="text-2xl font-headline font-semibold text-destructive">Error</h1>
         <p className="text-muted-foreground mb-4">{error}</p>
-        {!isAdmin && error.startsWith("Acceso Denegado") && (
-             <Button onClick={() => router.push('/dashboard')}>Ir al Panel</Button>
-        )}
+         <Button onClick={() => router.push('/dashboard')}>Ir al Panel</Button>
       </div>
     );
   }
@@ -152,7 +132,6 @@ export default function UserManagementPage() {
     }
   };
 
-
   return (
     <div className="space-y-8">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center">
@@ -162,8 +141,8 @@ export default function UserManagementPage() {
           </h1>
           <p className="text-lg text-muted-foreground mt-1">Aprobar o rechazar nuevos registros de usuarios.</p>
         </div>
-        <Button onClick={fetchPageData} disabled={loadingData} variant="outline" className="mt-4 sm:mt-0">
-          <RefreshCw className={`mr-2 h-4 w-4 ${loadingData ? 'animate-spin' : ''}`} />
+        <Button onClick={loadData} disabled={pageState === 'loading'} variant="outline" className="mt-4 sm:mt-0">
+          <RefreshCw className={`mr-2 h-4 w-4 ${pageState === 'loading' ? 'animate-spin' : ''}`} />
           Actualizar Lista
         </Button>
       </div>
