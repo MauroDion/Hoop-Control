@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useEffect, useState, useCallback } from 'react';
@@ -8,11 +7,12 @@ import Link from 'next/link';
 
 // Actions
 import { getUserProfileById } from '@/app/users/actions';
-import { getClubById } from '@/app/clubs/actions'; // Assuming this will be created
+import { getClubById } from '@/app/clubs/actions';
 import { getTeamsByClubId } from '@/app/teams/actions';
+import { getCompetitionCategories } from '@/app/competition-categories/actions';
 
 // Types
-import type { Club, Team, UserFirestoreProfile } from '@/types';
+import type { Club, Team, UserFirestoreProfile, CompetitionCategory } from '@/types';
 
 // Components
 import { Button } from '@/components/ui/button';
@@ -30,6 +30,7 @@ export default function ClubManagementPage() {
     const [club, setClub] = useState<Club | null>(null);
     const [teams, setTeams] = useState<Team[]>([]);
     const [userProfile, setUserProfile] = useState<UserFirestoreProfile | null>(null);
+    const [competitionCategories, setCompetitionCategories] = useState<CompetitionCategory[]>([]);
     const [hasPermission, setHasPermission] = useState(false);
     
     const [loading, setLoading] = useState(true);
@@ -54,10 +55,11 @@ export default function ClubManagementPage() {
             }
             setHasPermission(true);
 
-            // Fetch club and team data in parallel
-            const [clubData, teamsData] = await Promise.all([
+            // Fetch club, team, and category data in parallel
+            const [clubData, teamsData, categoriesData] = await Promise.all([
                 getClubById(clubId),
-                getTeamsByClubId(clubId)
+                getTeamsByClubId(clubId),
+                getCompetitionCategories()
             ]);
 
             if (!clubData) {
@@ -66,6 +68,7 @@ export default function ClubManagementPage() {
             
             setClub(clubData);
             setTeams(teamsData);
+            setCompetitionCategories(categoriesData);
 
         } catch (err: any) {
             setError(err.message);
@@ -163,7 +166,9 @@ export default function ClubManagementPage() {
                                 {teams.map(team => (
                                     <TableRow key={team.id}>
                                         <TableCell className="font-medium">{team.name}</TableCell>
-                                        <TableCell>{team.competitionCategoryId || 'N/A'}</TableCell>
+                                        <TableCell>
+                                            {competitionCategories.find(c => c.id === team.competitionCategoryId)?.name || team.competitionCategoryId || 'N/A'}
+                                        </TableCell>
                                         <TableCell className="text-right">
                                              <Button asChild size="sm" variant="outline">
                                                 <Link href={`/clubs/${clubId}/teams/${team.id}`}>
@@ -181,4 +186,3 @@ export default function ClubManagementPage() {
         </div>
     );
 }
-
