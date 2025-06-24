@@ -15,7 +15,8 @@ import {
     Tag,
     ChevronDown,
     Building,
-    ListOrdered
+    ListOrdered,
+    Database
 } from 'lucide-react';
 import { useEffect, useState } from 'react'; 
 import { getUserProfileById } from '@/app/users/actions';
@@ -107,6 +108,13 @@ export default function Header() {
                       <Link href="/admin/game-formats" className="flex items-center w-full cursor-pointer">
                         <ListOrdered className="mr-2 h-4 w-4" />
                         <span>Formatos de Partido</span>
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                     <DropdownMenuItem asChild>
+                      <Link href="/admin/seeder" className="flex items-center w-full cursor-pointer">
+                        <Database className="mr-2 h-4 w-4" />
+                        <span>Poblar Datos (Dev)</span>
                       </Link>
                     </DropdownMenuItem>
                   </DropdownMenuContent>
