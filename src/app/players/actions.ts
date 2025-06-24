@@ -1,4 +1,3 @@
-
 'use server';
 
 import { revalidatePath } from 'next/cache';
@@ -48,6 +47,58 @@ export async function createPlayer(
   } catch (error: any) {
     console.error('Error creating player:', error);
     return { success: false, error: error.message || 'Failed to create player.' };
+  }
+}
+
+
+export async function updatePlayer(
+  playerId: string,
+  formData: PlayerFormData,
+  clubId: string,
+  teamId: string,
+): Promise<{ success: boolean; error?: string }> {
+   if (!playerId) {
+    return { success: false, error: "Player ID is required." };
+  }
+  if (!adminDb) {
+    return { success: false, error: "Database not initialized."};
+  }
+  try {
+    const playerRef = adminDb.collection("players").doc(playerId);
+    
+    const updateData = {
+      ...formData,
+      firstName: formData.firstName.trim(),
+      lastName: formData.lastName.trim(),
+      jerseyNumber: formData.jerseyNumber ? Number(formData.jerseyNumber) : null,
+      position: formData.position || null,
+    };
+    
+    await playerRef.update(updateData);
+
+    revalidatePath(`/clubs/${clubId}/teams/${teamId}`);
+    return { success: true };
+  } catch (error: any) {
+    console.error("Error updating player:", error);
+    return { success: false, error: error.message || "Failed to update player." };
+  }
+}
+
+export async function deletePlayer(playerId: string, clubId: string, teamId: string): Promise<{ success: boolean; error?: string }> {
+  if (!playerId) {
+    return { success: false, error: "Player ID is required." };
+  }
+  if (!adminDb) {
+    return { success: false, error: "Database not initialized."};
+  }
+  try {
+    const playerRef = adminDb.collection("players").doc(playerId);
+    await playerRef.delete();
+    revalidatePath(`/clubs/${clubId}/teams/${teamId}`);
+    return { success: true };
+  } catch (error: any) {
+    console.error("Error deleting player:", error);
+    return { success: false, error: error.message || "Failed to delete player." };
   }
 }
 

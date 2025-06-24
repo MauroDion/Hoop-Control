@@ -16,10 +16,10 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import type { TeamFormData, GameFormat, CompetitionCategory, UserFirestoreProfile } from "@/types";
+import type { TeamFormData, GameFormat, CompetitionCategory, UserFirestoreProfile, Team } from "@/types";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/hooks/use-toast";
-import { createTeam } from "@/app/teams/actions";
+import { createTeam, updateTeam } from "@/app/teams/actions";
 import { useAuth } from "@/hooks/useAuth";
 import { Loader2 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -40,9 +40,10 @@ interface TeamFormProps {
   coaches: UserFirestoreProfile[];
   coordinators: UserFirestoreProfile[];
   onFormSubmit?: () => void;
+  team?: Team; // For edit mode
 }
 
-export function TeamForm({ clubId, gameFormats, competitionCategories, coaches, coordinators, onFormSubmit }: TeamFormProps) {
+export function TeamForm({ clubId, gameFormats, competitionCategories, coaches, coordinators, onFormSubmit, team }: TeamFormProps) {
   const router = useRouter();
   const { toast } = useToast();
   const { user, loading: authLoading } = useAuth();
@@ -50,16 +51,28 @@ export function TeamForm({ clubId, gameFormats, competitionCategories, coaches, 
   const form = useForm<z.infer<typeof teamFormSchema>>({
     resolver: zodResolver(teamFormSchema),
     defaultValues: {
-      name: "",
-      competitionCategoryId: "",
-      gameFormatId: undefined,
-      coachIds: [],
-      coordinatorIds: [],
+      name: team?.name || "",
+      competitionCategoryId: team?.competitionCategoryId || "",
+      gameFormatId: team?.gameFormatId || undefined,
+      coachIds: team?.coachIds || [],
+      coordinatorIds: team?.coordinatorIds || [],
     },
   });
 
-  const { watch, setValue } = form;
+  const { watch, setValue, reset } = form;
   const selectedCompetitionId = watch("competitionCategoryId");
+
+  useEffect(() => {
+    if (team) {
+      reset({
+        name: team.name,
+        competitionCategoryId: team.competitionCategoryId || "",
+        gameFormatId: team.gameFormatId,
+        coachIds: team.coachIds || [],
+        coordinatorIds: team.coordinatorIds || [],
+      });
+    }
+  }, [team, reset]);
 
   useEffect(() => {
     if (selectedCompetitionId) {
@@ -74,30 +87,26 @@ export function TeamForm({ clubId, gameFormats, competitionCategories, coaches, 
 
   async function onSubmit(values: z.infer<typeof teamFormSchema>) {
     if (authLoading || !user) {
-      toast({ variant: "destructive", title: "Authentication Error", description: "You must be logged in to create a team." });
+      toast({ variant: "destructive", title: "Authentication Error", description: "You must be logged in." });
       return;
     }
 
-    const teamData: TeamFormData = { ...values };
-
-    const result = await createTeam(teamData, clubId, user.uid);
-
+    const result = team 
+      ? await updateTeam(team.id, values, user.uid)
+      : await createTeam(values, clubId, user.uid);
+      
     if (result.success) {
       toast({
-        title: "Team Created",
-        description: `Team "${values.name}" has been successfully created.`,
+        title: team ? "Team Updated" : "Team Created",
+        description: `Team "${values.name}" has been successfully ${team ? 'updated' : 'created'}.`,
       });
-      form.reset();
-      if (onFormSubmit) {
-        onFormSubmit();
-      } else {
-        router.push(`/clubs/${clubId}`);
-        router.refresh(); 
-      }
+      if (!team) form.reset();
+      if (onFormSubmit) onFormSubmit();
+      
     } else {
       toast({
         variant: "destructive",
-        title: "Team Creation Failed",
+        title: team ? "Update Failed" : "Creation Failed",
         description: result.error || "An unexpected error occurred.",
       });
     }
@@ -109,7 +118,6 @@ export function TeamForm({ clubId, gameFormats, competitionCategories, coaches, 
     return (
       <div className="flex justify-center items-center p-8">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        <p className="ml-2">Loading user data...</p>
       </div>
     );
   }
@@ -278,16 +286,9 @@ export function TeamForm({ clubId, gameFormats, competitionCategories, coaches, 
           )}
         />
 
-
         <Button type="submit" className="w-full sm:w-auto" disabled={form.formState.isSubmitting || authLoading}>
-          {form.formState.isSubmitting ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Creating Team...
-            </>
-          ) : (
-            "Create Team"
-          )}
+          {form.formState.isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+          {form.formState.isSubmitting ? (team ? "Saving..." : "Creating...") : (team ? "Save Changes" : "Create Team")}
         </Button>
       </form>
     </Form>

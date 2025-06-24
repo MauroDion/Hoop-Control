@@ -1,4 +1,3 @@
-
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -14,11 +13,12 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import type { PlayerFormData } from "@/types";
+import type { Player, PlayerFormData } from "@/types";
 import { useToast } from "@/hooks/use-toast";
-import { createPlayer } from "@/app/players/actions";
+import { createPlayer, updatePlayer } from "@/app/players/actions";
 import { useAuth } from "@/hooks/useAuth";
 import { Loader2 } from "lucide-react";
+import React from 'react';
 
 const playerFormSchema = z.object({
   firstName: z.string().min(1, "First name is required."),
@@ -31,43 +31,53 @@ interface PlayerFormProps {
   teamId: string;
   clubId: string;
   onFormSubmit: () => void;
+  player?: Player | null; // For edit mode
 }
 
-export function PlayerForm({ teamId, clubId, onFormSubmit }: PlayerFormProps) {
+export function PlayerForm({ teamId, clubId, onFormSubmit, player }: PlayerFormProps) {
   const { toast } = useToast();
   const { user, loading: authLoading } = useAuth();
 
   const form = useForm<z.infer<typeof playerFormSchema>>({
     resolver: zodResolver(playerFormSchema),
     defaultValues: {
-      firstName: "",
-      lastName: "",
-      jerseyNumber: undefined,
-      position: "",
+      firstName: player?.firstName || "",
+      lastName: player?.lastName || "",
+      jerseyNumber: player?.jerseyNumber || undefined,
+      position: player?.position || "",
     },
   });
 
+  React.useEffect(() => {
+    form.reset({
+      firstName: player?.firstName || "",
+      lastName: player?.lastName || "",
+      jerseyNumber: player?.jerseyNumber || undefined,
+      position: player?.position || "",
+    });
+  }, [player, form]);
+
   async function onSubmit(values: z.infer<typeof playerFormSchema>) {
     if (authLoading || !user) {
-      toast({ variant: "destructive", title: "Authentication Error", description: "You must be logged in to add a player." });
+      toast({ variant: "destructive", title: "Authentication Error", description: "You must be logged in." });
       return;
     }
 
-    const playerData: PlayerFormData = { ...values };
-
-    const result = await createPlayer(playerData, teamId, clubId, user.uid);
+    const result = player
+      ? await updatePlayer(player.id, values, clubId, teamId)
+      : await createPlayer(values, teamId, clubId, user.uid);
 
     if (result.success) {
       toast({
-        title: "Player Added",
-        description: `Player "${values.firstName} ${values.lastName}" has been successfully added.`,
+        title: player ? "Player Updated" : "Player Added",
+        description: `Player "${values.firstName} ${values.lastName}" has been successfully ${player ? 'updated' : 'added'}.`,
       });
-      form.reset(); // Clear form fields
-      onFormSubmit(); // Callback to refresh parent data
+      if (!player) form.reset();
+      onFormSubmit();
     } else {
       toast({
         variant: "destructive",
-        title: "Failed to Add Player",
+        title: player ? "Update Failed" : "Failed to Add Player",
         description: result.error || "An unexpected error occurred.",
       });
     }
@@ -134,14 +144,8 @@ export function PlayerForm({ teamId, clubId, onFormSubmit }: PlayerFormProps) {
         </div>
         
         <Button type="submit" className="w-full sm:w-auto" disabled={form.formState.isSubmitting || authLoading}>
-          {form.formState.isSubmitting ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Adding Player...
-            </>
-          ) : (
-            "Add Player"
-          )}
+          {form.formState.isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+          {player ? "Save Changes" : "Add Player"}
         </Button>
       </form>
     </Form>

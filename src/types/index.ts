@@ -168,3 +168,43 @@ export interface PlayerFormData {
   jerseyNumber?: number | null;
   position?: string | null;
 }
+
+export interface Season {
+    id: string;
+    name: string;
+    status: 'active' | 'archived' | 'upcoming';
+    competitions: {
+        competitionCategoryId: string;
+        teamIds: string[];
+    }[];
+}
+
+export interface Game {
+    id: string;
+    homeTeamId: string;
+    awayTeamId: string;
+    homeTeamName: string;
+    awayTeamName: string;
+    date: Date;
+    location: string;
+    status: 'scheduled' | 'inprogress' | 'completed' | 'cancelled';
+    seasonId: string;
+    competitionCategoryId: string;
+    gameFormatId?: string | null;
+    homeTeamPlayerIds?: string[];
+    awayTeamPlayerIds?: string[];
+    createdBy: string;
+    createdAt: Date;
+    updatedAt: Date;
+}
+
+export interface GameFormData {
+    homeTeamId: string;
+    awayTeamId: string;
+    date: string; // "yyyy-MM-dd"
+    time: string; // "HH:mm"
+    location: string;
+    seasonId: string;
+    competitionCategoryId: string;
+    gameFormatId?: string | null;
+}

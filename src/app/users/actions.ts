@@ -2,6 +2,7 @@
 
 import admin, { adminAuth, adminDb, adminInitError } from '@/lib/firebase/admin';
 import type { UserFirestoreProfile, ProfileType, UserProfileStatus } from '@/types';
+import { revalidatePath } from 'next/cache';
 
 // This new server action uses the Admin SDK to securely create the user profile,
 // bypassing client-side security rules which are a common point of failure.
