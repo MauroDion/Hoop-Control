@@ -7,7 +7,8 @@ import Link from 'next/link';
 
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '@/lib/firebase/client';
-import { updateLiveGameState, getGameFormatById, recordShot, incrementGameStat } from '@/app/games/actions';
+import { updateLiveGameState, recordShot, incrementGameStat } from '@/app/games/actions';
+import { getGameFormatById } from '@/app/game-formats/actions';
 import type { Game, GameFormat, TeamStats } from '@/types';
 
 import { Button } from '@/components/ui/button';
