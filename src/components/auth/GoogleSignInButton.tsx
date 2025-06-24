@@ -1,4 +1,3 @@
-
 "use client";
 
 import { Button } from "@/components/ui/button";
@@ -30,7 +29,7 @@ export function GoogleSignInButton() {
       const result: UserCredential = await signInWithPopup(auth, provider);
       
       if (!result.user) {
-        throw new Error("Google Sign-In failed, user object not found.");
+        throw new Error("El inicio de sesión con Google falló, no se encontró el objeto de usuario.");
       }
 
       const idToken = await result.user.getIdToken();
@@ -52,18 +51,18 @@ export function GoogleSignInButton() {
           router.push(`/login?status=${responseData.reason}`);
           return;
         }
-        throw new Error(responseData.error || 'Session login failed for Google Sign-In.');
+        throw new Error(responseData.error || 'El inicio de sesión con Google falló.');
       }
 
-      toast({ title: "Signed in with Google", description: `Welcome, ${result.user.displayName}!` });
+      toast({ title: "Sesión iniciada con Google", description: `¡Bienvenido, ${result.user.displayName}!` });
       router.push(redirectUrl);
       router.refresh(); 
     } catch (error: any) {
-      console.error("Google Sign-In error: ", error);
+      console.error("Error de inicio de sesión con Google: ", error);
       toast({
         variant: "destructive",
-        title: "Google Sign-In Failed",
-        description: error.message || "An unexpected error occurred.",
+        title: "Fallo en el Inicio de Sesión con Google",
+        description: error.message || "Ocurrió un error inesperado.",
       });
     }
   };
@@ -71,7 +70,7 @@ export function GoogleSignInButton() {
   return (
     <Button variant="outline" type="button" onClick={handleSignIn} className="w-full">
       <GoogleIcon />
-      Sign in with Google
+      Iniciar sesión con Google
     </Button>
   );
 }

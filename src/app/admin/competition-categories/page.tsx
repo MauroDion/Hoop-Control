@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useEffect, useState, useCallback } from 'react';
@@ -11,15 +10,16 @@ import type { CompetitionCategory, GameFormat } from '@/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, AlertTriangle, Tag, PlusCircle, ListOrdered } from 'lucide-react';
+import { Loader2, AlertTriangle, Tag, PlusCircle } from 'lucide-react';
+// Asumiendo que CompetitionCategoryForm existe en la siguiente ruta:
 import { CompetitionCategoryForm } from '@/components/competition-categories/CompetitionCategoryForm';
 import { format } from 'date-fns';
+import { es } from 'date-fns/locale';
 
 export default function ManageCategoriesPage() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
 
-  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
   const [categories, setCategories] = useState<CompetitionCategory[]>([]);
   const [gameFormats, setGameFormats] = useState<GameFormat[]>([]);
@@ -30,13 +30,12 @@ export default function ManageCategoriesPage() {
     setError(null);
     try {
         if (!user) {
-            throw new Error("Authentication required.");
+            throw new Error("Autenticación requerida.");
         }
       const profile = await getUserProfileById(user.uid);
       if (profile?.profileTypeId !== 'super_admin') {
-        throw new Error('Access Denied. You must be a Super Admin to view this page.');
+        throw new Error('Acceso Denegado. Debes ser Super Admin para ver esta página.');
       }
-      setIsSuperAdmin(true);
 
       const [fetchedCategories, fetchedGameFormats] = await Promise.all([
           getCompetitionCategories(),
@@ -66,7 +65,7 @@ export default function ManageCategoriesPage() {
     return (
       <div className="flex items-center justify-center min-h-[calc(100vh-10rem)]">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
-        <p className="ml-4">Loading category data...</p>
+        <p className="ml-4">Cargando datos de categorías...</p>
       </div>
     );
   }
@@ -77,7 +76,7 @@ export default function ManageCategoriesPage() {
         <AlertTriangle className="h-12 w-12 text-destructive mb-4" />
         <h1 className="text-2xl font-semibold text-destructive">Error</h1>
         <p className="text-muted-foreground mb-4">{error}</p>
-        <Button onClick={() => router.push('/dashboard')} className="mt-4">Go to Dashboard</Button>
+        <Button onClick={() => router.push('/dashboard')} className="mt-4">Ir al Panel</Button>
       </div>
     );
   }
@@ -86,34 +85,34 @@ export default function ManageCategoriesPage() {
     <div className="space-y-8">
       <div>
         <h1 className="text-4xl font-headline font-bold text-primary flex items-center">
-          <Tag className="mr-3 h-10 w-10" /> Manage Competition Categories
+          <Tag className="mr-3 h-10 w-10" /> Gestionar Categorías de Competición
         </h1>
-        <p className="text-lg text-muted-foreground mt-1">View existing categories or create a new one.</p>
+        <p className="text-lg text-muted-foreground mt-1">Ver categorías existentes o crear una nueva.</p>
       </div>
 
       <Card className="shadow-xl">
         <CardHeader>
-          <CardTitle>All Categories</CardTitle>
+          <CardTitle>Todas las Categorías</CardTitle>
           <CardDescription>
-            Below is a list of all competition categories in the system.
+            A continuación se muestra una lista de todas las categorías de competición en el sistema.
           </CardDescription>
         </CardHeader>
         <CardContent>
           {categories.length === 0 ? (
              <div className="text-center py-10 border-2 border-dashed rounded-lg">
                 <Tag className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-                <h2 className="text-xl font-semibold">No Categories Found</h2>
-                <p className="text-muted-foreground">Create one below to get started.</p>
+                <h2 className="text-xl font-semibold">No se Encontraron Categorías</h2>
+                <p className="text-muted-foreground">Crea una a continuación para empezar.</p>
             </div>
           ) : (
              <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Category Name</TableHead>
-                    <TableHead>Default Format</TableHead>
-                    <TableHead>Description</TableHead>
-                    <TableHead>Level</TableHead>
-                    <TableHead>Created At</TableHead>
+                    <TableHead>Nombre de Categoría</TableHead>
+                    <TableHead>Formato por Defecto</TableHead>
+                    <TableHead>Descripción</TableHead>
+                    <TableHead>Nivel</TableHead>
+                    <TableHead>Fecha de Creación</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -125,7 +124,7 @@ export default function ManageCategoriesPage() {
                       </TableCell>
                       <TableCell>{cat.description || 'N/A'}</TableCell>
                       <TableCell>{cat.level || 'N/A'}</TableCell>
-                      <TableCell>{cat.createdAt ? format(cat.createdAt, 'PPP') : 'N/A'}</TableCell>
+                      <TableCell>{cat.createdAt ? format(cat.createdAt, 'PPP', { locale: es }) : 'N/A'}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -138,9 +137,9 @@ export default function ManageCategoriesPage() {
         <CardHeader>
           <CardTitle className="text-3xl font-headline flex items-center">
             <PlusCircle className="mr-3 h-8 w-8 text-primary" />
-            Create New Category
+            Crear Nueva Categoría
           </CardTitle>
-          <CardDescription>Fill in the details to register a new category.</CardDescription>
+          <CardDescription>Rellena los detalles para registrar una nueva categoría.</CardDescription>
         </CardHeader>
         <CardContent>
           <CompetitionCategoryForm onFormSubmit={fetchData} gameFormats={gameFormats} />

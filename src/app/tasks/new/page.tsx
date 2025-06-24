@@ -9,9 +9,9 @@ export default function NewTaskPage() {
         <CardHeader>
           <CardTitle className="text-3xl font-headline flex items-center">
             <ListPlus className="mr-3 h-8 w-8 text-primary" />
-            Create New Task
+            Crear Nueva Tarea
           </CardTitle>
-          <CardDescription>Fill in the details below to add a new task to your list.</CardDescription>
+          <CardDescription>Rellena los detalles a continuación para añadir una nueva tarea a tu lista.</CardDescription>
         </CardHeader>
         <CardContent>
           <TaskForm />

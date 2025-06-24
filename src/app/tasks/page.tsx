@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useEffect, useState } from 'react';
@@ -34,7 +33,7 @@ export default function TasksPage() {
           setTasks(fetchedTasks);
         } catch (e: any) {
           console.error("Failed to fetch tasks:", e);
-          setError(e.message || "Could not load tasks. Please try again later.");
+          setError(e.message || "No se pudieron cargar las tareas. Por favor, inténtalo de nuevo más tarde.");
         } finally {
           setLoading(false);
         }
@@ -48,8 +47,8 @@ export default function TasksPage() {
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)] text-center p-6">
         <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-        <h1 className="text-2xl font-semibold">Verifying Access...</h1>
-        <p className="text-muted-foreground">Please wait.</p>
+        <h1 className="text-2xl font-semibold">Verificando Acceso...</h1>
+        <p className="text-muted-foreground">Por favor, espera.</p>
       </div>
     );
   }
@@ -59,8 +58,8 @@ export default function TasksPage() {
      return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)] text-center p-6">
         <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-        <h1 className="text-2xl font-semibold">Loading Tasks...</h1>
-        <p className="text-muted-foreground">Please wait while we fetch your tasks.</p>
+        <h1 className="text-2xl font-semibold">Cargando Tareas...</h1>
+        <p className="text-muted-foreground">Por favor, espera mientras recuperamos tus tareas.</p>
       </div>
     );
   }
@@ -69,9 +68,9 @@ export default function TasksPage() {
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)] text-center p-6">
         <AlertTriangle className="h-12 w-12 text-destructive mb-4" />
-        <h1 className="text-2xl font-semibold text-destructive">Failed to Load Tasks</h1>
+        <h1 className="text-2xl font-semibold text-destructive">Error al Cargar las Tareas</h1>
         <p className="text-muted-foreground">{error}</p>
-        <Button onClick={() => window.location.reload()} className="mt-4">Try Again</Button>
+        <Button onClick={() => window.location.reload()} className="mt-4">Intentar de Nuevo</Button>
       </div>
     );
   }
@@ -79,10 +78,10 @@ export default function TasksPage() {
   return (
     <div className="space-y-8">
       <div className="flex justify-between items-center">
-        <h1 className="text-4xl font-headline font-bold text-primary">My Tasks</h1>
+        <h1 className="text-4xl font-headline font-bold text-primary">Mis Tareas</h1>
         <Button asChild>
           <Link href="/tasks/new">
-            <PlusCircle className="mr-2 h-5 w-5" /> Create New Task
+            <PlusCircle className="mr-2 h-5 w-5" /> Crear Nueva Tarea
           </Link>
         </Button>
       </div>
@@ -90,5 +89,3 @@ export default function TasksPage() {
     </div>
   );
 }
-
-    

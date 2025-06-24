@@ -1,4 +1,3 @@
-
 "use client";
 
 import Link from 'next/link';
@@ -57,33 +56,33 @@ export default function Header() {
           {!loading && user && (
             <>
               <Link href="/dashboard" className="transition-colors hover:text-primary flex items-center">
-                <LayoutDashboard className="mr-2 h-4 w-4" /> Dashboard
+                <LayoutDashboard className="mr-2 h-4 w-4" /> Panel
               </Link>
               <Link href="/tasks" className="transition-colors hover:text-primary flex items-center">
-                <ListChecks className="mr-2 h-4 w-4" /> Tasks
+                <ListChecks className="mr-2 h-4 w-4" /> Tareas
               </Link>
               <Link href="/games" className="transition-colors hover:text-primary flex items-center">
-                <CalendarClock className="mr-2 h-4 w-4" /> Games
+                <CalendarClock className="mr-2 h-4 w-4" /> Partidos
               </Link>
               <Link href="/bcsjd-api-data" className="transition-colors hover:text-primary flex items-center">
-                <BarChart3 className="mr-2 h-4 w-4" /> API Data
+                <BarChart3 className="mr-2 h-4 w-4" /> Datos API
               </Link>
               
               {profile?.profileTypeId === 'super_admin' && (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="ghost" className="transition-colors hover:text-primary flex items-center">
-                      Admin Tools
+                      Admin
                       <ChevronDown className="ml-1 h-4 w-4" />
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
-                    <DropdownMenuLabel>Management</DropdownMenuLabel>
+                    <DropdownMenuLabel>Gestión</DropdownMenuLabel>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem asChild>
                       <Link href="/admin/user-management" className="flex items-center w-full cursor-pointer">
                         <UserCog className="mr-2 h-4 w-4" />
-                        <span>Users</span>
+                        <span>Usuarios</span>
                       </Link>
                     </DropdownMenuItem>
                      <DropdownMenuItem asChild>
@@ -95,19 +94,19 @@ export default function Header() {
                     <DropdownMenuItem asChild>
                       <Link href="/seasons" className="flex items-center w-full cursor-pointer">
                         <CalendarCheck className="mr-2 h-4 w-4" />
-                        <span>Seasons</span>
+                        <span>Temporadas</span>
                       </Link>
                     </DropdownMenuItem>
                      <DropdownMenuItem asChild>
                       <Link href="/admin/competition-categories" className="flex items-center w-full cursor-pointer">
                         <Tag className="mr-2 h-4 w-4" />
-                        <span>Categories</span>
+                        <span>Categorías</span>
                       </Link>
                     </DropdownMenuItem>
                      <DropdownMenuItem asChild>
                       <Link href="/admin/game-formats" className="flex items-center w-full cursor-pointer">
                         <ListOrdered className="mr-2 h-4 w-4" />
-                        <span>Game Formats</span>
+                        <span>Formatos de Partido</span>
                       </Link>
                     </DropdownMenuItem>
                   </DropdownMenuContent>
@@ -123,7 +122,7 @@ export default function Header() {
           ) : !loading ? ( 
             <Button asChild variant="default" size="sm">
               <Link href="/login" className="flex items-center">
-                <LogIn className="mr-2 h-4 w-4" /> Login / Register
+                <LogIn className="mr-2 h-4 w-4" /> Iniciar Sesión / Registro
               </Link>
             </Button>
           ) : null } 

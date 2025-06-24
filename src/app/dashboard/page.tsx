@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useAuth } from '@/hooks/useAuth';
@@ -26,8 +25,8 @@ interface ApiData {
   value: number | string;
 }
 const bcsjdApiSampleData: ApiData[] = [
-  { keyMetric: "Overall Progress", value: "75%" },
-  { keyMetric: "Budget Utilization", value: "60%" },
+  { keyMetric: "Progreso General", value: "75%" },
+  { keyMetric: "Uso del Presupuesto", value: "60%" },
 ];
 
 
@@ -52,13 +51,13 @@ export default function DashboardPage() {
             setUserProfile(profile);
           } else {
             console.error("Dashboard: getUserProfileById returned null. This means no profile document was found for the UID in 'user_profiles' collection or there was a permission issue.");
-            setProfileError("Your user profile could not be found in the database. This might be a permission issue. Please contact an administrator.");
+            setProfileError("No se pudo encontrar tu perfil de usuario en la base de datos. Podría ser un problema de permisos. Por favor, contacta a un administrador.");
             setUserProfile(null);
           }
         })
         .catch(err => {
           console.error("Dashboard: An error occurred while fetching user profile:", err);
-          setProfileError("An error occurred while loading your profile. Please try again later.");
+          setProfileError("Ocurrió un error al cargar tu perfil. Por favor, inténtalo de nuevo más tarde.");
           setUserProfile(null);
         })
         .finally(() => {
@@ -79,8 +78,8 @@ export default function DashboardPage() {
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)]">
         <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-        <h1 className="text-2xl font-headline font-semibold">Verifying Session...</h1>
-        <p className="text-muted-foreground">Please wait.</p>
+        <h1 className="text-2xl font-headline font-semibold">Verificando sesión...</h1>
+        <p className="text-muted-foreground">Por favor, espera.</p>
       </div>
     );
   }
@@ -90,7 +89,7 @@ export default function DashboardPage() {
       return (
         <div className="flex items-center">
           <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-          <span>Loading user information...</span>
+          <span>Cargando información de usuario...</span>
         </div>
       );
     }
@@ -108,17 +107,12 @@ export default function DashboardPage() {
       return (
         <>
           <p className="text-sm text-muted-foreground">
-            As a Super Admin, you have full control over clubs and teams.
+            Como Super Admin, tienes control total sobre clubs y equipos.
           </p>
           <div className="flex flex-col sm:flex-row gap-2 pt-2">
             <Button asChild>
-              <Link href={`/clubs/new`}>
-                <PlusCircle className="mr-2 h-5 w-5" /> Create New Club
-              </Link>
-            </Button>
-            <Button asChild variant="outline">
               <Link href={`/clubs`}>
-                <Building className="mr-2 h-5 w-5" /> Manage Clubs
+                <Building className="mr-2 h-5 w-5" /> Gestionar Clubs
               </Link>
             </Button>
           </div>
@@ -130,12 +124,11 @@ export default function DashboardPage() {
        return (
         <>
           <p className="text-sm text-muted-foreground">
-            You are associated with club <code className="font-mono bg-muted px-1 py-0.5 rounded">{userProfile.clubId}</code>.
-            You can create a new team for your club now.
+            Puedes gestionar los equipos de tu club.
           </p>
           <Button asChild>
-            <Link href={`/clubs/${userProfile.clubId}/teams/new`}>
-              <PlusCircle className="mr-2 h-5 w-5" /> Create New Team
+            <Link href={`/clubs/${userProfile.clubId}`}>
+              <Users className="mr-2 h-5 w-5" /> Gestionar mi Club
             </Link>
           </Button>
         </>
@@ -146,7 +139,7 @@ export default function DashboardPage() {
     return (
       <div className="flex items-center text-muted-foreground">
         <AlertTriangle className="mr-2 h-5 w-5 text-yellow-500" />
-        <span>Your profile is not associated with a club. Team creation is disabled.</span>
+        <span>Tu perfil no está asociado a un club. La gestión de equipos está desactivada.</span>
       </div>
     );
   };
@@ -156,12 +149,12 @@ export default function DashboardPage() {
     <div className="space-y-8">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 p-6 bg-card rounded-lg shadow-lg">
         <div>
-          <h1 className="text-4xl font-headline font-bold text-primary">Welcome, {user.displayName || user.email}!</h1>
-          <p className="text-lg text-muted-foreground mt-1">Here&apos;s a summary of your BCSJD workspace.</p>
+          <h1 className="text-4xl font-headline font-bold text-primary">¡Bienvenido, {user.displayName || user.email}!</h1>
+          <p className="text-lg text-muted-foreground mt-1">Este es un resumen de tu espacio de trabajo en BCSJD.</p>
         </div>
         <Image 
           src="https://placehold.co/150x150.png" 
-          alt="User avatar or decorative image" 
+          alt="Avatar de usuario o imagen decorativa" 
           width={100} 
           height={100} 
           className="rounded-full shadow-md hidden sm:block"
@@ -173,42 +166,42 @@ export default function DashboardPage() {
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
         <Card className="shadow-md hover:shadow-lg transition-shadow">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Active Projects</CardTitle>
+            <CardTitle className="text-sm font-medium">Proyectos Activos</CardTitle>
             <Building className="h-5 w-5 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-bold text-primary">{summaryData.activeProjects}</div>
-            <p className="text-xs text-muted-foreground">+2 from last month</p>
+            <p className="text-xs text-muted-foreground">+2 desde el mes pasado</p>
           </CardContent>
         </Card>
         <Card className="shadow-md hover:shadow-lg transition-shadow">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Tasks Completed</CardTitle>
+            <CardTitle className="text-sm font-medium">Tareas Completadas</CardTitle>
             <CheckSquare className="h-5 w-5 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-bold text-primary">{summaryData.completedTasks}</div>
-            <p className="text-xs text-muted-foreground">+15 this week</p>
+            <p className="text-xs text-muted-foreground">+15 esta semana</p>
           </CardContent>
         </Card>
         <Card className="shadow-md hover:shadow-lg transition-shadow">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Team Members</CardTitle>
+            <CardTitle className="text-sm font-medium">Miembros del Equipo</CardTitle>
             <Users className="h-5 w-5 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-bold text-primary">{summaryData.teamMembers}</div>
-            <p className="text-xs text-muted-foreground">All active</p>
+            <p className="text-xs text-muted-foreground">Todos activos</p>
           </CardContent>
         </Card>
         <Card className="shadow-md hover:shadow-lg transition-shadow">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Critical Alerts (Sample)</CardTitle>
+            <CardTitle className="text-sm font-medium">Alertas Críticas (Ejemplo)</CardTitle>
             <AlertTriangle className="h-5 w-5 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-bold">{summaryData.alerts}</div>
-            <p className="text-xs text-muted-foreground">This is a sample card</p>
+            <p className="text-xs text-muted-foreground">Esto es una tarjeta de ejemplo</p>
           </CardContent>
         </Card>
       </div>
@@ -217,9 +210,9 @@ export default function DashboardPage() {
       <Card className="shadow-lg">
         <CardHeader>
           <CardTitle className="text-2xl font-headline flex items-center">
-            Club & Team Management
+            Gestión de Club y Equipos
           </CardTitle>
-          <CardDescription>Manage your club details and create new teams.</CardDescription>
+          <CardDescription>Gestiona los detalles de tu club y crea nuevos equipos.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {renderClubManagement()}
@@ -231,9 +224,9 @@ export default function DashboardPage() {
         <CardHeader>
           <CardTitle className="text-2xl font-headline flex items-center">
             <BarChart className="mr-3 h-6 w-6 text-accent" />
-            BCSJD API Overview
+            Resumen de la API de BCSJD
           </CardTitle>
-          <CardDescription>Key metrics from the integrated BCSJD API.</CardDescription>
+          <CardDescription>Métricas clave obtenidas de la API integrada de BCSJD.</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4 md:grid-cols-2">
           {bcsjdApiSampleData.map((item) => (
@@ -245,7 +238,7 @@ export default function DashboardPage() {
            <div className="p-4 border rounded-md bg-secondary/30 flex items-center justify-center">
              <Image 
                 src="https://placehold.co/300x150.png" 
-                alt="Chart Placeholder" 
+                alt="Gráfico de ejemplo" 
                 width={300} 
                 height={150} 
                 className="rounded shadow"

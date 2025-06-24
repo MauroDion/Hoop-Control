@@ -8,8 +8,8 @@ export default function RegisterPage() {
     <div className="flex min-h-[calc(100vh-10rem)] items-center justify-center">
       <Card className="w-full max-w-md shadow-xl">
         <CardHeader className="text-center">
-          <CardTitle className="text-3xl font-headline">Create an Account</CardTitle>
-          <CardDescription>Join the BCSJD platform today.</CardDescription>
+          <CardTitle className="text-3xl font-headline">Crear una Cuenta</CardTitle>
+          <CardDescription>Únete a la plataforma BCSJD hoy.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           <RegisterForm />
@@ -19,7 +19,7 @@ export default function RegisterPage() {
             </div>
             <div className="relative flex justify-center text-xs uppercase">
               <span className="bg-card px-2 text-muted-foreground">
-                Or sign up with
+                O regístrate con
               </span>
             </div>
           </div>
@@ -27,9 +27,9 @@ export default function RegisterPage() {
         </CardContent>
         <CardFooter className="justify-center">
           <p className="text-sm text-muted-foreground">
-            Already have an account?{" "}
+            ¿Ya tienes una cuenta?{" "}
             <Link href="/login" className="font-semibold text-primary hover:underline">
-              Log in
+              Inicia sesión
             </Link>
           </p>
         </CardFooter>

@@ -1,4 +1,3 @@
-
 "use client"; // This page needs to be a client component for useEffect and useState
 
 import React, { useEffect, useState } from 'react';
@@ -8,7 +7,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { BarChart3, AlertTriangle, Loader2, RefreshCw, HelpCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import {format} from 'date-fns';
+import { format } from 'date-fns';
+import { es } from 'date-fns/locale';
 
 export default function BcsjdApiDataPage() {
   const [data, setData] = useState<BcsjdApiDataItem[]>([]);
@@ -24,7 +24,7 @@ export default function BcsjdApiDataPage() {
       const apiData = await getBcsjdKeyMetrics();
       setData(apiData);
     } catch (err: any) {
-      const errorMessage = err.message || "Failed to fetch data from BCSJD API.";
+      const errorMessage = err.message || "Fallo al obtener datos de la API de BCSJD.";
       setError(errorMessage);
       if (errorMessage.includes('403') || errorMessage.toLowerCase().includes('forbidden')) {
         setIsForbiddenError(true);
@@ -43,7 +43,7 @@ export default function BcsjdApiDataPage() {
       return (
         <div className="flex flex-col items-center justify-center py-10">
           <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-          <p className="text-lg text-muted-foreground">Loading BCSJD API Data...</p>
+          <p className="text-lg text-muted-foreground">Cargando datos de la API de BCSJD...</p>
         </div>
       );
     }
@@ -52,29 +52,29 @@ export default function BcsjdApiDataPage() {
       return (
         <div className="text-center py-10 bg-destructive/10 border border-destructive rounded-lg p-6">
           <AlertTriangle className="mx-auto h-12 w-12 text-destructive mb-4" />
-          <h2 className="text-xl font-semibold text-destructive">Error Fetching Data</h2>
+          <h2 className="text-xl font-semibold text-destructive">Error al Obtener Datos</h2>
           <p className="text-muted-foreground mb-4">{error}</p>
           {isForbiddenError && (
             <div className="mt-4 mb-6 p-4 bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 text-sm text-left">
               <div className="flex">
                 <div className="py-1"><HelpCircle className="h-5 w-5 text-yellow-500 mr-3" /></div>
                 <div>
-                  A <strong>403 Forbidden</strong> error means the server is refusing access.
-                  Common reasons for this when accessing the BCSJD API include:
+                  Un error <strong>403 Prohibido</strong> significa que el servidor está denegando el acceso.
+                  Razones comunes para esto al acceder a la API de BCSJD incluyen:
                   <ul className="list-disc list-inside mt-2">
-                    <li>The API Key (<code>NEXT_PUBLIC_BCSJD_API_KEY</code>) might be incorrect, missing, or not authorized for this action.</li>
-                    <li>The BCSJD API server might have IP restrictions or other security measures in place.</li>
+                    <li>La clave de API (<code>NEXT_PUBLIC_BCSJD_API_KEY</code>) podría ser incorrecta, faltar o no estar autorizada para esta acción.</li>
+                    <li>El servidor de la API de BCSJD podría tener restricciones de IP u otras medidas de seguridad.</li>
                   </ul>
-                  <p className="mt-2">Please check your <code>.env.local</code> file for the API key and consult the BCSJD API documentation or administrator.</p>
+                  <p className="mt-2">Por favor, revisa tu archivo <code>.env.local</code> para la clave de API y consulta la documentación o al administrador de la API de BCSJD.</p>
                 </div>
               </div>
             </div>
           )}
           <p className="text-sm text-muted-foreground mb-4">
-            Tip: Open your browser's Developer Tools (F12), go to the "Network" tab, and refresh. Look for failed requests (often red) to see more details about the error and the specific URL that failed.
+            Consejo: Abre las Herramientas de Desarrollador de tu navegador (F12), ve a la pestaña "Red" y actualiza. Busca las solicitudes fallidas (a menudo en rojo) para ver más detalles sobre el error y la URL específica que falló.
           </p>
           <Button onClick={fetchData} variant="destructive">
-            <RefreshCw className="mr-2 h-4 w-4" /> Try Again
+            <RefreshCw className="mr-2 h-4 w-4" /> Intentar de Nuevo
           </Button>
         </div>
       );
@@ -84,10 +84,10 @@ export default function BcsjdApiDataPage() {
         return (
              <div className="text-center py-10 border-2 border-dashed rounded-lg p-6">
                 <BarChart3 className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-                <h2 className="text-xl font-semibold">No Data Available</h2>
-                <p className="text-muted-foreground mb-4">Could not retrieve any data from the BCSJD API at this time.</p>
+                <h2 className="text-xl font-semibold">No Hay Datos Disponibles</h2>
+                <p className="text-muted-foreground mb-4">No se pudo obtener ningún dato de la API de BCSJD en este momento.</p>
                 <Button onClick={fetchData}>
-                    <RefreshCw className="mr-2 h-4 w-4" /> Refresh Data
+                    <RefreshCw className="mr-2 h-4 w-4" /> Actualizar Datos
                 </Button>
             </div>
         );
@@ -97,10 +97,10 @@ export default function BcsjdApiDataPage() {
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Metric Name</TableHead>
-            <TableHead>Value</TableHead>
-            <TableHead>Category</TableHead>
-            <TableHead>Last Updated</TableHead>
+            <TableHead>Nombre de Métrica</TableHead>
+            <TableHead>Valor</TableHead>
+            <TableHead>Categoría</TableHead>
+            <TableHead>Última Actualización</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -109,7 +109,7 @@ export default function BcsjdApiDataPage() {
               <TableCell className="font-medium">{item.name}</TableCell>
               <TableCell>{item.value.toString()}</TableCell>
               <TableCell>{item.category}</TableCell>
-              <TableCell>{format(new Date(item.lastUpdated), 'PPpp')}</TableCell>
+              <TableCell>{format(new Date(item.lastUpdated), 'PPpp', { locale: es })}</TableCell>
             </TableRow>
           ))}
         </TableBody>
@@ -122,21 +122,21 @@ export default function BcsjdApiDataPage() {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center">
         <div>
           <h1 className="text-4xl font-headline font-bold text-primary flex items-center">
-            <BarChart3 className="mr-3 h-10 w-10" /> BCSJD API Data
+            <BarChart3 className="mr-3 h-10 w-10" /> Datos de la API de BCSJD
           </h1>
-          <p className="text-lg text-muted-foreground mt-1">Live data from the external BCSJD system.</p>
+          <p className="text-lg text-muted-foreground mt-1">Datos en vivo del sistema externo de BCSJD.</p>
         </div>
         <Button onClick={fetchData} disabled={loading} variant="outline" className="mt-4 sm:mt-0">
           <RefreshCw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-          Refresh Data
+          Actualizar Datos
         </Button>
       </div>
       
       <Card className="shadow-xl">
         <CardHeader>
-          <CardTitle className="text-2xl">Key Metrics Overview</CardTitle>
+          <CardTitle className="text-2xl">Resumen de Métricas Clave</CardTitle>
           <CardDescription>
-            Displaying important information retrieved directly from the BCSJD API.
+            Mostrando información importante recuperada directamente de la API de BCSJD.
           </CardDescription>
         </CardHeader>
         <CardContent>

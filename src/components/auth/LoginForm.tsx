@@ -1,4 +1,3 @@
-
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -24,8 +23,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 
 const formSchema = z.object({
-  email: z.string().email({ message: "Invalid email address." }),
-  password: z.string().min(6, { message: "Password must be at least 6 characters." }),
+  email: z.string().email({ message: "Dirección de email inválida." }),
+  password: z.string().min(6, { message: "La contraseña debe tener al menos 6 caracteres." }),
   rememberMe: z.boolean().default(false).optional(),
 });
 
@@ -50,7 +49,7 @@ export function LoginForm() {
       const userCredential = await signInWithEmailAndPassword(auth, values.email, values.password);
       
       if (!userCredential.user) {
-        throw new Error("Login failed, user object not found.");
+        throw new Error("El inicio de sesión falló, no se encontró el objeto de usuario.");
       }
 
       const idToken = await userCredential.user.getIdToken();
@@ -71,23 +70,23 @@ export function LoginForm() {
           return;
         }
         // Fallback for other errors from the session-login endpoint
-        throw new Error(responseData.error || 'Session login failed.');
+        throw new Error(responseData.error || 'El inicio de sesión falló.');
       }
       
       toast({
-        title: "Login Successful",
-        description: "Welcome back!",
+        title: "Inicio de Sesión Exitoso",
+        description: "¡Bienvenido de nuevo!",
       });
       router.push(redirectUrl);
       router.refresh(); 
     } catch (error: any) {
-      console.error("Login error: ", error);
+      console.error("Error de inicio de sesión: ", error);
       toast({
         variant: "destructive",
-        title: "Login Failed",
+        title: "Fallo en el Inicio de Sesión",
         description: error.code === 'auth/invalid-credential' 
-          ? "Invalid email or password." 
-          : error.message || "Invalid email or password.",
+          ? "Email o contraseña inválidos." 
+          : error.message || "Email o contraseña inválidos.",
       });
     }
   }
@@ -102,7 +101,7 @@ export function LoginForm() {
             <FormItem>
               <FormLabel>Email</FormLabel>
               <FormControl>
-                <Input placeholder="your@email.com" {...field} />
+                <Input placeholder="tu@email.com" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -113,7 +112,7 @@ export function LoginForm() {
           name="password"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Password</FormLabel>
+              <FormLabel>Contraseña</FormLabel>
               <FormControl>
                 <Input type="password" placeholder="••••••••" {...field} />
               </FormControl>
@@ -139,7 +138,7 @@ export function LoginForm() {
                     htmlFor="rememberMeLogin"
                     className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
                   >
-                    Remember me
+                    Recordarme
                   </Label>
                 </div>
               </FormItem>
@@ -147,12 +146,12 @@ export function LoginForm() {
           />
           <Link href="/reset-password" passHref>
             <Button variant="link" type="button" className="px-0 text-sm">
-              Forgot password?
+              ¿Olvidaste tu contraseña?
             </Button>
           </Link>
         </div>
         <Button type="submit" className="w-full" disabled={form.formState.isSubmitting}>
-          {form.formState.isSubmitting ? "Logging in..." : "Login"}
+          {form.formState.isSubmitting ? "Iniciando sesión..." : "Iniciar Sesión"}
         </Button>
       </form>
     </Form>

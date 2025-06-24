@@ -16,9 +16,9 @@ export default function LoginPage({ searchParams }: { searchParams: { [key: stri
         return (
           <Alert>
             <Clock className="h-4 w-4" />
-            <AlertTitle>Account Pending Approval</AlertTitle>
+            <AlertTitle>Cuenta Pendiente de Aprobación</AlertTitle>
             <AlertDescription>
-              Your registration is submitted. You will be able to log in once an administrator approves your account.
+              Tu registro ha sido enviado. Podrás iniciar sesión una vez que un administrador apruebe tu cuenta.
             </AlertDescription>
           </Alert>
         );
@@ -26,9 +26,9 @@ export default function LoginPage({ searchParams }: { searchParams: { [key: stri
         return (
           <Alert variant="destructive">
             <ShieldX className="h-4 w-4" />
-            <AlertTitle>Account Access Denied</AlertTitle>
+            <AlertTitle>Acceso a la Cuenta Denegado</AlertTitle>
             <AlertDescription>
-              Your account access has been rejected. Please contact an administrator for more information.
+              El acceso a tu cuenta ha sido denegado. Por favor, contacta a un administrador para más información.
             </AlertDescription>
           </Alert>
         );
@@ -41,8 +41,8 @@ export default function LoginPage({ searchParams }: { searchParams: { [key: stri
     <div className="flex min-h-[calc(100vh-10rem)] items-center justify-center">
       <Card className="w-full max-w-md shadow-xl">
         <CardHeader className="text-center">
-          <CardTitle className="text-3xl font-headline">Welcome Back!</CardTitle>
-          <CardDescription>Sign in to access your BCSJD dashboard.</CardDescription>
+          <CardTitle className="text-3xl font-headline">¡Bienvenido de nuevo!</CardTitle>
+          <CardDescription>Inicia sesión para acceder a tu panel de BCSJD.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           {renderStatusMessage()}
@@ -53,7 +53,7 @@ export default function LoginPage({ searchParams }: { searchParams: { [key: stri
             </div>
             <div className="relative flex justify-center text-xs uppercase">
               <span className="bg-card px-2 text-muted-foreground">
-                Or continue with
+                O continuar con
               </span>
             </div>
           </div>
@@ -61,9 +61,9 @@ export default function LoginPage({ searchParams }: { searchParams: { [key: stri
         </CardContent>
         <CardFooter className="justify-center">
           <p className="text-sm text-muted-foreground">
-            Don&apos;t have an account?{" "}
+            ¿No tienes una cuenta?{" "}
             <Link href="/register" className="font-semibold text-primary hover:underline">
-              Sign up
+              Regístrate
             </Link>
           </p>
         </CardFooter>

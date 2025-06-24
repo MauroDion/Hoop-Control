@@ -24,7 +24,7 @@ const playfairDisplay = Playfair_Display({
 
 export const metadata: Metadata = {
   title: 'BCSJD Web App',
-  description: 'Application for BCSJD project management and data integration.',
+  description: 'Aplicación para la gestión de proyectos e integración de datos de BCSJD.',
 };
 
 export default function RootLayout({
@@ -33,7 +33,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning className={`${ptSans.variable} ${playfairDisplay.variable}`}>
+    <html lang="es" suppressHydrationWarning className={`${ptSans.variable} ${playfairDisplay.variable}`}>
       <head />
       <body className={cn("min-h-screen bg-background font-body antialiased")}>
         <AuthProvider>

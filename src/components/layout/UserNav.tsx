@@ -1,4 +1,3 @@
-
 "use client";
 
 import Link from 'next/link';
@@ -38,21 +37,21 @@ export default function UserNav() {
         // If the server call fails, log the error but DO NOT stop the logout process.
         const errorData = await response.json();
         console.error('UserNav: Server-side session logout failed. Response:', errorData.error);
-        toast({ variant: "destructive", title: "Logout Warning", description: "Could not clear server session. Logging out locally." });
+        toast({ variant: "destructive", title: "Aviso de Cierre de Sesión", description: "No se pudo limpiar la sesión del servidor. Cerrando sesión localmente." });
       } else {
         console.log("UserNav: Server responded OK. Session cookie should be cleared.");
       }
     } catch (error: any) {
       // Also catch network errors, but again, DO NOT stop the logout process.
       console.error('UserNav: API call to /api/auth/session-logout failed:', error);
-      toast({ variant: "destructive", title: "Logout Error", description: `Could not contact logout service: ${error.message}` });
+      toast({ variant: "destructive", title: "Error de Cierre de Sesión", description: `No se pudo contactar el servicio de cierre de sesión: ${error.message}` });
     } finally {
       // Step 2: ALWAYS perform client-side sign-out and redirect.
       // This ensures the user is logged out on the client regardless of server state.
       try {
         await firebaseClientSignOut(auth);
         console.log("UserNav: Client-side firebaseClientSignOut() completed.");
-        toast({ title: "Logged out", description: "You have been successfully logged out." });
+        toast({ title: "Sesión Cerrada", description: "Has cerrado sesión correctamente." });
         
         // Step 3: Redirect to a clean login page.
         router.push('/login'); 
@@ -60,7 +59,7 @@ export default function UserNav() {
         console.log("UserNav: Redirected to /login and refreshed router state.");
       } catch (clientSignOutError: any) {
         console.error('UserNav: Critical error during client-side signOut:', clientSignOutError);
-        toast({ variant: "destructive", title: "Client Logout Failed", description: clientSignOutError.message });
+        toast({ variant: "destructive", title: "Fallo en Cierre de Sesión Local", description: clientSignOutError.message });
         // Still force redirect even if client signout fails for some reason.
         router.push('/login');
         router.refresh();
@@ -94,7 +93,7 @@ export default function UserNav() {
       <DropdownMenuContent className="w-56" align="end" forceMount>
         <DropdownMenuLabel className="font-normal">
           <div className="flex flex-col space-y-1">
-            <p className="text-sm font-medium leading-none">{user.displayName || 'User'}</p>
+            <p className="text-sm font-medium leading-none">{user.displayName || 'Usuario'}</p>
             <p className="text-xs leading-none text-muted-foreground">
               {user.email}
             </p>
@@ -105,19 +104,19 @@ export default function UserNav() {
           <DropdownMenuItem asChild>
             <Link href="/profile" className="flex items-center">
               <UserCircle className="mr-2 h-4 w-4" />
-              Profile
+              Perfil
             </Link>
           </DropdownMenuItem>
           <DropdownMenuItem disabled className="flex items-center cursor-not-allowed">
             <Settings className="mr-2 h-4 w-4" />
-            Settings
-            <span className="ml-auto text-xs text-muted-foreground">(Soon)</span>
+            Configuración
+            <span className="ml-auto text-xs text-muted-foreground">(Pronto)</span>
           </DropdownMenuItem>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={handleLogout} className="flex items-center cursor-pointer">
           <LogOut className="mr-2 h-4 w-4" />
-          Log out
+          Cerrar Sesión
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

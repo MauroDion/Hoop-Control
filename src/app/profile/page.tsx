@@ -17,16 +17,16 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { UserCircle, Edit3, ShieldAlert, AlertTriangle } from 'lucide-react';
 
 const profileSchema = z.object({
-  displayName: z.string().min(2, "Name must be at least 2 characters.").optional(),
-  email: z.string().email().optional(), // Email usually not changed here directly
+  displayName: z.string().min(2, "El nombre debe tener al menos 2 caracteres.").optional(),
+  email: z.string().email().optional(), // El email normalmente no se cambia aquí
 });
 
 const passwordSchema = z.object({
-  currentPassword: z.string().min(1, "Current password is required."), // Firebase requires re-auth for password change
-  newPassword: z.string().min(6, "New password must be at least 6 characters."),
-  confirmPassword: z.string().min(6, "Confirm password must be at least 6 characters."),
+  currentPassword: z.string().min(1, "La contraseña actual es requerida."),
+  newPassword: z.string().min(6, "La nueva contraseña debe tener al menos 6 caracteres."),
+  confirmPassword: z.string().min(6, "La confirmación de contraseña debe tener al menos 6 caracteres."),
 }).refine(data => data.newPassword === data.confirmPassword, {
-  message: "Passwords don't match",
+  message: "Las contraseñas no coinciden",
   path: ["confirmPassword"],
 });
 
@@ -66,30 +66,28 @@ export default function ProfilePage() {
     if (!auth.currentUser) return;
     try {
       await updateProfile(auth.currentUser, { displayName: values.displayName });
-      toast({ title: "Profile Updated", description: "Your display name has been updated." });
+      toast({ title: "Perfil Actualizado", description: "Tu nombre de usuario ha sido actualizado." });
       setIsEditingProfile(false);
     } catch (error: any) {
-      toast({ variant: "destructive", title: "Update Failed", description: error.message });
+      toast({ variant: "destructive", title: "Error al Actualizar", description: error.message });
     }
   };
 
   const handlePasswordUpdate = async (values: z.infer<typeof passwordSchema>) => {
     if (!auth.currentUser || !auth.currentUser.email) {
-        toast({ variant: "destructive", title: "Error", description: "User not found or email missing." });
+        toast({ variant: "destructive", title: "Error", description: "Usuario no encontrado o sin email." });
         return;
     }
     try {
-      // Re-authenticate user
       const credential = EmailAuthProvider.credential(auth.currentUser.email, values.currentPassword);
       await reauthenticateWithCredential(auth.currentUser, credential);
       
-      // Update password
       await updatePassword(auth.currentUser, values.newPassword);
-      toast({ title: "Password Updated", description: "Your password has been successfully changed." });
+      toast({ title: "Contraseña Actualizada", description: "Tu contraseña ha sido cambiada exitosamente." });
       passwordForm.reset();
     } catch (error: any) {
-      console.error("Password update error: ", error);
-      toast({ variant: "destructive", title: "Password Update Failed", description: error.message || "Please check your current password." });
+      console.error("Error al actualizar contraseña: ", error);
+      toast({ variant: "destructive", title: "Fallo al Actualizar Contraseña", description: error.message || "Por favor, verifica tu contraseña actual." });
     }
   };
   
@@ -103,15 +101,15 @@ export default function ProfilePage() {
   };
 
   if (loading) {
-    return <p>Loading profile...</p>;
+    return <p>Cargando perfil...</p>;
   }
 
   if (!user) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)]">
         <AlertTriangle className="h-12 w-12 text-destructive mb-4" />
-        <h1 className="text-2xl font-headline font-semibold text-destructive">Access Denied</h1>
-        <p className="text-muted-foreground">Please log in to view your profile.</p>
+        <h1 className="text-2xl font-headline font-semibold text-destructive">Acceso Denegado</h1>
+        <p className="text-muted-foreground">Por favor, inicia sesión para ver tu perfil.</p>
       </div>
     );
   }
@@ -120,11 +118,11 @@ export default function ProfilePage() {
     <div className="space-y-8 max-w-3xl mx-auto">
       <div className="flex items-center space-x-4 p-6 bg-card rounded-lg shadow-lg">
         <Avatar className="h-24 w-24 border-2 border-primary">
-          <AvatarImage src={user.photoURL || undefined} alt={user.displayName || user.email || 'User'} />
+          <AvatarImage src={user.photoURL || undefined} alt={user.displayName || user.email || 'Usuario'} />
           <AvatarFallback className="text-3xl">{getInitials(user.displayName || user.email)}</AvatarFallback>
         </Avatar>
         <div>
-          <h1 className="text-3xl font-headline font-bold text-primary">{user.displayName || 'User Profile'}</h1>
+          <h1 className="text-3xl font-headline font-bold text-primary">{user.displayName || 'Perfil de Usuario'}</h1>
           <p className="text-muted-foreground">{user.email}</p>
         </div>
       </div>
@@ -132,12 +130,12 @@ export default function ProfilePage() {
       <Card className="shadow-lg">
         <CardHeader className="flex flex-row justify-between items-center">
           <div>
-            <CardTitle className="text-2xl font-headline flex items-center"><UserCircle className="mr-2 h-6 w-6 text-accent" />Personal Information</CardTitle>
-            <CardDescription>View and update your personal details.</CardDescription>
+            <CardTitle className="text-2xl font-headline flex items-center"><UserCircle className="mr-2 h-6 w-6 text-accent" />Información Personal</CardTitle>
+            <CardDescription>Ve y actualiza tus datos personales.</CardDescription>
           </div>
           {!isEditingProfile && (
             <Button variant="outline" size="sm" onClick={() => setIsEditingProfile(true)}>
-              <Edit3 className="mr-2 h-4 w-4" /> Edit
+              <Edit3 className="mr-2 h-4 w-4" /> Editar
             </Button>
           )}
         </CardHeader>
@@ -149,7 +147,7 @@ export default function ProfilePage() {
                 name="displayName"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Display Name</FormLabel>
+                    <FormLabel>Nombre de Usuario</FormLabel>
                     <FormControl>
                       <Input {...field} disabled={!isEditingProfile} />
                     </FormControl>
@@ -160,18 +158,18 @@ export default function ProfilePage() {
               <FormItem>
                 <FormLabel>Email</FormLabel>
                 <Input type="email" value={user.email || ""} disabled />
-                <p className="text-xs text-muted-foreground pt-1">Email cannot be changed here.</p>
+                <p className="text-xs text-muted-foreground pt-1">El email no se puede cambiar.</p>
               </FormItem>
               {isEditingProfile && (
                 <div className="flex space-x-2 pt-2">
                   <Button type="submit" disabled={profileForm.formState.isSubmitting}>
-                    {profileForm.formState.isSubmitting ? "Saving..." : "Save Changes"}
+                    {profileForm.formState.isSubmitting ? "Guardando..." : "Guardar Cambios"}
                   </Button>
                   <Button variant="ghost" onClick={() => {
                     setIsEditingProfile(false);
                     profileForm.reset({ displayName: user.displayName || "", email: user.email || "" });
                   }}>
-                    Cancel
+                    Cancelar
                   </Button>
                 </div>
               )}
@@ -182,8 +180,8 @@ export default function ProfilePage() {
 
       <Card className="shadow-lg">
         <CardHeader>
-          <CardTitle className="text-2xl font-headline flex items-center"><ShieldAlert className="mr-2 h-6 w-6 text-accent"/>Change Password</CardTitle>
-          <CardDescription>Update your account password.</CardDescription>
+          <CardTitle className="text-2xl font-headline flex items-center"><ShieldAlert className="mr-2 h-6 w-6 text-accent"/>Cambiar Contraseña</CardTitle>
+          <CardDescription>Actualiza la contraseña de tu cuenta.</CardDescription>
         </CardHeader>
         <CardContent>
           <Form {...passwordForm}>
@@ -193,7 +191,7 @@ export default function ProfilePage() {
                 name="currentPassword"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Current Password</FormLabel>
+                    <FormLabel>Contraseña Actual</FormLabel>
                     <FormControl>
                       <Input type="password" {...field} />
                     </FormControl>
@@ -206,7 +204,7 @@ export default function ProfilePage() {
                 name="newPassword"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>New Password</FormLabel>
+                    <FormLabel>Nueva Contraseña</FormLabel>
                     <FormControl>
                       <Input type="password" {...field} />
                     </FormControl>
@@ -219,7 +217,7 @@ export default function ProfilePage() {
                 name="confirmPassword"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Confirm New Password</FormLabel>
+                    <FormLabel>Confirmar Nueva Contraseña</FormLabel>
                     <FormControl>
                       <Input type="password" {...field} />
                     </FormControl>
@@ -228,7 +226,7 @@ export default function ProfilePage() {
                 )}
               />
               <Button type="submit" disabled={passwordForm.formState.isSubmitting} className="mt-2">
-                {passwordForm.formState.isSubmitting ? "Updating..." : "Update Password"}
+                {passwordForm.formState.isSubmitting ? "Actualizando..." : "Actualizar Contraseña"}
               </Button>
             </form>
           </Form>

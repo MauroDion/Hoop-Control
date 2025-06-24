@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useEffect, useState, useCallback } from 'react';
@@ -11,13 +10,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Loader2, AlertTriangle, ListOrdered, PlusCircle } from 'lucide-react';
+// Asumiendo que GameFormatForm existe en la siguiente ruta:
 import { GameFormatForm } from '@/components/game-formats/GameFormatForm';
 
 export default function ManageGameFormatsPage() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
 
-  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
   const [formats, setFormats] = useState<GameFormat[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -26,13 +25,12 @@ export default function ManageGameFormatsPage() {
     setLoading(true);
     setError(null);
     try {
-        if (!user) throw new Error("Authentication required.");
+        if (!user) throw new Error("Autenticación requerida.");
         
       const profile = await getUserProfileById(user.uid);
       if (profile?.profileTypeId !== 'super_admin') {
-        throw new Error('Access Denied. You must be a Super Admin to view this page.');
+        throw new Error('Acceso Denegado. Debes ser Super Admin para ver esta página.');
       }
-      setIsSuperAdmin(true);
 
       const fetchedFormats = await getGameFormats();
       setFormats(fetchedFormats);
@@ -57,7 +55,7 @@ export default function ManageGameFormatsPage() {
     return (
       <div className="flex items-center justify-center min-h-[calc(100vh-10rem)]">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
-        <p className="ml-4">Loading game format data...</p>
+        <p className="ml-4">Cargando datos de formatos de partido...</p>
       </div>
     );
   }
@@ -68,7 +66,7 @@ export default function ManageGameFormatsPage() {
         <AlertTriangle className="h-12 w-12 text-destructive mb-4" />
         <h1 className="text-2xl font-semibold text-destructive">Error</h1>
         <p className="text-muted-foreground mb-4">{error}</p>
-        <Button onClick={() => router.push('/dashboard')} className="mt-4">Go to Dashboard</Button>
+        <Button onClick={() => router.push('/dashboard')} className="mt-4">Ir al Panel</Button>
       </div>
     );
   }
@@ -77,33 +75,33 @@ export default function ManageGameFormatsPage() {
     <div className="space-y-8">
       <div>
         <h1 className="text-4xl font-headline font-bold text-primary flex items-center">
-          <ListOrdered className="mr-3 h-10 w-10" /> Manage Game Formats
+          <ListOrdered className="mr-3 h-10 w-10" /> Gestionar Formatos de Partido
         </h1>
-        <p className="text-lg text-muted-foreground mt-1">View existing formats or create a new one.</p>
+        <p className="text-lg text-muted-foreground mt-1">Ver formatos existentes o crear uno nuevo.</p>
       </div>
 
       <Card className="shadow-xl">
         <CardHeader>
-          <CardTitle>All Game Formats</CardTitle>
-          <CardDescription>Below is a list of all game formats in the system.</CardDescription>
+          <CardTitle>Todos los Formatos de Partido</CardTitle>
+          <CardDescription>A continuación se muestra una lista de todos los formatos de partido en el sistema.</CardDescription>
         </CardHeader>
         <CardContent>
           {formats.length === 0 ? (
              <div className="text-center py-10 border-2 border-dashed rounded-lg">
                 <ListOrdered className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-                <h2 className="text-xl font-semibold">No Formats Found</h2>
-                <p className="text-muted-foreground">Create one below to get started.</p>
+                <h2 className="text-xl font-semibold">No se Encontraron Formatos</h2>
+                <p className="text-muted-foreground">Crea uno a continuación para empezar.</p>
             </div>
           ) : (
              <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Format Name</TableHead>
-                    <TableHead>Description</TableHead>
-                    <TableHead>Periods</TableHead>
-                    <TableHead>Duration (min)</TableHead>
-                    <TableHead>Timeouts</TableHead>
-                    <TableHead>Min Play</TableHead>
+                    <TableHead>Nombre del Formato</TableHead>
+                    <TableHead>Descripción</TableHead>
+                    <TableHead>Períodos</TableHead>
+                    <TableHead>Duración (min)</TableHead>
+                    <TableHead>Tiempos Muertos</TableHead>
+                    <TableHead>Juego Mín.</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -127,9 +125,9 @@ export default function ManageGameFormatsPage() {
         <CardHeader>
           <CardTitle className="text-3xl font-headline flex items-center">
             <PlusCircle className="mr-3 h-8 w-8 text-primary" />
-            Create New Game Format
+            Crear Nuevo Formato de Partido
           </CardTitle>
-          <CardDescription>Fill in the details to register a new format.</CardDescription>
+          <CardDescription>Rellena los detalles para registrar un nuevo formato.</CardDescription>
         </CardHeader>
         <CardContent>
           <GameFormatForm onFormSubmit={fetchData} />

@@ -20,7 +20,7 @@ import { auth } from "@/lib/firebase/client";
 import React from "react";
 
 const formSchema = z.object({
-  email: z.string().email({ message: "Invalid email address." }),
+  email: z.string().email({ message: "Dirección de email inválida." }),
 });
 
 export function ResetPasswordForm() {
@@ -37,16 +37,16 @@ export function ResetPasswordForm() {
     try {
       await sendPasswordResetEmail(auth, values.email);
       toast({
-        title: "Password Reset Email Sent",
-        description: "Check your inbox for a link to reset your password.",
+        title: "Email de Restablecimiento Enviado",
+        description: "Revisa tu bandeja de entrada para un enlace para restablecer tu contraseña.",
       });
       form.reset();
     } catch (error: any) {
-      console.error("Password reset error: ", error);
+      console.error("Error al restablecer contraseña: ", error);
       toast({
         variant: "destructive",
-        title: "Password Reset Failed",
-        description: error.message || "An unexpected error occurred.",
+        title: "Fallo en el Restablecimiento",
+        description: error.message || "Ocurrió un error inesperado.",
       });
     }
   }
@@ -61,14 +61,14 @@ export function ResetPasswordForm() {
             <FormItem>
               <FormLabel>Email</FormLabel>
               <FormControl>
-                <Input placeholder="your@email.com" {...field} />
+                <Input placeholder="tu@email.com" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
           )}
         />
         <Button type="submit" className="w-full" disabled={form.formState.isSubmitting}>
-          {form.formState.isSubmitting ? "Sending..." : "Send Reset Link"}
+          {form.formState.isSubmitting ? "Enviando..." : "Enviar Enlace de Restablecimiento"}
         </Button>
       </form>
     </Form>

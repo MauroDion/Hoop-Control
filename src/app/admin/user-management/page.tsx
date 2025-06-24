@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useEffect, useState, useMemo } from 'react';
@@ -15,6 +14,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Loader2, AlertTriangle, Users, ShieldCheck, ShieldX, RefreshCw } from 'lucide-react';
 import { format } from 'date-fns';
+import { es } from 'date-fns/locale';
 import { useToast } from '@/hooks/use-toast';
 import {
   AlertDialog,
@@ -45,25 +45,21 @@ export default function UserManagementPage() {
     setLoadingData(true);
     setError(null);
     try {
-      console.log("UserManagementPage: Fetching all required data (profiles, clubs, types)...");
       const [fetchedProfiles, fetchedClubs, fetchedProfileTypes] = await Promise.all([
         getAllUserProfiles(),
         getApprovedClubs(),
         getProfileTypeOptions(),
       ]);
       
-      console.log(`UserManagementPage: Data fetched. Profiles: ${fetchedProfiles.length}, Clubs: ${fetchedClubs.length}, Types: ${fetchedProfileTypes.length}`);
       setProfiles(fetchedProfiles);
       setClubs(fetchedClubs);
       setProfileTypes(fetchedProfileTypes);
 
     } catch (err: any) {
-      console.error("Error fetching user management data:", err);
-      setError(err.message || "Failed to load data. Check Firestore rules and server logs for details.");
-      toast({ variant: "destructive", title: "Data Load Error", description: err.message || "Could not load necessary data." });
+      setError(err.message || "Fallo al cargar los datos. Revisa las reglas de Firestore y los logs del servidor.");
+      toast({ variant: "destructive", title: "Error al Cargar Datos", description: err.message || "No se pudieron cargar los datos necesarios." });
     } finally {
       setLoadingData(false);
-      console.log("UserManagementPage: Finished fetching data.");
     }
   };
   
@@ -79,26 +75,19 @@ export default function UserManagementPage() {
       setError(null);
 
       try {
-        console.log("UserManagementPage: Verifying admin status for user:", user.uid);
         const profile = await getUserProfileById(user.uid);
-        console.log("UserManagementPage: Fetched profile:", profile);
 
         if (profile && profile.profileTypeId === 'super_admin') {
-          console.log("UserManagementPage: User is Super Admin.");
           setIsAdmin(true);
-          setIsVerifyingAdmin(false);
           await fetchPageData();
         } else {
-          console.warn("UserManagementPage: Access denied. User is not a super_admin or profile not found.");
           setIsAdmin(false);
-          setError("Access Denied. You must be a Super Admin to view this page.");
-          setIsVerifyingAdmin(false);
-          setLoadingData(false);
+          setError("Acceso Denegado. Debes ser Super Admin para ver esta página.");
         }
       } catch (err: any) {
-        console.error("UserManagementPage: Error verifying admin status:", err);
-        setError("Could not verify admin status. Check console for details.");
+        setError("No se pudo verificar el estado de administrador. Revisa la consola para más detalles.");
         setIsAdmin(false);
+      } finally {
         setIsVerifyingAdmin(false);
         setLoadingData(false);
       }
@@ -113,10 +102,10 @@ export default function UserManagementPage() {
   const handleStatusUpdate = async (uid: string, newStatus: UserProfileStatus, displayName: string | null) => {
     const result = await updateUserProfileStatus(uid, newStatus);
     if (result.success) {
-      toast({ title: "Status Updated", description: `User ${displayName || uid}'s status changed to ${newStatus}.` });
+      toast({ title: "Estado Actualizado", description: `El estado del usuario ${displayName || uid} cambió a ${newStatus}.` });
       fetchPageData(); // Refresh data
     } else {
-      toast({ variant: "destructive", title: "Update Failed", description: result.error });
+      toast({ variant: "destructive", title: "Fallo al Actualizar", description: result.error });
     }
   };
 
@@ -138,7 +127,7 @@ export default function UserManagementPage() {
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)]">
         <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
         <p className="text-lg text-muted-foreground">
-          {authLoading ? "Authenticating..." : isVerifyingAdmin ? "Verifying admin status..." : "Loading user data..."}
+          {authLoading ? "Autenticando..." : isVerifyingAdmin ? "Verificando estado de admin..." : "Cargando datos de usuario..."}
         </p>
       </div>
     );
@@ -150,29 +139,28 @@ export default function UserManagementPage() {
         <AlertTriangle className="h-12 w-12 text-destructive mb-4" />
         <h1 className="text-2xl font-headline font-semibold text-destructive">Error</h1>
         <p className="text-muted-foreground mb-4">{error}</p>
-        {!isAdmin && error.startsWith("Access Denied") && (
-             <Button onClick={() => router.push('/dashboard')}>Go to Dashboard</Button>
+        {!isAdmin && error.startsWith("Acceso Denegado") && (
+             <Button onClick={() => router.push('/dashboard')}>Ir al Panel</Button>
         )}
       </div>
     );
   }
   
   if (!isAdmin) {
-      // This case should ideally be caught by the error state above, but as a fallback:
       return (
            <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)] text-center p-6">
                 <AlertTriangle className="h-12 w-12 text-destructive mb-4" />
-                <h1 className="text-2xl font-headline font-semibold text-destructive">Access Denied</h1>
-                <p className="text-muted-foreground mb-4">You do not have permission to view this page.</p>
-                <Button onClick={() => router.push('/dashboard')}>Go to Dashboard</Button>
+                <h1 className="text-2xl font-headline font-semibold text-destructive">Acceso Denegado</h1>
+                <p className="text-muted-foreground mb-4">No tienes permiso para ver esta página.</p>
+                <Button onClick={() => router.push('/dashboard')}>Ir al Panel</Button>
             </div>
       )
   }
 
   const getStatusBadgeVariant = (status: UserProfileStatus): "default" | "secondary" | "destructive" | "outline" => {
     switch (status) {
-      case 'approved': return 'default'; // Default is primary, which is often green-ish or blue
-      case 'pending_approval': return 'secondary'; // Secondary for pending
+      case 'approved': return 'default'; 
+      case 'pending_approval': return 'secondary';
       case 'rejected': return 'destructive';
       default: return 'outline';
     }
@@ -184,44 +172,42 @@ export default function UserManagementPage() {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center">
         <div>
           <h1 className="text-4xl font-headline font-bold text-primary flex items-center">
-            <Users className="mr-3 h-10 w-10" /> User Management
+            <Users className="mr-3 h-10 w-10" /> Gestión de Usuarios
           </h1>
-          <p className="text-lg text-muted-foreground mt-1">Approve or reject new user registrations.</p>
+          <p className="text-lg text-muted-foreground mt-1">Aprobar o rechazar nuevos registros de usuarios.</p>
         </div>
         <Button onClick={fetchPageData} disabled={loadingData} variant="outline" className="mt-4 sm:mt-0">
           <RefreshCw className={`mr-2 h-4 w-4 ${loadingData ? 'animate-spin' : ''}`} />
-          Refresh List
+          Actualizar Lista
         </Button>
       </div>
 
       <Card className="shadow-xl">
         <CardHeader>
-          <CardTitle className="text-2xl">User Registrations</CardTitle>
+          <CardTitle className="text-2xl">Registros de Usuarios</CardTitle>
           <CardDescription>
-            Review pending user profiles and manage their access.
-            Firestore rules must be configured to allow SUPER_ADMIN to list users and update status.
-            An index on 'user_profiles' by 'createdAt' (desc) might be required by Firestore.
+            Revisa los perfiles pendientes y gestiona su acceso.
           </CardDescription>
         </CardHeader>
         <CardContent>
           {displayProfiles.length === 0 ? (
             <div className="text-center py-10 border-2 border-dashed rounded-lg">
                 <Users className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-                <h2 className="text-xl font-semibold">No User Profiles Found</h2>
-                <p className="text-muted-foreground">There are no user profiles to display at this time, or you might not have permission to view them.</p>
+                <h2 className="text-xl font-semibold">No se Encontraron Perfiles de Usuario</h2>
+                <p className="text-muted-foreground">No hay perfiles de usuario para mostrar en este momento.</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Display Name</TableHead>
+                    <TableHead>Nombre</TableHead>
                     <TableHead>Email</TableHead>
                     <TableHead>Club</TableHead>
-                    <TableHead>Profile Type</TableHead>
-                    <TableHead>Registered At</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
+                    <TableHead>Tipo de Perfil</TableHead>
+                    <TableHead>Fecha Registro</TableHead>
+                    <TableHead>Estado</TableHead>
+                    <TableHead className="text-right">Acciones</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -231,7 +217,7 @@ export default function UserManagementPage() {
                       <TableCell>{profile.email}</TableCell>
                       <TableCell>{profile.clubName}</TableCell>
                       <TableCell>{profile.profileTypeLabel}</TableCell>
-                      <TableCell>{profile.createdAt ? format(profile.createdAt, 'PPpp') : 'Invalid Date'}</TableCell>
+                      <TableCell>{profile.createdAt ? format(profile.createdAt, 'PPpp', { locale: es }) : 'Fecha inválida'}</TableCell>
                       <TableCell>
                         <Badge variant={getStatusBadgeVariant(profile.status)} className="capitalize">
                           {profile.status.replace('_', ' ')}
@@ -243,23 +229,23 @@ export default function UserManagementPage() {
                             <AlertDialog>
                               <AlertDialogTrigger asChild>
                                 <Button variant="default" size="sm" className="bg-green-600 hover:bg-green-700">
-                                  <ShieldCheck className="mr-1 h-4 w-4" /> Approve
+                                  <ShieldCheck className="mr-1 h-4 w-4" /> Aprobar
                                 </Button>
                               </AlertDialogTrigger>
                               <AlertDialogContent>
                                 <AlertDialogHeader>
-                                  <AlertDialogTitle>Approve User?</AlertDialogTitle>
+                                  <AlertDialogTitle>¿Aprobar Usuario?</AlertDialogTitle>
                                   <AlertDialogDescription>
-                                    Are you sure you want to approve user {profile.displayName || profile.email}?
+                                    ¿Estás seguro de que quieres aprobar al usuario {profile.displayName || profile.email}?
                                   </AlertDialogDescription>
                                 </AlertDialogHeader>
                                 <AlertDialogFooter>
-                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
                                   <AlertDialogAction
                                     onClick={() => handleStatusUpdate(profile.uid, 'approved', profile.displayName)}
                                     className="bg-green-600 hover:bg-green-700"
                                   >
-                                    Approve
+                                    Aprobar
                                   </AlertDialogAction>
                                 </AlertDialogFooter>
                               </AlertDialogContent>
@@ -268,23 +254,23 @@ export default function UserManagementPage() {
                             <AlertDialog>
                               <AlertDialogTrigger asChild>
                                 <Button variant="destructive" size="sm">
-                                  <ShieldX className="mr-1 h-4 w-4" /> Deny
+                                  <ShieldX className="mr-1 h-4 w-4" /> Denegar
                                 </Button>
                               </AlertDialogTrigger>
                               <AlertDialogContent>
                                 <AlertDialogHeader>
-                                  <AlertDialogTitle>Deny User Access?</AlertDialogTitle>
+                                  <AlertDialogTitle>¿Denegar Acceso al Usuario?</AlertDialogTitle>
                                   <AlertDialogDescription>
-                                    Are you sure you want to deny access for {profile.displayName || profile.email}? Their status will be set to 'rejected'.
+                                    ¿Estás seguro de que quieres denegar el acceso a {profile.displayName || profile.email}? Su estado será cambiado a 'rechazado'.
                                   </AlertDialogDescription>
                                 </AlertDialogHeader>
                                 <AlertDialogFooter>
-                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
                                   <AlertDialogAction
                                     onClick={() => handleStatusUpdate(profile.uid, 'rejected', profile.displayName)}
                                     className="bg-destructive hover:bg-destructive/80"
                                   >
-                                    Deny Access
+                                    Denegar Acceso
                                   </AlertDialogAction>
                                 </AlertDialogFooter>
                               </AlertDialogContent>
@@ -295,23 +281,23 @@ export default function UserManagementPage() {
                            <AlertDialog>
                               <AlertDialogTrigger asChild>
                                 <Button variant="destructive" size="sm">
-                                  <ShieldX className="mr-1 h-4 w-4" /> Reject
+                                  <ShieldX className="mr-1 h-4 w-4" /> Rechazar
                                 </Button>
                               </AlertDialogTrigger>
                               <AlertDialogContent>
                                 <AlertDialogHeader>
-                                  <AlertDialogTitle>Reject Approved User?</AlertDialogTitle>
+                                  <AlertDialogTitle>¿Rechazar Usuario Aprobado?</AlertDialogTitle>
                                   <AlertDialogDescription>
-                                    Are you sure you want to change status for {profile.displayName || profile.email} to 'rejected'?
+                                    ¿Seguro que quieres cambiar el estado de {profile.displayName || profile.email} a 'rechazado'?
                                   </AlertDialogDescription>
                                 </AlertDialogHeader>
                                 <AlertDialogFooter>
-                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
                                   <AlertDialogAction
                                     onClick={() => handleStatusUpdate(profile.uid, 'rejected', profile.displayName)}
                                      className="bg-destructive hover:bg-destructive/80"
                                   >
-                                    Reject User
+                                    Rechazar Usuario
                                   </AlertDialogAction>
                                 </AlertDialogFooter>
                               </AlertDialogContent>
@@ -321,23 +307,23 @@ export default function UserManagementPage() {
                            <AlertDialog>
                               <AlertDialogTrigger asChild>
                                 <Button variant="default" size="sm" className="bg-green-600 hover:bg-green-700">
-                                  <ShieldCheck className="mr-1 h-4 w-4" /> Re-Approve
+                                  <ShieldCheck className="mr-1 h-4 w-4" /> Re-aprobar
                                 </Button>
                               </AlertDialogTrigger>
                               <AlertDialogContent>
                                 <AlertDialogHeader>
-                                  <AlertDialogTitle>Re-Approve User?</AlertDialogTitle>
+                                  <AlertDialogTitle>¿Re-aprobar Usuario?</AlertDialogTitle>
                                   <AlertDialogDescription>
-                                    Are you sure you want to change status for {profile.displayName || profile.email} to 'approved'?
+                                    ¿Seguro que quieres cambiar el estado de {profile.displayName || profile.email} a 'aprobado'?
                                   </AlertDialogDescription>
                                 </AlertDialogHeader>
                                 <AlertDialogFooter>
-                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
                                   <AlertDialogAction
                                     onClick={() => handleStatusUpdate(profile.uid, 'approved', profile.displayName)}
                                     className="bg-green-600 hover:bg-green-700"
                                   >
-                                    Re-Approve
+                                    Re-aprobar
                                   </AlertDialogAction>
                                 </AlertDialogFooter>
                               </AlertDialogContent>

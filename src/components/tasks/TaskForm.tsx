@@ -1,4 +1,3 @@
-
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -24,7 +23,7 @@ import { createTask, updateTask } from "@/app/tasks/actions";
 import { useAuth } from "@/hooks/useAuth";
 
 const taskFormSchema = z.object({
-  title: z.string().min(3, "Title must be at least 3 characters."),
+  title: z.string().min(3, "El título debe tener al menos 3 caracteres."),
   description: z.string().optional(),
   status: z.enum(["todo", "inprogress", "done"]),
   priority: z.enum(["low", "medium", "high"]),
@@ -60,7 +59,7 @@ export function TaskForm({ task, onFormSubmit }: TaskFormProps) {
 
   async function onSubmit(values: z.infer<typeof taskFormSchema>) {
     if (!user) {
-      toast({ variant: "destructive", title: "Authentication Error", description: "You must be logged in." });
+      toast({ variant: "destructive", title: "Error de Autenticación", description: "Debes iniciar sesión." });
       return;
     }
 
@@ -78,27 +77,24 @@ export function TaskForm({ task, onFormSubmit }: TaskFormProps) {
 
     if (result.success) {
       toast({
-        title: task ? "Task Updated" : "Task Created",
-        description: `Task "${values.title}" has been successfully ${task ? 'updated' : 'created'}.`,
+        title: task ? "Tarea Actualizada" : "Tarea Creada",
+        description: `La tarea "${values.title}" ha sido ${task ? 'actualizada' : 'creada'} exitosamente.`,
       });
       if (onFormSubmit) {
         onFormSubmit();
       } else {
-        // If it's a new task and an ID is returned, navigate to its detail page (optional)
         if(!task && result.id) {
-          // router.push(`/tasks/${result.id}`); 
-          // For now, just go back to tasks list to keep it simple
           router.push("/tasks");
         } else {
           router.push("/tasks");
         }
       }
-      router.refresh(); // Revalidate data on the tasks page
+      router.refresh(); 
     } else {
       toast({
         variant: "destructive",
-        title: task ? "Update Failed" : "Creation Failed",
-        description: result.error || "An unexpected error occurred.",
+        title: task ? "Fallo al Actualizar" : "Fallo al Crear",
+        description: result.error || "Ocurrió un error inesperado.",
       });
     }
   }
@@ -111,9 +107,9 @@ export function TaskForm({ task, onFormSubmit }: TaskFormProps) {
           name="title"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Title</FormLabel>
+              <FormLabel>Título</FormLabel>
               <FormControl>
-                <Input placeholder="Enter task title" {...field} />
+                <Input placeholder="Introduce el título de la tarea" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -124,9 +120,9 @@ export function TaskForm({ task, onFormSubmit }: TaskFormProps) {
           name="description"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Description (Optional)</FormLabel>
+              <FormLabel>Descripción (Opcional)</FormLabel>
               <FormControl>
-                <Textarea placeholder="Enter task description" {...field} />
+                <Textarea placeholder="Introduce la descripción de la tarea" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -138,17 +134,17 @@ export function TaskForm({ task, onFormSubmit }: TaskFormProps) {
             name="status"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Status</FormLabel>
+                <FormLabel>Estado</FormLabel>
                 <Select onValueChange={field.onChange} defaultValue={field.value}>
                   <FormControl>
                     <SelectTrigger>
-                      <SelectValue placeholder="Select status" />
+                      <SelectValue placeholder="Selecciona un estado" />
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
-                    <SelectItem value="todo">To Do</SelectItem>
-                    <SelectItem value="inprogress">In Progress</SelectItem>
-                    <SelectItem value="done">Done</SelectItem>
+                    <SelectItem value="todo">Por Hacer</SelectItem>
+                    <SelectItem value="inprogress">En Progreso</SelectItem>
+                    <SelectItem value="done">Hecho</SelectItem>
                   </SelectContent>
                 </Select>
                 <FormMessage />
@@ -160,17 +156,17 @@ export function TaskForm({ task, onFormSubmit }: TaskFormProps) {
             name="priority"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Priority</FormLabel>
+                <FormLabel>Prioridad</FormLabel>
                 <Select onValueChange={field.onChange} defaultValue={field.value}>
                   <FormControl>
                     <SelectTrigger>
-                      <SelectValue placeholder="Select priority" />
+                      <SelectValue placeholder="Selecciona una prioridad" />
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
-                    <SelectItem value="low">Low</SelectItem>
-                    <SelectItem value="medium">Medium</SelectItem>
-                    <SelectItem value="high">High</SelectItem>
+                    <SelectItem value="low">Baja</SelectItem>
+                    <SelectItem value="medium">Media</SelectItem>
+                    <SelectItem value="high">Alta</SelectItem>
                   </SelectContent>
                 </Select>
                 <FormMessage />
@@ -183,7 +179,7 @@ export function TaskForm({ task, onFormSubmit }: TaskFormProps) {
           name="dueDate"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Due Date (Optional)</FormLabel>
+              <FormLabel>Fecha de Entrega (Opcional)</FormLabel>
               <FormControl>
                 <Input type="date" {...field} value={field.value || ""} />
               </FormControl>
@@ -192,11 +188,11 @@ export function TaskForm({ task, onFormSubmit }: TaskFormProps) {
           )}
         />
         <Button type="submit" className="w-full sm:w-auto" disabled={form.formState.isSubmitting}>
-          {form.formState.isSubmitting ? (task ? "Updating..." : "Creating...") : (task ? "Update Task" : "Create Task")}
+          {form.formState.isSubmitting ? (task ? "Actualizando..." : "Creando...") : (task ? "Actualizar Tarea" : "Crear Tarea")}
         </Button>
         {task && (
             <Button type="button" variant="outline" onClick={() => router.back()} className="ml-2">
-                Cancel
+                Cancelar
             </Button>
         )}
       </form>

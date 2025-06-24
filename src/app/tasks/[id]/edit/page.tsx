@@ -90,10 +90,10 @@ function EditTaskClientPage({ taskId }: { taskId: string }) {
         if (fetchedTask) {
           setTask(fetchedTask);
         } else {
-          setError("Task not found or you don't have permission to edit it.");
+          setError("Tarea no encontrada o no tienes permiso para editarla.");
         }
       } catch (e: any) {
-        setError(e.message || "Failed to load task.");
+        setError(e.message || "Error al cargar la tarea.");
       } finally {
         setLoading(false);
       }
@@ -102,14 +102,14 @@ function EditTaskClientPage({ taskId }: { taskId: string }) {
   }, [taskId, user, authLoading]);
 
   if (authLoading || loading) {
-    return <p className="text-center py-10">Loading task details...</p>;
+    return <p className="text-center py-10">Cargando detalles de la tarea...</p>;
   }
 
   if (error) {
     return (
       <div className="max-w-2xl mx-auto text-center py-10">
         <AlertTriangle className="mx-auto h-12 w-12 text-destructive mb-4" />
-        <h2 className="text-2xl font-semibold text-destructive">Error Loading Task</h2>
+        <h2 className="text-2xl font-semibold text-destructive">Error al Cargar la Tarea</h2>
         <p className="text-muted-foreground">{error}</p>
       </div>
     );
@@ -119,8 +119,8 @@ function EditTaskClientPage({ taskId }: { taskId: string }) {
      return (
       <div className="max-w-2xl mx-auto text-center py-10">
         <AlertTriangle className="mx-auto h-12 w-12 text-destructive mb-4" />
-        <h2 className="text-2xl font-semibold text-destructive">Task Not Found</h2>
-        <p className="text-muted-foreground">The requested task could not be found.</p>
+        <h2 className="text-2xl font-semibold text-destructive">Tarea No Encontrada</h2>
+        <p className="text-muted-foreground">La tarea solicitada no pudo ser encontrada.</p>
       </div>
     );
   }
@@ -131,9 +131,9 @@ function EditTaskClientPage({ taskId }: { taskId: string }) {
         <CardHeader>
           <CardTitle className="text-3xl font-headline flex items-center">
             <Edit className="mr-3 h-8 w-8 text-primary" />
-            Edit Task
+            Editar Tarea
           </CardTitle>
-          <CardDescription>Update the details for your task: "{task.title}".</CardDescription>
+          <CardDescription>Actualiza los detalles de tu tarea: "{task.title}".</CardDescription>
         </CardHeader>
         <CardContent>
           <TaskForm task={task} />

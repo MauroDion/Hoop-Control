@@ -12,9 +12,9 @@ import { Input } from "@/components/ui/input";
 import { deleteTask } from "@/app/tasks/actions";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
-import { useRouter } from "next/navigation"; // Corrected import for App Router
+import { useRouter } from "next/navigation"; 
 import { format } from "date-fns";
-
+import { es } from "date-fns/locale";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -38,14 +38,14 @@ const statusColors: Record<Task['status'], string> = {
 };
 
 const priorityText: Record<Task['priority'], string> = {
-  low: "Low",
-  medium: "Medium",
-  high: "High",
+  low: "Baja",
+  medium: "Media",
+  high: "Alta",
 };
 
 const formatDate = (date?: Date | null) => {
   if (!date) return 'N/A';
-  return format(date, 'MMM d, yyyy');
+  return format(date, 'd MMM, yyyy', { locale: es });
 };
 
 export function TasksList({ tasks }: TasksListProps) {
@@ -68,15 +68,15 @@ export function TasksList({ tasks }: TasksListProps) {
 
   const handleDelete = async (taskId: string, taskTitle: string) => {
     if (!user) {
-        toast({variant: "destructive", title: "Error", description: "You must be logged in."});
+        toast({variant: "destructive", title: "Error", description: "Debes iniciar sesión."});
         return;
     }
     const result = await deleteTask(taskId, user.uid);
     if (result.success) {
-      toast({ title: "Task Deleted", description: `Task "${taskTitle}" has been deleted.` });
-      router.refresh(); // Re-fetch tasks by refreshing the page server-side data
+      toast({ title: "Tarea Eliminada", description: `La tarea "${taskTitle}" ha sido eliminada.` });
+      router.refresh();
     } else {
-      toast({ variant: "destructive", title: "Deletion Failed", description: result.error });
+      toast({ variant: "destructive", title: "Error al Eliminar", description: result.error });
     }
   };
 
@@ -84,10 +84,10 @@ export function TasksList({ tasks }: TasksListProps) {
     return (
       <div className="text-center py-10">
         <ListFilter className="mx-auto h-16 w-16 text-muted-foreground mb-4" />
-        <h2 className="text-2xl font-semibold mb-2">No tasks yet!</h2>
-        <p className="text-muted-foreground mb-4">Get started by creating your first task.</p>
+        <h2 className="text-2xl font-semibold mb-2">¡Aún no hay tareas!</h2>
+        <p className="text-muted-foreground mb-4">Comienza creando tu primera tarea.</p>
         <Button asChild>
-          <Link href="/tasks/new"><PlusCircle className="mr-2 h-4 w-4" /> Create Task</Link>
+          <Link href="/tasks/new"><PlusCircle className="mr-2 h-4 w-4" /> Crear Tarea</Link>
         </Button>
       </div>
     );
@@ -98,34 +98,34 @@ export function TasksList({ tasks }: TasksListProps) {
       <Card className="shadow-md">
         <CardHeader className="border-b">
           <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-            <CardTitle className="text-2xl font-headline">Task Filters</CardTitle>
+            <CardTitle className="text-2xl font-headline">Filtros de Tareas</CardTitle>
             <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
               <Input 
-                placeholder="Search tasks..." 
+                placeholder="Buscar tareas..." 
                 value={searchTerm} 
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full md:w-auto"
               />
               <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as Task['status'] | "all")}>
                 <SelectTrigger className="w-full md:w-[180px]">
-                  <SelectValue placeholder="Filter by status" />
+                  <SelectValue placeholder="Filtrar por estado" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Statuses</SelectItem>
-                  <SelectItem value="todo">To Do</SelectItem>
-                  <SelectItem value="inprogress">In Progress</SelectItem>
-                  <SelectItem value="done">Done</SelectItem>
+                  <SelectItem value="all">Todos los Estados</SelectItem>
+                  <SelectItem value="todo">Por Hacer</SelectItem>
+                  <SelectItem value="inprogress">En Progreso</SelectItem>
+                  <SelectItem value="done">Hecho</SelectItem>
                 </SelectContent>
               </Select>
               <Select value={priorityFilter} onValueChange={(value) => setPriorityFilter(value as Task['priority'] | "all")}>
                 <SelectTrigger className="w-full md:w-[180px]">
-                  <SelectValue placeholder="Filter by priority" />
+                  <SelectValue placeholder="Filtrar por prioridad" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Priorities</SelectItem>
-                  <SelectItem value="low">Low</SelectItem>
-                  <SelectItem value="medium">Medium</SelectItem>
-                  <SelectItem value="high">High</SelectItem>
+                  <SelectItem value="all">Todas las Prioridades</SelectItem>
+                  <SelectItem value="low">Baja</SelectItem>
+                  <SelectItem value="medium">Media</SelectItem>
+                  <SelectItem value="high">Alta</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -136,8 +136,8 @@ export function TasksList({ tasks }: TasksListProps) {
       {filteredTasks.length === 0 ? (
         <div className="text-center py-10 border-2 border-dashed rounded-lg">
           <AlertTriangle className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-          <h3 className="text-xl font-semibold">No tasks match your filters.</h3>
-          <p className="text-muted-foreground">Try adjusting your search or filter criteria.</p>
+          <h3 className="text-xl font-semibold">No hay tareas que coincidan con tus filtros.</h3>
+          <p className="text-muted-foreground">Intenta ajustar tu búsqueda o criterios de filtro.</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -157,34 +157,34 @@ export function TasksList({ tasks }: TasksListProps) {
               <CardContent className="flex-grow">
                  <div className="text-xs text-muted-foreground flex items-center">
                    <CalendarDays className="mr-1.5 h-3.5 w-3.5" />
-                   Due: {formatDate(task.dueDate)}
+                   Vence: {formatDate(task.dueDate)}
                  </div>
                  <div className="text-xs text-muted-foreground mt-1">
-                   Created: {formatDate(task.createdAt)}
+                   Creado: {formatDate(task.createdAt)}
                  </div>
               </CardContent>
               <CardFooter className="border-t pt-4 flex justify-end space-x-2">
                 <Button variant="outline" size="sm" asChild>
-                  <Link href={`/tasks/${task.id}`}><Eye className="mr-1 h-4 w-4" /> View</Link>
+                  <Link href={`/tasks/${task.id}`}><Eye className="mr-1 h-4 w-4" /> Ver</Link>
                 </Button>
                 <Button variant="outline" size="sm" asChild>
-                  <Link href={`/tasks/${task.id}/edit`}><Edit className="mr-1 h-4 w-4" /> Edit</Link>
+                  <Link href={`/tasks/${task.id}/edit`}><Edit className="mr-1 h-4 w-4" /> Editar</Link>
                 </Button>
                  <AlertDialog>
                   <AlertDialogTrigger asChild>
-                    <Button variant="destructive" size="sm"><Trash2 className="mr-1 h-4 w-4" /> Delete</Button>
+                    <Button variant="destructive" size="sm"><Trash2 className="mr-1 h-4 w-4" /> Eliminar</Button>
                   </AlertDialogTrigger>
                   <AlertDialogContent>
                     <AlertDialogHeader>
-                      <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                      <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
                       <AlertDialogDescription>
-                        This action cannot be undone. This will permanently delete the task "{task.title}".
+                        Esta acción no se puede deshacer. Esto eliminará permanentemente la tarea "{task.title}".
                       </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
-                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogCancel>Cancelar</AlertDialogCancel>
                       <AlertDialogAction onClick={() => handleDelete(task.id, task.title)} className="bg-destructive hover:bg-destructive/90">
-                        Delete
+                        Eliminar
                       </AlertDialogAction>
                     </AlertDialogFooter>
                   </AlertDialogContent>
