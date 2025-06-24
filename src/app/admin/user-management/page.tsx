@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'next/navigation';
 import { getAllUserProfiles, updateUserProfileStatus } from './actions';
@@ -34,14 +34,13 @@ export default function UserManagementPage() {
   const { toast } = useToast();
 
   const [isAdmin, setIsAdmin] = useState(false);
-  const [isVerifyingAdmin, setIsVerifyingAdmin] = useState(true);
   const [profiles, setProfiles] = useState<UserProfileAdminView[]>([]);
   const [clubs, setClubs] = useState<Club[]>([]);
   const [profileTypes, setProfileTypes] = useState<ProfileTypeOption[]>([]);
   const [loadingData, setLoadingData] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchPageData = async () => {
+  const fetchPageData = useCallback(async () => {
     setLoadingData(true);
     setError(null);
     try {
@@ -61,26 +60,24 @@ export default function UserManagementPage() {
     } finally {
       setLoadingData(false);
     }
-  };
+  }, [toast]);
   
   useEffect(() => {
     if (authLoading) {
-      return; // Espera a que la autenticación se resuelva
+      return; // Wait for auth to resolve.
     }
     if (!user) {
       router.replace('/login?redirect=/admin/user-management');
       return;
     }
 
-    const checkPermissionsAndFetchData = async () => {
-      setIsVerifyingAdmin(true);
+    // User is authenticated, now check permissions and fetch data
+    const loadAdminData = async () => {
       setLoadingData(true);
       setError(null);
-
       try {
         const profile = await getUserProfileById(user.uid);
-
-        if (profile && profile.profileTypeId === 'super_admin') {
+        if (profile?.profileTypeId === 'super_admin') {
           setIsAdmin(true);
           await fetchPageData();
         } else {
@@ -88,22 +85,22 @@ export default function UserManagementPage() {
           setError("Acceso Denegado. Debes ser Super Admin para ver esta página.");
         }
       } catch (err: any) {
-        setError("No se pudo verificar el estado de administrador. Revisa la consola para más detalles.");
-        setIsAdmin(false);
+        setError("No se pudieron cargar los datos de administración.");
+        toast({ variant: "destructive", title: "Error de Carga", description: err.message });
       } finally {
-        setIsVerifyingAdmin(false);
         setLoadingData(false);
       }
     };
-    checkPermissionsAndFetchData();
-  }, [user, authLoading, router]);
+
+    loadAdminData();
+  }, [user, authLoading, router, toast, fetchPageData]);
 
 
   const handleStatusUpdate = async (uid: string, newStatus: UserProfileStatus, displayName: string | null) => {
     const result = await updateUserProfileStatus(uid, newStatus);
     if (result.success) {
       toast({ title: "Estado Actualizado", description: `El estado del usuario ${displayName || uid} cambió a ${newStatus}.` });
-      fetchPageData(); // Refresh data
+      await fetchPageData(); // Refresh data
     } else {
       toast({ variant: "destructive", title: "Fallo al Actualizar", description: result.error });
     }
@@ -122,12 +119,12 @@ export default function UserManagementPage() {
   }, [profiles, clubs, profileTypes]);
 
 
-  if (authLoading || isVerifyingAdmin || loadingData) {
+  if (authLoading || loadingData) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)]">
         <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
         <p className="text-lg text-muted-foreground">
-          {authLoading ? "Autenticando..." : isVerifyingAdmin ? "Verificando estado de admin..." : "Cargando datos de usuario..."}
+          {authLoading ? "Autenticando..." : "Cargando datos de usuario..."}
         </p>
       </div>
     );
@@ -146,17 +143,6 @@ export default function UserManagementPage() {
     );
   }
   
-  if (!isAdmin) {
-      return (
-           <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)] text-center p-6">
-                <AlertTriangle className="h-12 w-12 text-destructive mb-4" />
-                <h1 className="text-2xl font-headline font-semibold text-destructive">Acceso Denegado</h1>
-                <p className="text-muted-foreground mb-4">No tienes permiso para ver esta página.</p>
-                <Button onClick={() => router.push('/dashboard')}>Ir al Panel</Button>
-            </div>
-      )
-  }
-
   const getStatusBadgeVariant = (status: UserProfileStatus): "default" | "secondary" | "destructive" | "outline" => {
     switch (status) {
       case 'approved': return 'default'; 
@@ -220,7 +206,7 @@ export default function UserManagementPage() {
                       <TableCell>{profile.createdAt ? format(profile.createdAt, 'PPpp', { locale: es }) : 'Fecha inválida'}</TableCell>
                       <TableCell>
                         <Badge variant={getStatusBadgeVariant(profile.status)} className="capitalize">
-                          {profile.status.replace('_', ' ')}
+                          {profile.status.replace(/_/g, ' ')}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right space-x-2">
