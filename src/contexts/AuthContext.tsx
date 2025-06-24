@@ -44,12 +44,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         } else {
             toast({ title: "Sesión Cerrada", description: "Has cerrado sesión correctamente." });
         }
-        router.push('/login');
+        router.replace('/login');
         router.refresh();
       } catch (clientSignOutError: any) {
         console.error('AuthProvider: Critical error during client-side signOut:', clientSignOutError);
         toast({ variant: "destructive", title: "Fallo en Cierre de Sesión Local", description: clientSignOutError.message });
-        router.push('/login');
+        router.replace('/login');
         router.refresh();
       }
     }
