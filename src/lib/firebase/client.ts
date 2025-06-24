@@ -16,9 +16,11 @@ if (getApps().length === 0) {
     db = getFirestore(app);
   } catch (error) {
     console.error("Error initializing Firebase:", error);
-    app = {} as FirebaseApp;
-    auth = {} as Auth;
-    db = {} as Firestore;
+    // Fallback or dummy objects if initialization fails,
+    // but features relying on Firebase will not work.
+    app = {} as FirebaseApp; // Provide a dummy app object
+    auth = {} as Auth; // Provide a dummy auth object
+    db = {} as Firestore; // Provide a dummy db object
   }
 } else {
   app = getApps()[0];
