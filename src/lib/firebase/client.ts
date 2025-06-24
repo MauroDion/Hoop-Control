@@ -11,17 +11,16 @@ if (getApps().length === 0) {
   try {
     app = initializeApp(firebaseConfig);
     auth = getAuth(app);
-    // Persistence set to 'local' for "Remember me" functionality by default.
-    // This can be changed dynamically before sign-in for session-only persistence.
-    auth.setPersistence(browserLocalPersistence); 
+    // Persistence should be set dynamically before sign-in, not globally here.
+    // This was a potential source of server/client mismatches and errors.
     db = getFirestore(app);
   } catch (error) {
     console.error("Error initializing Firebase:", error);
     // Fallback or dummy objects if initialization fails,
     // but features relying on Firebase will not work.
-    app = {} as FirebaseApp; // Provide a dummy app object
-    auth = {} as Auth; // Provide a dummy auth object
-    db = {} as Firestore; // Provide a dummy db object
+    app = {} as FirebaseApp;
+    auth = {} as Auth;
+    db = {} as Firestore;
   }
 } else {
   app = getApps()[0];

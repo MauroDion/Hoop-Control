@@ -45,7 +45,6 @@ export function LoginForm() {
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     try {
-      // Set persistence BEFORE signing in. This is crucial.
       await setPersistence(auth, values.rememberMe ? browserLocalPersistence : browserSessionPersistence);
       
       const userCredential = await signInWithEmailAndPassword(auth, values.email, values.password);
@@ -55,7 +54,6 @@ export function LoginForm() {
       }
 
       const idToken = await userCredential.user.getIdToken();
-      // Pass the rememberMe flag to the server to align cookie lifetime
       const response = await fetch('/api/auth/session-login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -153,6 +151,9 @@ export function LoginForm() {
         <Button type="submit" className="w-full" disabled={form.formState.isSubmitting}>
           {form.formState.isSubmitting ? "Iniciando sesión..." : "Iniciar Sesión"}
         </Button>
+         <Button type="button" variant="outline" className="w-full" onClick={() => router.push('/')}>
+            Cancelar
+          </Button>
       </form>
     </Form>
   );

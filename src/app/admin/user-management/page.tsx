@@ -42,15 +42,8 @@ export default function UserManagementPage() {
   const [error, setError] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
-    setPageState('loading');
+    // No establecer 'loading' aquí si ya estamos cargando desde el efecto principal
     try {
-      const profile = await getUserProfileById(user!.uid);
-      if (!profile || profile.profileTypeId !== 'super_admin') {
-        setError("Acceso Denegado. Debes ser Super Admin para ver esta página.");
-        setPageState('error');
-        return;
-      }
-
       const [fetchedProfiles, fetchedClubs, fetchedProfileTypes] = await Promise.all([
         getAllUserProfiles(),
         getApprovedClubs(),
@@ -66,17 +59,31 @@ export default function UserManagementPage() {
       setPageState('error');
       toast({ variant: "destructive", title: "Error de Carga", description: err.message });
     }
-  }, [user, toast]);
+  }, [toast]);
 
   useEffect(() => {
     if (authLoading) {
+      setPageState('loading');
       return;
     }
     if (!user) {
       router.replace('/login?redirect=/admin/user-management');
       return;
     }
-    loadData();
+    
+    setPageState('loading');
+    getUserProfileById(user.uid).then(profile => {
+      if (!profile || profile.profileTypeId !== 'super_admin') {
+        setError("Acceso Denegado. Debes ser Super Admin para ver esta página.");
+        setPageState('error');
+      } else {
+        loadData();
+      }
+    }).catch(err => {
+        setError(err.message || "Error al verificar permisos.");
+        setPageState('error');
+    });
+
   }, [user, authLoading, router, loadData]);
 
 
@@ -84,7 +91,7 @@ export default function UserManagementPage() {
     const result = await updateUserProfileStatus(uid, newStatus);
     if (result.success) {
       toast({ title: "Estado Actualizado", description: `El estado del usuario ${displayName || uid} cambió a ${newStatus}.` });
-      await loadData();
+      loadData(); // Recargar todos los datos para mantener consistencia
     } else {
       toast({ variant: "destructive", title: "Fallo al Actualizar", description: result.error });
     }

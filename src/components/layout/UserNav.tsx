@@ -16,7 +16,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { LogOut, UserCircle, Settings } from 'lucide-react';
 
 export default function UserNav() {
-  const { user, logout } = useAuth(); // Get the centralized logout function
+  const { user, logout } = useAuth();
 
   if (!user) {
     return null;
@@ -65,7 +65,7 @@ export default function UserNav() {
           </DropdownMenuItem>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={logout} className="flex items-center cursor-pointer">
+        <DropdownMenuItem onClick={() => logout()} className="flex items-center cursor-pointer">
           <LogOut className="mr-2 h-4 w-4" />
           Cerrar Sesión
         </DropdownMenuItem>
