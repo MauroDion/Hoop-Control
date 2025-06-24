@@ -10,7 +10,9 @@ import { es } from 'date-fns/locale';
 // Actions
 import { getGameById, updateGameRoster } from '@/app/games/actions';
 import { getPlayersByTeamId } from '@/app/players/actions';
-import { getTeamsByCoach } from '@/app/teams/actions';
+import { getTeamsByCoach, getTeamById } from '@/app/teams/actions';
+import { getUserProfileById } from '@/app/users/actions';
+
 
 // Types
 import type { Game, Player, Team } from '@/types';
@@ -47,45 +49,61 @@ export default function ManageGamePage() {
         setError(null);
         try {
             if (!gameId) {
-                setError("Falta el ID del partido en la URL.");
-                return;
+                throw new Error("Falta el ID del partido en la URL.");
             }
             
-            const [gameData, coachTeams] = await Promise.all([
-                getGameById(gameId),
-                getTeamsByCoach(userId),
+            const [profile, gameData] = await Promise.all([
+                getUserProfileById(userId),
+                getGameById(gameId)
             ]);
 
-            if (!gameData) {
-                setError("Partido no encontrado.");
-                setLoadingData(false);
-                return;
-            }
+            if (!profile) throw new Error("No se pudo encontrar tu perfil de usuario.");
+            if (!gameData) throw new Error("Partido no encontrado.");
             setGame(gameData);
+            
+            const coachTeams = await getTeamsByCoach(userId);
+            const isCoachOfHomeTeam = coachTeams.some(t => t.id === gameData.homeTeamId);
+            const isCoachOfAwayTeam = coachTeams.some(t => t.id === gameData.awayTeamId);
 
-            const homeTeamIsManaged = coachTeams.some(t => t.id === gameData.homeTeamId);
-            const awayTeamIsManaged = coachTeams.some(t => t.id === gameData.awayTeamId);
+            const isSuperAdmin = profile.profileTypeId === 'super_admin';
+            const isClubAdminForGame = (profile.profileTypeId === 'club_admin' || profile.profileTypeId === 'coordinator') && (profile.clubId === gameData.homeTeamClubId || profile.clubId === gameData.awayTeamClubId);
+            
+            const hasPermission = isSuperAdmin || isClubAdminForGame || isCoachOfHomeTeam || isCoachOfAwayTeam;
+            
+            if (!hasPermission) {
+                throw new Error("No tienes permiso para gestionar este partido.");
+            }
 
             let teamToManageId: string | null = null;
             let isHome = false;
 
-            if (homeTeamIsManaged) {
+            if (isCoachOfHomeTeam) {
                 teamToManageId = gameData.homeTeamId;
                 isHome = true;
-            } else if (awayTeamIsManaged) {
+            } else if (isCoachOfAwayTeam) {
                 teamToManageId = gameData.awayTeamId;
                 isHome = false;
+            } else if ((isSuperAdmin || isClubAdminForGame) && (profile.clubId === gameData.homeTeamClubId || isSuperAdmin)) {
+                teamToManageId = gameData.homeTeamId;
+                isHome = true;
+            } else if (isClubAdminForGame && profile.clubId === gameData.awayTeamClubId) {
+                 teamToManageId = gameData.awayTeamId;
+                 isHome = false;
+            }
+
+            if (!teamToManageId) {
+                if(isSuperAdmin) {
+                    teamToManageId = gameData.homeTeamId;
+                    isHome = true;
+                } else {
+                    throw new Error("No se pudo determinar qué equipo gestionar.");
+                }
             }
             
             setIsHomeTeam(isHome);
-
-            if (!teamToManageId) {
-                setError("No eres el entrenador de ninguno de los equipos de este partido.");
-                setLoadingData(false);
-                return;
-            }
             
-            const teamToManage = coachTeams.find(t => t.id === teamToManageId)!;
+            const teamToManage = await getTeamById(teamToManageId);
+            if (!teamToManage) throw new Error("No se pudieron cargar los datos del equipo a gestionar.");
             setManagedTeam(teamToManage);
             
             const teamPlayers = await getPlayersByTeamId(teamToManageId);
