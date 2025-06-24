@@ -3,16 +3,15 @@
 import type { User as FirebaseUser } from 'firebase/auth';
 import { auth } from '@/lib/firebase/client';
 import { onAuthStateChanged, signOut as firebaseSignOut } from 'firebase/auth';
-import React, { createContext, useContext, useEffect, useState, ReactNode, useCallback, useRef } from 'react';
+import React, { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
-
-const INACTIVITY_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
+import { useRouter } from 'next/navigation';
 
 interface AuthContextType {
   user: FirebaseUser | null;
   loading: boolean;
-  logout: (isAutoLogout?: boolean) => Promise<void>;
+  logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -21,87 +20,51 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<FirebaseUser | null>(null);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
-  const inactivityTimer = useRef<NodeJS.Timeout>();
+  const router = useRouter();
 
-  const logout = useCallback(async (isAutoLogout: boolean = false) => {
-    if (inactivityTimer.current) {
-        clearTimeout(inactivityTimer.current);
-    }
-    
+  const logout = useCallback(async () => {
     console.log("AuthProvider: Logout process initiated.");
     try {
+      // Clear server session first
       await fetch('/api/auth/session-logout', { method: 'POST' });
     } catch (error: any) {
       console.error('AuthProvider: API call to /api/auth/session-logout failed:', error);
-    } finally {
-      try {
+      // Don't stop the logout process, but inform the user.
+      toast({ variant: "destructive", title: "Logout Warning", description: "Could not clear server session. Logging out locally." });
+    }
+    
+    // Then sign out from Firebase client
+    try {
         await firebaseSignOut(auth);
         console.log("AuthProvider: Client-side firebaseSignOut() completed.");
-        if (isAutoLogout) {
-            toast({ title: "Sesión Cerrada Automáticamente", description: "Has sido desconectado por inactividad." });
-        } else {
-            toast({ title: "Sesión Cerrada", description: "Has cerrado sesión correctamente." });
-        }
-        // Force a full page reload to the login page. This is more robust for clearing state.
-        window.location.href = '/login';
-      } catch (clientSignOutError: any) {
+        toast({ title: "Sesión Cerrada", description: "Has cerrado sesión correctamente." });
+        // Use router to navigate and refresh state
+        router.push('/login');
+        router.refresh(); // Ensure state is fully reset
+    } catch (clientSignOutError: any) {
         console.error('AuthProvider: Critical error during client-side signOut:', clientSignOutError);
         toast({ variant: "destructive", title: "Fallo en Cierre de Sesión Local", description: clientSignOutError.message });
-        // Force redirect even on error.
-        window.location.href = '/login';
-      }
+        // Still force redirect even if client signout fails.
+        router.push('/login');
+        router.refresh();
     }
-  }, [toast]);
+  }, [toast, router]);
 
   useEffect(() => {
-    const handleInactivity = () => {
-        logout(true);
-    };
-
-    const resetInactivityTimer = () => {
-        if (inactivityTimer.current) {
-            clearTimeout(inactivityTimer.current);
-        }
-        inactivityTimer.current = setTimeout(handleInactivity, INACTIVITY_TIMEOUT_MS);
-    };
-
-    const events: (keyof WindowEventMap)[] = ['mousemove', 'keydown', 'mousedown', 'touchstart', 'scroll'];
-    
-    const setupInactivityListeners = () => {
-        events.forEach(event => window.addEventListener(event, resetInactivityTimer));
-        resetInactivityTimer();
-    };
-
-    const cleanupInactivityListeners = () => {
-        events.forEach(event => window.removeEventListener(event, resetInactivityTimer));
-        if (inactivityTimer.current) {
-            clearTimeout(inactivityTimer.current);
-        }
-    };
-
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
       setUser(firebaseUser);
       setLoading(false);
-      if (firebaseUser) {
-        setupInactivityListeners();
-      } else {
-        cleanupInactivityListeners();
-      }
     }, (error) => {
       console.error("Auth state change error:", error);
       setUser(null);
       setLoading(false);
-      cleanupInactivityListeners();
     });
 
-    return () => {
-        unsubscribe();
-        cleanupInactivityListeners();
-    };
-  }, [logout]);
-
+    return () => unsubscribe();
+  }, []);
 
   if (loading) {
+    // Simple full-page loading skeleton
     return (
       <div className="flex flex-col min-h-screen">
         <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -123,6 +86,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       </div>
     );
   }
+  
 
   return (
     <AuthContext.Provider value={{ user, loading, logout }}>
