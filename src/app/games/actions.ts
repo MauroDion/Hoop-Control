@@ -40,6 +40,12 @@ export async function createGame(formData: GameFormData, userId: string): Promis
             createdBy: userId,
             createdAt: admin.firestore.FieldValue.serverTimestamp(),
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            // Initialize live game fields
+            homeTeamScore: 0,
+            awayTeamScore: 0,
+            currentPeriod: 1,
+            isTimerRunning: false,
+            periodTimeRemainingSeconds: 0,
         };
 
         const docRef = await adminDb.collection('games').add(newGameData);
@@ -207,7 +213,7 @@ export async function updateGameRoster(
 
 export async function updateLiveGameState(
   gameId: string,
-  updates: Partial<Pick<Game, 'status' | 'homeTeamScore' | 'awayTeamScore' | 'currentPeriod'>>
+  updates: Partial<Pick<Game, 'status' | 'homeTeamScore' | 'awayTeamScore' | 'currentPeriod' | 'periodTimeRemainingSeconds' | 'isTimerRunning'>>
 ): Promise<{ success: boolean; error?: string }> {
   if (!adminDb) return { success: false, error: "La base de datos no está inicializada." };
   
@@ -221,8 +227,9 @@ export async function updateLiveGameState(
 
     await gameRef.update(updateData);
     
-    revalidatePath(`/games/${gameId}/live`);
-    revalidatePath(`/games/${gameId}`);
+    // Do not revalidate paths here to avoid flicker on the client listening in real-time
+    // revalidatePath(`/games/${gameId}/live`);
+    // revalidatePath(`/games/${gameId}`);
     return { success: true };
   } catch (error: any) {
     console.error("Error al actualizar el estado del partido en vivo:", error);

@@ -46,6 +46,26 @@ export async function getGameFormats(): Promise<GameFormat[]> {
   }
 }
 
+export async function getGameFormatById(formatId: string): Promise<GameFormat | null> {
+    if (!adminDb) return null;
+    try {
+        const docRef = adminDb.collection('gameFormats').doc(formatId);
+        const docSnap = await docRef.get();
+        if (!docSnap.exists) {
+            return null;
+        }
+        const data = docSnap.data() as Omit<GameFormat, 'id' | 'createdAt'> & { createdAt: admin.firestore.Timestamp };
+        return { 
+            id: docSnap.id, 
+            ...data,
+            createdAt: data.createdAt ? data.createdAt.toDate() : undefined,
+        } as GameFormat;
+    } catch (error) {
+        console.error(`Error getting game format by id ${formatId}:`, error);
+        return null;
+    }
+}
+
 export async function createGameFormat(
   formData: GameFormatFormData,
   userId: string

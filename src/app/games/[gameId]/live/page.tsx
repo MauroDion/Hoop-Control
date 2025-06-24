@@ -8,11 +8,12 @@ import Link from 'next/link';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '@/lib/firebase/client';
 import { updateLiveGameState } from '@/app/games/actions';
-import type { Game } from '@/types';
+import { getGameFormatById } from '@/app/game-formats/actions';
+import type { Game, GameFormat } from '@/types';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, AlertTriangle, ChevronLeft, Gamepad2, Minus, Plus, Play, Flag } from 'lucide-react';
+import { Loader2, AlertTriangle, ChevronLeft, Gamepad2, Minus, Plus, Play, Flag, Pause, TimerReset, FastForward, Timer as TimerIcon } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 const ScoreButton = ({ children, onClick, ...props }: React.ComponentProps<typeof Button>) => (
@@ -23,13 +24,12 @@ const ScoreButton = ({ children, onClick, ...props }: React.ComponentProps<typeo
 
 export default function LiveGamePage() {
     const params = useParams();
-    const router = useRouter();
-    const { user, loading: authLoading } = useAuth();
     const { toast } = useToast();
-    
     const gameId = typeof params.gameId === 'string' ? params.gameId : '';
 
     const [game, setGame] = useState<Game | null>(null);
+    const [gameFormat, setGameFormat] = useState<GameFormat | null>(null);
+    const [displayTime, setDisplayTime] = useState(0);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
@@ -41,14 +41,16 @@ export default function LiveGamePage() {
             return;
         }
         const gameRef = doc(db, 'games', gameId);
-        const unsubscribe = onSnapshot(gameRef, (docSnap) => {
+        const unsubscribe = onSnapshot(gameRef, async (docSnap) => {
             if (docSnap.exists()) {
                 const data = docSnap.data();
-                setGame({
-                    id: docSnap.id,
-                    ...data,
-                    date: data.date.toDate(),
-                } as Game);
+                const gameData = { id: docSnap.id, ...data, date: data.date.toDate() } as Game;
+                setGame(gameData);
+
+                if (!gameFormat && gameData.gameFormatId) {
+                    const format = await getGameFormatById(gameData.gameFormatId);
+                    setGameFormat(format);
+                }
             } else {
                 setError("El partido no existe o ha sido eliminado.");
             }
@@ -60,9 +62,26 @@ export default function LiveGamePage() {
         });
 
         return () => unsubscribe();
-    }, [gameId]);
+    }, [gameId, gameFormat]);
 
-    const handleUpdate = async (updates: Partial<Pick<Game, 'status' | 'homeTeamScore' | 'awayTeamScore' | 'currentPeriod'>>) => {
+    // Effect for client-side timer tick-down
+    useEffect(() => {
+        if (game?.isTimerRunning && displayTime > 0) {
+            const timerId = setInterval(() => {
+                setDisplayTime(prev => prev > 0 ? prev - 1 : 0);
+            }, 1000);
+            return () => clearInterval(timerId);
+        }
+    }, [game?.isTimerRunning, displayTime]);
+
+    // Effect to sync local display time with server state
+    useEffect(() => {
+        if (game?.periodTimeRemainingSeconds !== undefined) {
+            setDisplayTime(game.periodTimeRemainingSeconds);
+        }
+    }, [game?.periodTimeRemainingSeconds]);
+
+    const handleUpdate = async (updates: Partial<Game>) => {
         const result = await updateLiveGameState(gameId, updates);
         if (!result.success) {
             toast({ variant: 'destructive', title: 'Error al Actualizar', description: result.error });
@@ -72,16 +91,42 @@ export default function LiveGamePage() {
     const handleScoreChange = (team: 'home' | 'away', points: number) => {
         if (!game || game.status !== 'inprogress') return;
         const currentScore = team === 'home' ? game.homeTeamScore || 0 : game.awayTeamScore || 0;
-        const newScore = currentScore + points;
-        
-        if (newScore < 0) return;
+        const newScore = Math.max(0, currentScore + points);
 
-        if (team === 'home') {
-            handleUpdate({ homeTeamScore: newScore });
-        } else {
-            handleUpdate({ awayTeamScore: newScore });
+        handleUpdate(team === 'home' ? { homeTeamScore: newScore } : { awayTeamScore: newScore });
+    };
+
+    const handleToggleTimer = () => {
+        if (!game) return;
+        handleUpdate({ isTimerRunning: !game.isTimerRunning });
+    };
+
+    const handleNextPeriod = () => {
+        if (!game || !gameFormat) return;
+        const currentPeriod = game.currentPeriod || 1;
+        const maxPeriods = gameFormat.numPeriods || 4;
+        if (currentPeriod < maxPeriods) {
+            handleUpdate({
+                currentPeriod: currentPeriod + 1,
+                isTimerRunning: false,
+                periodTimeRemainingSeconds: (gameFormat.periodDurationMinutes || 10) * 60,
+            });
         }
-    }
+    };
+
+    const handleResetTimer = () => {
+        if (!game || !gameFormat) return;
+        handleUpdate({
+            isTimerRunning: false,
+            periodTimeRemainingSeconds: (gameFormat.periodDurationMinutes || 10) * 60,
+        });
+    };
+
+    const formatTime = (totalSeconds: number) => {
+        const minutes = Math.floor(totalSeconds / 60);
+        const seconds = totalSeconds % 60;
+        return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+    };
     
     if (loading || authLoading) {
         return (
@@ -107,27 +152,6 @@ export default function LiveGamePage() {
     
     if (!game) return null;
 
-    const renderGameControls = () => {
-        switch (game.status) {
-            case 'scheduled':
-                return (
-                    <Button size="lg" className="w-full bg-green-600 hover:bg-green-700" onClick={() => handleUpdate({ status: 'inprogress', homeTeamScore: 0, awayTeamScore: 0, currentPeriod: 1 })}>
-                        <Play className="mr-2 h-5 w-5"/> Empezar Partido
-                    </Button>
-                )
-            case 'inprogress':
-                 return (
-                    <Button size="lg" variant="destructive" className="w-full" onClick={() => handleUpdate({ status: 'completed' })}>
-                        <Flag className="mr-2 h-5 w-5"/> Finalizar Partido
-                    </Button>
-                )
-            case 'completed':
-                 return <p className="text-center font-bold text-lg">Partido Finalizado</p>
-            default:
-                return null;
-        }
-    }
-    
     return (
         <div className="space-y-8">
              <Button variant="outline" size="sm" asChild>
@@ -136,18 +160,51 @@ export default function LiveGamePage() {
                     Volver a la Lista de Partidos
                 </Link>
             </Button>
-
+            
             <Card>
                 <CardHeader className="text-center">
                     <CardTitle className="text-2xl">Control del Partido</CardTitle>
                 </CardHeader>
                 <CardContent>
-                    {renderGameControls()}
+                    {game.status === 'scheduled' && (
+                        <Button size="lg" className="w-full bg-green-600 hover:bg-green-700" onClick={() => handleUpdate({ status: 'inprogress', homeTeamScore: 0, awayTeamScore: 0, currentPeriod: 1, isTimerRunning: false, periodTimeRemainingSeconds: (gameFormat?.periodDurationMinutes || 10) * 60 })}>
+                            <Play className="mr-2 h-5 w-5"/> Empezar Partido
+                        </Button>
+                    )}
+                    {game.status === 'inprogress' && (
+                        <Button size="lg" variant="destructive" className="w-full" onClick={() => handleUpdate({ status: 'completed', isTimerRunning: false })}>
+                            <Flag className="mr-2 h-5 w-5"/> Finalizar Partido
+                        </Button>
+                    )}
+                    {game.status === 'completed' && <p className="text-center font-bold text-lg text-green-700">Partido Finalizado</p>}
                 </CardContent>
             </Card>
 
+            {game.status !== 'scheduled' && (
+                 <Card>
+                    <CardHeader className="text-center">
+                        <CardTitle className="flex items-center justify-center gap-2"><TimerIcon/> Tiempo y Período</CardTitle>
+                        <CardDescription>Período: {game.currentPeriod || 'N/A'} de {gameFormat?.numPeriods || 'N/A'}</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        <div className="text-8xl font-mono text-center tracking-tighter py-4 bg-secondary text-secondary-foreground rounded-lg">
+                            {formatTime(displayTime)}
+                        </div>
+                        <div className="flex justify-center gap-2">
+                            <Button onClick={handleToggleTimer} disabled={game.status !== 'inprogress'} size="lg">
+                                {game.isTimerRunning ? <Pause className="mr-2"/> : <Play className="mr-2"/>}
+                                {game.isTimerRunning ? 'Pausar' : 'Iniciar'}
+                            </Button>
+                             <Button onClick={handleNextPeriod} disabled={game.status !== 'inprogress' || game.isTimerRunning || (game.currentPeriod || 0) >= (gameFormat?.numPeriods || 4)} variant="outline" size="lg">
+                                <FastForward className="mr-2"/> Siguiente
+                            </Button>
+                             <Button onClick={handleResetTimer} disabled={game.status !== 'inprogress'} variant="secondary" size="icon" aria-label="Reiniciar cronómetro"><TimerReset/></Button>
+                        </div>
+                    </CardContent>
+                </Card>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Home Team */}
                 <Card className="shadow-lg">
                     <CardHeader>
                         <CardTitle className="truncate">{game.homeTeamName}</CardTitle>
@@ -164,7 +221,6 @@ export default function LiveGamePage() {
                     </CardContent>
                 </Card>
 
-                 {/* Away Team */}
                 <Card className="shadow-lg">
                     <CardHeader>
                         <CardTitle className="truncate">{game.awayTeamName}</CardTitle>
