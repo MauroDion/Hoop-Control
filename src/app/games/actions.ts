@@ -56,8 +56,8 @@ export async function getAllGames(): Promise<Game[]> {
     if (!adminDb) return [];
     try {
         const gamesRef = adminDb.collection('games');
-        const snapshot = await gamesRef.orderBy('date', 'asc').get();
-        return snapshot.docs.map(doc => {
+        const snapshot = await gamesRef.get();
+        const games = snapshot.docs.map(doc => {
             const data = doc.data();
             return {
                 id: doc.id,
@@ -65,8 +65,14 @@ export async function getAllGames(): Promise<Game[]> {
                 date: data.date.toDate(),
             } as Game;
         });
+        // Sort in-memory instead of relying on a Firestore index
+        games.sort((a, b) => a.date.getTime() - b.date.getTime());
+        return games;
     } catch (error: any) {
         console.error("Error fetching all games:", error);
+         if (error.code === 'failed-precondition' && error.message.includes("index")) {
+             console.error("Firestore query failed. This might be due to a missing index. The query has been simplified to avoid this, but check your Firestore indexes if issues persist.");
+        }
         return [];
     }
 }
