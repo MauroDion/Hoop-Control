@@ -105,10 +105,13 @@ export interface Team {
 
 export interface TeamFormData {
   name: string;
-  coachIds?: string[];
-  coordinatorIds?: string[];
+  coachIds?: string; // Comma-separated string for form input
+  coordinatorIds?: string;
   gameFormatId?: string | null;
   competitionCategoryId?: string | null;
+  playerIds?: string; // Comma-separated string for form input
+  logoUrl?: string | null;
+  city?: string | null;
 }
 
 export interface GameFormat {
@@ -167,62 +170,4 @@ export interface PlayerFormData {
   lastName: string;
   jerseyNumber?: number | null;
   position?: string | null;
-}
-
-export interface Season {
-    id: string;
-    name: string;
-    status: 'active' | 'archived' | 'upcoming';
-    competitions: {
-        competitionCategoryId: string;
-        teamIds: string[];
-    }[];
-    createdAt?: Date;
-    createdBy?: string;
-    updatedAt?: Date;
-    updatedBy?: string;
-}
-
-export interface SeasonFormData {
-  name: string;
-  status: 'active' | 'archived' | 'upcoming';
-  competitions: {
-      competitionCategoryId: string;
-      teamIds: string[];
-  }[];
-}
-
-export interface Game {
-    id: string;
-    homeTeamId: string;
-    homeTeamClubId: string;
-    homeTeamName: string;
-    awayTeamId: string;
-    awayTeamClubId: string;
-    awayTeamName: string;
-    date: Date;
-    location: string;
-    status: 'scheduled' | 'inprogress' | 'completed' | 'cancelled';
-    homeTeamScore?: number;
-    awayTeamScore?: number;
-    currentPeriod?: number;
-    seasonId: string;
-    competitionCategoryId: string;
-    gameFormatId?: string | null;
-    homeTeamPlayerIds?: string[];
-    awayTeamPlayerIds?: string[];
-    createdBy: string;
-    createdAt: Date;
-    updatedAt: Date;
-}
-
-export interface GameFormData {
-    homeTeamId: string;
-    awayTeamId: string;
-    date: string;
-    time: string;
-    location: string;
-    seasonId: string;
-    competitionCategoryId: string;
-    gameFormatId?: string | null;
 }
