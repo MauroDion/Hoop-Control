@@ -1,4 +1,3 @@
-
 "use server";
 
 import { revalidatePath } from "next/cache";
@@ -33,11 +32,11 @@ export async function createTeam(
       clubId: clubId,
       gameFormatId: formData.gameFormatId || null,
       competitionCategoryId: formData.competitionCategoryId || null,
-      coachIds: formData.coachIds ? formData.coachIds.split(',').map(id => id.trim()).filter(id => id) : [],
-      coordinatorIds: formData.coordinatorIds ? formData.coordinatorIds.split(',').map(id => id.trim()).filter(id => id) : [],
-      playerIds: formData.playerIds ? formData.playerIds.split(',').map(id => id.trim()).filter(id => id) : [],
-      logoUrl: formData.logoUrl || null,
-      city: formData.city || null,
+      coachIds: formData.coachIds || [],
+      coordinatorIds: formData.coordinatorIds || [],
+      playerIds: [], // Player list starts empty
+      logoUrl: null, // Inherit from club or manage separately
+      city: null, // Inherit from club or manage separately
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       createdByUserId: userId,
@@ -46,9 +45,7 @@ export async function createTeam(
     const docRef = await adminDb.collection("teams").add(newTeamData);
     
     revalidatePath(`/clubs/${clubId}`);
-    // Potentially revalidate a general teams list page if one exists
-    // revalidatePath(`/teams`); 
-
+    
     return { success: true, id: docRef.id };
   } catch (error: any) {
     console.error("Error creating team:", error);

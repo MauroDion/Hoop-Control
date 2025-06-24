@@ -1,4 +1,3 @@
-
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -17,39 +16,33 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
-import type { TeamFormData, GameFormat, CompetitionCategory } from "@/types";
+import type { TeamFormData, GameFormat, CompetitionCategory, UserFirestoreProfile } from "@/types";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/hooks/use-toast";
 import { createTeam } from "@/app/teams/actions";
 import { useAuth } from "@/hooks/useAuth";
 import { Loader2 } from "lucide-react";
-
-// Using a unique string to represent a null selection in the form,
-// and then transforming it to actual null for data processing.
-const NULL_VALUE = "__NULL__";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Separator } from "../ui/separator";
 
 const teamFormSchema = z.object({
   name: z.string().min(2, "Team name must be at least 2 characters long.").max(100, "Team name must be 100 characters or less."),
-  gameFormatId: z.string().optional().nullable()
-    .transform(value => value === NULL_VALUE ? null : value),
-  competitionCategoryId: z.string().min(1, "Competition Category is required.").nullable()
-    .transform(value => value === NULL_VALUE ? null : value),
-  coachIds: z.string().optional().describe("Comma-separated User IDs of coaches"),
-  coordinatorIds: z.string().optional().describe("Comma-separated User IDs of coordinators"),
-  playerIds: z.string().optional().describe("Comma-separated Player IDs"),
-  logoUrl: z.string().url({ message: "Please enter a valid URL for the logo." }).optional().or(z.literal("")).nullable(),
-  city: z.string().optional().nullable(),
+  competitionCategoryId: z.string().min(1, "Competition Category is required."),
+  gameFormatId: z.string().optional().nullable(),
+  coachIds: z.array(z.string()).optional().default([]),
+  coordinatorIds: z.array(z.string()).optional().default([]),
 });
 
 interface TeamFormProps {
   clubId: string;
   gameFormats: GameFormat[];
   competitionCategories: CompetitionCategory[];
+  coaches: UserFirestoreProfile[];
+  coordinators: UserFirestoreProfile[];
   onFormSubmit?: () => void;
 }
 
-export function TeamForm({ clubId, gameFormats, competitionCategories, onFormSubmit }: TeamFormProps) {
+export function TeamForm({ clubId, gameFormats, competitionCategories, coaches, coordinators, onFormSubmit }: TeamFormProps) {
   const router = useRouter();
   const { toast } = useToast();
   const { user, loading: authLoading } = useAuth();
@@ -58,13 +51,10 @@ export function TeamForm({ clubId, gameFormats, competitionCategories, onFormSub
     resolver: zodResolver(teamFormSchema),
     defaultValues: {
       name: "",
-      gameFormatId: null,
-      competitionCategoryId: null,
-      coachIds: "",
-      coordinatorIds: "",
-      playerIds: "",
-      logoUrl: "",
-      city: "",
+      competitionCategoryId: "",
+      gameFormatId: undefined,
+      coachIds: [],
+      coordinatorIds: [],
     },
   });
 
@@ -97,11 +87,10 @@ export function TeamForm({ clubId, gameFormats, competitionCategories, onFormSub
         title: "Team Created",
         description: `Team "${values.name}" has been successfully created.`,
       });
-      form.reset(); // Clear form fields on success
+      form.reset();
       if (onFormSubmit) {
-        onFormSubmit(); // Callback to refresh parent data
+        onFormSubmit();
       } else {
-        // Fallback if no callback is provided
         router.push(`/clubs/${clubId}`);
         router.refresh(); 
       }
@@ -150,7 +139,7 @@ export function TeamForm({ clubId, gameFormats, competitionCategories, onFormSub
               <FormLabel>Competition Category</FormLabel>
               <Select 
                 onValueChange={field.onChange} 
-                defaultValue={field.value || undefined}
+                value={field.value}
                 disabled={competitionCategories.length === 0}
               >
                 <FormControl>
@@ -182,85 +171,113 @@ export function TeamForm({ clubId, gameFormats, competitionCategories, onFormSub
           </FormDescription>
           <FormMessage />
         </FormItem>
-
+        
+        <Separator />
+        
         <FormField
           control={form.control}
-          name="city"
-          render={({ field }) => (
+          name="coachIds"
+          render={() => (
             <FormItem>
-              <FormLabel>City (Optional)</FormLabel>
-              <FormControl>
-                <Input placeholder="Team's primary city" {...field} value={field.value ?? ""} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        <FormField
-          control={form.control}
-          name="logoUrl"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Logo URL (Optional)</FormLabel>
-              <FormControl>
-                <Input type="url" placeholder="https://example.com/logo.png" {...field} value={field.value ?? ""}/>
-              </FormControl>
+              <div className="mb-4">
+                <FormLabel className="text-base">Assign Coaches</FormLabel>
+                <FormDescription>
+                  Select from the approved coaches for this club.
+                </FormDescription>
+              </div>
+              <div className="space-y-2">
+                {coaches.length > 0 ? coaches.map((item) => (
+                  <FormField
+                    key={item.uid}
+                    control={form.control}
+                    name="coachIds"
+                    render={({ field }) => {
+                      return (
+                        <FormItem
+                          key={item.uid}
+                          className="flex flex-row items-center space-x-3"
+                        >
+                          <FormControl>
+                            <Checkbox
+                              checked={field.value?.includes(item.uid)}
+                              onCheckedChange={(checked) => {
+                                return checked
+                                  ? field.onChange([...(field.value || []), item.uid])
+                                  : field.onChange(
+                                      field.value?.filter(
+                                        (value) => value !== item.uid
+                                      )
+                                    )
+                              }}
+                            />
+                          </FormControl>
+                          <FormLabel className="font-normal text-sm">
+                            {item.displayName} <span className="text-muted-foreground">({item.email})</span>
+                          </FormLabel>
+                        </FormItem>
+                      )
+                    }}
+                  />
+                )) : <p className="text-sm text-muted-foreground italic">No coaches found for this club.</p>}
+              </div>
               <FormMessage />
             </FormItem>
           )}
         />
         
-        <FormField
-          control={form.control}
-          name="coachIds"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Coach IDs (Optional)</FormLabel>
-              <FormControl>
-                <Textarea placeholder="Enter comma-separated User IDs of coaches" {...field} />
-              </FormControl>
-              <FormDescription>
-                Enter the Firebase User IDs for each coach, separated by commas.
-              </FormDescription>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+        <Separator />
 
-        <FormField
+         <FormField
           control={form.control}
           name="coordinatorIds"
-          render={({ field }) => (
+          render={() => (
             <FormItem>
-              <FormLabel>Coordinator IDs (Optional)</FormLabel>
-              <FormControl>
-                <Textarea placeholder="Enter comma-separated User IDs of coordinators" {...field} />
-              </FormControl>
-              <FormDescription>
-                Enter the Firebase User IDs for each coordinator, separated by commas.
-              </FormDescription>
+              <div className="mb-4">
+                <FormLabel className="text-base">Assign Coordinators</FormLabel>
+                <FormDescription>
+                  Select from the approved coordinators for this club.
+                </FormDescription>
+              </div>
+              <div className="space-y-2">
+                {coordinators.length > 0 ? coordinators.map((item) => (
+                  <FormField
+                    key={item.uid}
+                    control={form.control}
+                    name="coordinatorIds"
+                    render={({ field }) => {
+                      return (
+                        <FormItem
+                          key={item.uid}
+                          className="flex flex-row items-center space-x-3"
+                        >
+                          <FormControl>
+                            <Checkbox
+                              checked={field.value?.includes(item.uid)}
+                              onCheckedChange={(checked) => {
+                                return checked
+                                  ? field.onChange([...(field.value || []), item.uid])
+                                  : field.onChange(
+                                      field.value?.filter(
+                                        (value) => value !== item.uid
+                                      )
+                                    )
+                              }}
+                            />
+                          </FormControl>
+                          <FormLabel className="font-normal text-sm">
+                            {item.displayName} <span className="text-muted-foreground">({item.email})</span>
+                          </FormLabel>
+                        </FormItem>
+                      )
+                    }}
+                  />
+                )) : <p className="text-sm text-muted-foreground italic">No coordinators found for this club.</p>}
+              </div>
               <FormMessage />
             </FormItem>
           )}
         />
 
-        <FormField
-          control={form.control}
-          name="playerIds"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Player IDs (Optional)</FormLabel>
-              <FormControl>
-                <Textarea placeholder="Enter comma-separated Player IDs" {...field} />
-              </FormControl>
-              <FormDescription>
-                Enter the unique Player IDs, separated by commas.
-              </FormDescription>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
 
         <Button type="submit" className="w-full sm:w-auto" disabled={form.formState.isSubmitting || authLoading}>
           {form.formState.isSubmitting ? (

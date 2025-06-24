@@ -1,4 +1,3 @@
-
 'use server';
 
 import admin, { adminAuth, adminDb, adminInitError } from '@/lib/firebase/admin';
@@ -99,7 +98,7 @@ export async function getUsersByProfileTypeAndClub(
   }
   try {
     const usersRef = adminDb.collection('user_profiles');
-    const q = usersRef.where('clubId', '==', clubId).where('profileTypeId', '==', profileType);
+    const q = usersRef.where('clubId', '==', clubId).where('profileTypeId', '==', profileType).where('status', '==', 'approved');
     const querySnapshot = await q.get();
 
     if (querySnapshot.empty) {
@@ -122,7 +121,7 @@ export async function getUsersByProfileTypeAndClub(
   } catch (error: any) {
     console.error(`Error fetching users by profile type '${profileType}' for club '${clubId}':`, error.message);
     if (error.code === 'failed-precondition' && error.message.includes("index")) {
-        console.error("Firestore query failed. This is likely due to a missing composite index. Please create an index on 'clubId' and 'profileTypeId' for the 'user_profiles' collection.");
+        console.error("Firestore query failed. This is likely due to a missing composite index. Please create an index on 'clubId', 'profileTypeId', and 'status' for the 'user_profiles' collection.");
     }
     return [];
   }

@@ -1,4 +1,3 @@
-
 "use client";
 
 import { TeamForm } from "@/components/teams/TeamForm";
@@ -10,7 +9,7 @@ import React, { useEffect, useState } from "react";
 import type { GameFormat, CompetitionCategory, UserFirestoreProfile, Club } from "@/types";
 import { getGameFormats } from "@/app/game-formats/actions";
 import { getCompetitionCategories } from "@/app/competition-categories/actions";
-import { getUserProfileById } from "@/app/users/actions";
+import { getUserProfileById, getUsersByProfileTypeAndClub } from "@/app/users/actions";
 import { getClubById } from "@/app/clubs/actions";
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -25,6 +24,8 @@ export default function NewTeamPage() {
   const [userProfile, setUserProfile] = useState<UserFirestoreProfile | null>(null);
   const [gameFormats, setGameFormats] = useState<GameFormat[]>([]);
   const [competitionCategories, setCompetitionCategories] = useState<CompetitionCategory[]>([]);
+  const [coaches, setCoaches] = useState<UserFirestoreProfile[]>([]);
+  const [coordinators, setCoordinators] = useState<UserFirestoreProfile[]>([]);
   
   const [loadingData, setLoadingData] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -40,11 +41,13 @@ export default function NewTeamPage() {
       setLoadingData(true);
       setError(null);
       try {
-        const [profile, fetchedClub, formats, categories] = await Promise.all([
+        const [profile, fetchedClub, formats, categories, fetchedCoaches, fetchedCoordinators] = await Promise.all([
           getUserProfileById(user.uid),
           getClubById(clubId),
           getGameFormats(),
-          getCompetitionCategories()
+          getCompetitionCategories(),
+          getUsersByProfileTypeAndClub('coach', clubId),
+          getUsersByProfileTypeAndClub('coordinator', clubId)
         ]);
         
         const isSuperAdmin = profile?.profileTypeId === 'super_admin';
@@ -64,8 +67,11 @@ export default function NewTeamPage() {
         setClub(fetchedClub);
         setGameFormats(formats);
         setCompetitionCategories(categories);
+        setCoaches(fetchedCoaches);
+        setCoordinators(fetchedCoordinators);
 
       } catch (err: any) {
+        console.error("Error loading new team page data:", err)
         setError("Failed to load data required for team creation.");
       } finally {
         setLoadingData(false);
@@ -115,6 +121,8 @@ export default function NewTeamPage() {
             clubId={clubId} 
             gameFormats={gameFormats}
             competitionCategories={competitionCategories}
+            coaches={coaches}
+            coordinators={coordinators}
             onFormSubmit={() => {
                 router.push(`/clubs/${clubId}`);
                 router.refresh();

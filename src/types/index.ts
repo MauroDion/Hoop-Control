@@ -1,4 +1,3 @@
-
 import type { Timestamp } from 'firebase/firestore';
 
 export interface Task {
@@ -108,13 +107,10 @@ export interface Team {
 
 export interface TeamFormData {
   name: string;
-  coachIds?: string; // Comma-separated string for form input
-  coordinatorIds?: string;
+  coachIds?: string[];
+  coordinatorIds?: string[];
   gameFormatId?: string | null;
   competitionCategoryId?: string | null;
-  playerIds?: string; // Comma-separated string for form input
-  logoUrl?: string | null;
-  city?: string | null;
 }
 
 export interface GameFormat {
