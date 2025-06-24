@@ -1,4 +1,3 @@
-
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
@@ -17,7 +16,6 @@ export async function middleware(request: NextRequest) {
 
   // If the user has a session cookie and is trying to access a public-only page,
   // redirect them to the dashboard. This improves UX for logged-in users.
-  // The actual cookie verification happens within the protected pages/layouts.
   if (sessionCookie && isPublic(pathname)) {
     return NextResponse.redirect(new URL('/dashboard', request.url));
   }
