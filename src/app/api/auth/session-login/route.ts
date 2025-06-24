@@ -12,7 +12,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const { idToken } = await request.json();
+    const { idToken, rememberMe } = await request.json(); // Read rememberMe flag
     if (!idToken) {
       console.log("API (session-login): Request failed because ID token is missing.");
       return NextResponse.json({ error: 'ID token is required.' }, { status: 400 });
@@ -32,38 +32,39 @@ export async function POST(request: NextRequest) {
     if (userProfile && userProfile.status === 'approved') {
       console.log(`API (session-login): Profile status for UID ${uid} is 'approved'. Proceeding to create session cookie.`);
       
-      // Set session expiration to 5 days.
       const expiresIn = 60 * 60 * 24 * 5 * 1000; // 5 days in milliseconds
       
-      // Create the session cookie.
       const sessionCookie = await adminAuth.createSessionCookie(idToken, { expiresIn });
       
-      const options = {
+      // Options are now dynamic based on the rememberMe flag
+      const options: any = {
         name: 'session',
         value: sessionCookie,
-        maxAge: expiresIn / 1000,
         httpOnly: true,
-        secure: true, // Must be true for SameSite=None
+        secure: true,
         path: '/',
         sameSite: 'none' as const,
       };
-      
+
+      if (rememberMe) {
+        options.maxAge = expiresIn / 1000; // Set maxAge for persistent cookie
+      }
+      // If rememberMe is false, maxAge is not set, making it a session cookie
+
       const response = NextResponse.json({ status: 'success', message: 'Session cookie created.' }, { status: 200 });
       response.cookies.set(options);
       
-      console.log("API (session-login): Session cookie successfully created and set with SameSite=None.");
+      console.log(`API (session-login): Session cookie successfully created (persistent: ${!!rememberMe}).`);
       return response;
 
     } else {
-      // If user is not approved or has no profile, deny session creation.
       const reason = userProfile ? `status is '${userProfile.status}'` : 'profile not found';
       console.warn(`API (session-login): Session creation DENIED for UID: ${uid} because ${reason}.`);
       
-      // Return a specific error that the client can use to show an informative message.
       return NextResponse.json({ 
           error: 'User account not active.',
-          reason: userProfile?.status || 'not_found' // e.g., 'pending_approval', 'rejected'
-      }, { status: 403 }); // 403 Forbidden is appropriate here.
+          reason: userProfile?.status || 'not_found'
+      }, { status: 403 });
     }
 
   } catch (error: any) {

@@ -15,14 +15,17 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { signInWithEmailAndPassword, signOut } from "firebase/auth";
+import { signInWithEmailAndPassword, setPersistence, browserSessionPersistence, browserLocalPersistence, signOut } from "firebase/auth";
 import { auth } from "@/lib/firebase/client";
 import { useRouter, useSearchParams } from "next/navigation";
 import React from "react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "../ui/label";
 
 const formSchema = z.object({
   email: z.string().email({ message: "Dirección de email inválida." }),
   password: z.string().min(6, { message: "La contraseña debe tener al menos 6 caracteres." }),
+  rememberMe: z.boolean().default(false).optional(),
 });
 
 export function LoginForm() {
@@ -36,12 +39,15 @@ export function LoginForm() {
     defaultValues: {
       email: "",
       password: "",
+      rememberMe: false, // Default to session-only
     },
   });
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     try {
-      // Persistence is now set globally to 'session' in firebase/client.ts
+      // Set persistence BEFORE signing in. This is crucial.
+      await setPersistence(auth, values.rememberMe ? browserLocalPersistence : browserSessionPersistence);
+      
       const userCredential = await signInWithEmailAndPassword(auth, values.email, values.password);
       
       if (!userCredential.user) {
@@ -49,23 +55,21 @@ export function LoginForm() {
       }
 
       const idToken = await userCredential.user.getIdToken();
+      // Pass the rememberMe flag to the server to align cookie lifetime
       const response = await fetch('/api/auth/session-login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ idToken }),
+        body: JSON.stringify({ idToken, rememberMe: values.rememberMe }),
       });
 
       const responseData = await response.json();
 
       if (!response.ok) {
-        // If server rejects session (e.g. pending approval), sign out client-side
         await signOut(auth);
-
         if (responseData.reason) {
           router.push(`/login?status=${responseData.reason}`);
           return;
         }
-        // Fallback for other errors from the session-login endpoint
         throw new Error(responseData.error || 'El inicio de sesión falló.');
       }
       
@@ -116,7 +120,30 @@ export function LoginForm() {
             </FormItem>
           )}
         />
-        <div className="flex items-center justify-end">
+        <div className="flex items-center justify-between">
+           <FormField
+            control={form.control}
+            name="rememberMe"
+            render={({ field }) => (
+              <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                <FormControl>
+                  <Checkbox
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                    id="rememberMeLogin"
+                  />
+                </FormControl>
+                <div className="space-y-1 leading-none">
+                  <Label
+                    htmlFor="rememberMeLogin"
+                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                  >
+                    Recordarme
+                  </Label>
+                </div>
+              </FormItem>
+            )}
+          />
           <Link href="/reset-password" passHref>
             <Button variant="link" type="button" className="px-0 text-sm">
               ¿Olvidaste tu contraseña?
