@@ -121,7 +121,8 @@ export interface GameFormat {
   periodDurationMinutes?: number;
   defaultTotalTimeouts?: number;
   minPeriodsPlayerMustPlay?: number;
-  createdAt?: Date; // Changed from Timestamp
+  createdAt?: Date;
+  createdBy?: string;
 }
 
 export interface GameFormatFormData {
@@ -139,8 +140,9 @@ export interface CompetitionCategory {
   description?: string;
   level?: number;
   gameFormatId?: string | null; // The associated default game format
-  createdAt?: Date; // Changed from Timestamp
-  updatedAt?: Date; // Changed from Timestamp
+  createdAt?: Date;
+  updatedAt?: Date;
+  createdBy?: string;
 }
 
 export interface CompetitionCategoryFormData {

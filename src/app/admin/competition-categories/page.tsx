@@ -11,7 +11,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Loader2, AlertTriangle, Tag, PlusCircle } from 'lucide-react';
-// Asumiendo que CompetitionCategoryForm existe en la siguiente ruta:
 import { CompetitionCategoryForm } from '@/components/competition-categories/CompetitionCategoryForm';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';

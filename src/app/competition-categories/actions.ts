@@ -1,8 +1,9 @@
-
 'use server';
 
-import type { CompetitionCategory } from '@/types';
+import type { CompetitionCategory, CompetitionCategoryFormData } from '@/types';
 import { adminDb } from '@/lib/firebase/admin';
+import admin from 'firebase-admin';
+import { revalidatePath } from 'next/cache';
 
 export async function getCompetitionCategories(): Promise<CompetitionCategory[]> {
   console.log("CompetitionCategoryActions: Attempting to fetch competition categories from Firestore using Admin SDK.");
@@ -34,13 +35,40 @@ export async function getCompetitionCategories(): Promise<CompetitionCategory[]>
       } as CompetitionCategory; 
     });
     
-    // Sort the results alphabetically by name here in the action
     allCategories.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
 
     console.log("CompetitionCategoryActions: Successfully fetched and sorted categories using Admin SDK.");
     return allCategories;
   } catch (error: any) {
     console.error('CompetitionCategoryActions: Error fetching competition categories with Admin SDK:', error.message, error.stack);
-    return []; // Return empty array on error
+    return [];
+  }
+}
+
+export async function createCompetitionCategory(
+  formData: CompetitionCategoryFormData,
+  userId: string
+): Promise<{ success: boolean; error?: string; id?: string }> {
+  if (!userId) {
+    return { success: false, error: 'User not authenticated.' };
+  }
+  if (!adminDb) {
+    return { success: false, error: 'Database not initialized.' };
+  }
+  try {
+    const newCategoryData = {
+      ...formData,
+      level: Number(formData.level) || null,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      createdBy: userId,
+    };
+
+    const docRef = await adminDb.collection('competitionCategories').add(newCategoryData);
+    revalidatePath('/admin/competition-categories');
+    return { success: true, id: docRef.id };
+  } catch (error: any) {
+    console.error('Error creating competition category:', error);
+    return { success: false, error: error.message || 'Failed to create category.' };
   }
 }

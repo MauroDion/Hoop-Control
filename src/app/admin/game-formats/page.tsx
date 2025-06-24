@@ -10,7 +10,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Loader2, AlertTriangle, ListOrdered, PlusCircle } from 'lucide-react';
-// Asumiendo que GameFormatForm existe en la siguiente ruta:
 import { GameFormatForm } from '@/components/game-formats/GameFormatForm';
 
 export default function ManageGameFormatsPage() {

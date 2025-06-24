@@ -1,8 +1,9 @@
-
 'use server';
 
-import type { GameFormat } from '@/types';
+import type { GameFormat, GameFormatFormData } from '@/types';
 import { adminDb } from '@/lib/firebase/admin';
+import admin from 'firebase-admin';
+import { revalidatePath } from 'next/cache';
 
 export async function getGameFormats(): Promise<GameFormat[]> {
   console.log("GameFormatActions: Attempting to fetch game formats from Firestore using Admin SDK.");
@@ -35,13 +36,42 @@ export async function getGameFormats(): Promise<GameFormat[]> {
       } as GameFormat; 
     });
     
-    // Sort the results alphabetically by name here in the action
     allGameFormats.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
     
     console.log("GameFormatActions: Successfully fetched and sorted game formats using Admin SDK.");
     return allGameFormats;
   } catch (error: any) {
     console.error('GameFormatActions: Error fetching game formats with Admin SDK:', error.message, error.stack);
-    return []; // Return empty array on error
+    return [];
+  }
+}
+
+export async function createGameFormat(
+  formData: GameFormatFormData,
+  userId: string
+): Promise<{ success: boolean; error?: string; id?: string }> {
+  if (!userId) {
+    return { success: false, error: 'User not authenticated.' };
+  }
+  if (!adminDb) {
+    return { success: false, error: 'Database not initialized.' };
+  }
+  try {
+    const newFormatData = {
+      ...formData,
+      numPeriods: Number(formData.numPeriods) || null,
+      periodDurationMinutes: Number(formData.periodDurationMinutes) || null,
+      defaultTotalTimeouts: Number(formData.defaultTotalTimeouts) || null,
+      minPeriodsPlayerMustPlay: Number(formData.minPeriodsPlayerMustPlay) || null,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      createdBy: userId,
+    };
+
+    const docRef = await adminDb.collection('gameFormats').add(newFormatData);
+    revalidatePath('/admin/game-formats');
+    return { success: true, id: docRef.id };
+  } catch (error: any) {
+    console.error('Error creating game format:', error);
+    return { success: false, error: error.message || 'Failed to create format.' };
   }
 }
