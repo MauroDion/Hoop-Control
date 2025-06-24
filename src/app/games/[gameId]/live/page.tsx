@@ -26,6 +26,7 @@ export default function LiveGamePage() {
     const params = useParams();
     const { toast } = useToast();
     const gameId = typeof params.gameId === 'string' ? params.gameId : '';
+    const { loading: authLoading } = useAuth();
 
     const [game, setGame] = useState<Game | null>(null);
     const [gameFormat, setGameFormat] = useState<GameFormat | null>(null);
