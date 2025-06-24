@@ -63,6 +63,8 @@ export async function getAllGames(): Promise<Game[]> {
                 id: doc.id,
                 ...data,
                 date: data.date.toDate(),
+                createdAt: data.createdAt.toDate(),
+                updatedAt: data.updatedAt.toDate(),
             } as Game;
         });
         
@@ -91,6 +93,8 @@ export async function getGamesByClub(clubId: string): Promise<Game[]> {
                     id: doc.id,
                     ...gameData,
                     date: gameData.date.toDate(),
+                    createdAt: gameData.createdAt.toDate(),
+                    updatedAt: gameData.updatedAt.toDate(),
                 } as Game);
             });
         };
@@ -120,9 +124,6 @@ export async function getGamesByCoach(userId: string): Promise<Game[]> {
         const teamIds = coachTeams.map(team => team.id);
         
         const gamesRef = adminDb.collection('games');
-        // Firestore 'in' queries are limited to 30 items in the array.
-        // If a coach can be on more than 30 teams, this will fail.
-        // For now, this is a reasonable assumption.
         const homeGamesQuery = gamesRef.where('homeTeamId', 'in', teamIds).get();
         const awayGamesQuery = gamesRef.where('awayTeamId', 'in', teamIds).get();
 
@@ -136,6 +137,8 @@ export async function getGamesByCoach(userId: string): Promise<Game[]> {
                     id: doc.id,
                     ...gameData,
                     date: gameData.date.toDate(),
+                    createdAt: gameData.createdAt.toDate(),
+                    updatedAt: gameData.updatedAt.toDate(),
                 } as Game);
             });
         };
@@ -167,6 +170,8 @@ export async function getGameById(gameId: string): Promise<Game | null> {
             id: docSnap.id,
             ...data,
             date: data.date.toDate(),
+            createdAt: data.createdAt.toDate(),
+            updatedAt: data.updatedAt.toDate(),
         } as Game;
     } catch (error: any) {
         console.error(`Error fetching game by ID ${gameId}:`, error);
