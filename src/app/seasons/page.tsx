@@ -4,29 +4,28 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'next/navigation';
 import { getUserProfileById } from '@/app/users/actions';
-import { getSeasons, createSeason } from './actions';
+import { getSeasons } from './actions';
 import { getAllTeams } from '@/app/teams/actions';
 import { getCompetitionCategories } from '@/app/competition-categories/actions';
 
 import type { Season, Team, CompetitionCategory } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, AlertTriangle, CalendarCheck, PlusCircle, ChevronsUpDown } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
+import { Loader2, AlertTriangle, CalendarCheck, PlusCircle, ChevronsUpDown, Edit } from 'lucide-react';
 import { SeasonForm } from '@/components/seasons/SeasonForm';
+import Link from 'next/link';
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 
 export default function ManageSeasonsPage() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
-  const { toast } = useToast();
 
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -151,12 +150,20 @@ export default function ManageSeasonsPage() {
                         {season.status}
                       </Badge>
                     </div>
-                    <CollapsibleTrigger asChild>
-                      <Button variant="ghost" size="sm" className="w-9 p-0">
-                        <ChevronsUpDown className="h-4 w-4" />
-                        <span className="sr-only">Toggle</span>
+                    <div className="flex items-center gap-2">
+                      <Button asChild variant="outline" size="sm">
+                          <Link href={`/seasons/${season.id}/edit`}>
+                              <Edit className="h-4 w-4 mr-2"/>
+                              Editar
+                          </Link>
                       </Button>
-                    </CollapsibleTrigger>
+                      <CollapsibleTrigger asChild>
+                        <Button variant="ghost" size="sm" className="w-9 p-0">
+                          <ChevronsUpDown className="h-4 w-4" />
+                          <span className="sr-only">Toggle</span>
+                        </Button>
+                      </CollapsibleTrigger>
+                    </div>
                   </div>
                   <CollapsibleContent className="space-y-3 pt-4">
                     {season.competitions?.map(comp => (

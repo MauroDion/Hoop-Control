@@ -65,7 +65,7 @@ export async function getAllGames(): Promise<Game[]> {
                 date: data.date.toDate(),
             } as Game;
         });
-        // Sort in-memory to avoid needing a Firestore index
+        
         games.sort((a, b) => a.date.getTime() - b.date.getTime());
         return games;
     } catch (error: any) {
@@ -120,8 +120,6 @@ export async function getGamesByCoach(userId: string): Promise<Game[]> {
         const teamIds = coachTeams.map(team => team.id);
         
         const gamesRef = adminDb.collection('games');
-        // Firestore 'in' queries are limited to 30 items in the array.
-        // For now, this is a reasonable assumption.
         const homeGamesQuery = gamesRef.where('homeTeamId', 'in', teamIds).get();
         const awayGamesQuery = gamesRef.where('awayTeamId', 'in', teamIds).get();
 
@@ -143,7 +141,7 @@ export async function getGamesByCoach(userId: string): Promise<Game[]> {
         processSnapshot(awayGamesSnap);
 
         const games = Array.from(gamesMap.values());
-        games.sort((a, b) => a.date.getTime() - b.date.getTime()); // Sort upcoming first
+        games.sort((a, b) => a.date.getTime() - b.date.getTime());
 
         return games;
     } catch (error: any) {

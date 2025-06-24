@@ -6,19 +6,18 @@ export interface Task {
   description?: string;
   status: 'todo' | 'inprogress' | 'done';
   priority: 'low' | 'medium' | 'high';
-  dueDate?: Date | null; // Changed from Timestamp
-  createdAt: Date; // Changed from Timestamp
-  updatedAt: Date; // Changed from Timestamp
-  userId: string; // To associate task with a user
+  dueDate?: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+  userId: string;
 }
 
-// For forms, especially date handling, as Firestore Timestamps are not directly usable in HTML date inputs
 export interface TaskFormData {
   title: string;
   description?: string;
   status: 'todo' | 'inprogress' | 'done';
   priority: 'low' | 'medium' | 'high';
-  dueDate?: string | null; // String for HTML date input, will be converted to Timestamp
+  dueDate?: string | null;
 }
 
 export interface BcsjdApiDataItem {
@@ -26,7 +25,7 @@ export interface BcsjdApiDataItem {
   name: string;
   value: string | number;
   category: string;
-  lastUpdated: string; // ISO date string
+  lastUpdated: string;
 }
 
 export type UserProfileStatus = 'pending_approval' | 'approved' | 'rejected';
@@ -49,11 +48,10 @@ export interface UserFirestoreProfile {
   profileTypeId: ProfileType;
   clubId: string;
   status: UserProfileStatus;
-  createdAt: Date; // Changed from Timestamp
-  updatedAt: Date; // Changed from Timestamp
+  createdAt: Date;
+  updatedAt: Date;
 }
 
-// ViewModel for admin user management page
 export interface UserProfileAdminView extends UserFirestoreProfile {
   clubName?: string;
   profileTypeLabel?: string;
@@ -69,8 +67,8 @@ export interface Club {
   city_name?: string;
   logoUrl?: string;
   approved?: boolean;
-  createdBy?: string; // UID
-  createdAt?: Date; // Changed from Timestamp
+  createdBy?: string;
+  createdAt?: Date;
 }
 
 export interface ClubFormData {
@@ -95,13 +93,13 @@ export interface Team {
   clubId: string;
   coachIds?: string[];
   coordinatorIds?: string[];
-  gameFormatId?: string | null; // Refers to GameFormat.id
-  competitionCategoryId?: string | null; // Refers to CompetitionCategory.id
+  gameFormatId?: string | null;
+  competitionCategoryId?: string | null;
   playerIds?: string[];
   logoUrl?: string | null;
   city?: string | null;
-  createdAt: Date; // Changed from Timestamp
-  updatedAt: Date; // Changed from Timestamp
+  createdAt: Date;
+  updatedAt: Date;
   createdByUserId: string;
 }
 
@@ -114,7 +112,7 @@ export interface TeamFormData {
 }
 
 export interface GameFormat {
-  id: string; // Firestore document ID
+  id: string;
   name: string;
   description?: string;
   numPeriods?: number;
@@ -135,11 +133,11 @@ export interface GameFormatFormData {
 }
 
 export interface CompetitionCategory {
-  id: string; // Firestore document ID
+  id: string;
   name: string;
   description?: string;
   level?: number;
-  gameFormatId?: string | null; // The associated default game format
+  gameFormatId?: string | null;
   createdAt?: Date;
   updatedAt?: Date;
   createdBy?: string;
@@ -160,8 +158,8 @@ export interface Player {
   jerseyNumber?: number;
   position?: string;
   teamId?: string;
-  createdBy?: string; // UID
-  createdAt?: Date; // Changed from Timestamp
+  createdBy?: string;
+  createdAt?: Date;
 }
 
 export interface PlayerFormData {
@@ -181,6 +179,8 @@ export interface Season {
     }[];
     createdAt?: Date;
     createdBy?: string;
+    updatedAt?: Date;
+    updatedBy?: string;
 }
 
 export interface SeasonFormData {
@@ -216,8 +216,8 @@ export interface Game {
 export interface GameFormData {
     homeTeamId: string;
     awayTeamId: string;
-    date: string; // "yyyy-MM-dd"
-    time: string; // "HH:mm"
+    date: string;
+    time: string;
     location: string;
     seasonId: string;
     competitionCategoryId: string;

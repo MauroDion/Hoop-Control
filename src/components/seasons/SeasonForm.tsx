@@ -8,9 +8,9 @@ import { Button } from "@/components/ui/button";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import type { SeasonFormData, Team, CompetitionCategory } from "@/types";
+import type { Season, SeasonFormData, Team, CompetitionCategory } from "@/types";
 import { useToast } from "@/hooks/use-toast";
-import { createSeason } from "@/app/seasons/actions";
+import { createSeason, updateSeason } from "@/app/seasons/actions";
 import { useAuth } from "@/hooks/useAuth";
 import { Loader2, Trash2, PlusCircle } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -32,18 +32,19 @@ interface SeasonFormProps {
   allTeams: Team[];
   allCategories: CompetitionCategory[];
   onFormSubmit: () => void;
+  season?: Season | null;
 }
 
-export function SeasonForm({ allTeams, allCategories, onFormSubmit }: SeasonFormProps) {
+export function SeasonForm({ allTeams, allCategories, onFormSubmit, season }: SeasonFormProps) {
   const { toast } = useToast();
   const { user } = useAuth();
 
   const form = useForm<z.infer<typeof seasonFormSchema>>({
     resolver: zodResolver(seasonFormSchema),
     defaultValues: {
-      name: "",
-      status: "upcoming",
-      competitions: [],
+      name: season?.name || "",
+      status: season?.status || "upcoming",
+      competitions: season?.competitions || [],
     },
   });
 
@@ -51,12 +52,28 @@ export function SeasonForm({ allTeams, allCategories, onFormSubmit }: SeasonForm
     control: form.control,
     name: "competitions",
   });
+  
+  React.useEffect(() => {
+    if (season) {
+        form.reset({
+            name: season.name,
+            status: season.status,
+            competitions: season.competitions || [],
+        });
+    }
+  }, [season, form]);
 
   async function onSubmit(values: z.infer<typeof seasonFormSchema>) {
     if (!user) return;
-    const result = await createSeason(values, user.uid);
+    const result = season 
+        ? await updateSeason(season.id, values, user.uid)
+        : await createSeason(values, user.uid);
+
     if (result.success) {
-      toast({ title: "Temporada Creada", description: "La temporada ha sido creada con éxito." });
+      toast({ 
+          title: season ? "Temporada Actualizada" : "Temporada Creada",
+          description: `La temporada ha sido ${season ? 'actualizada' : 'creada'} con éxito.` 
+        });
       onFormSubmit();
     } else {
       toast({ variant: "destructive", title: "Error", description: result.error });
@@ -183,7 +200,7 @@ export function SeasonForm({ allTeams, allCategories, onFormSubmit }: SeasonForm
 
         <Button type="submit" disabled={form.formState.isSubmitting}>
           {form.formState.isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          Crear Temporada
+          {season ? 'Guardar Cambios' : 'Crear Temporada'}
         </Button>
       </form>
     </Form>
