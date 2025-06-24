@@ -64,12 +64,15 @@ export default function UserManagementPage() {
   };
   
   useEffect(() => {
+    if (authLoading) {
+      return; // Espera a que la autenticación se resuelva
+    }
+    if (!user) {
+      router.replace('/login?redirect=/admin/user-management');
+      return;
+    }
+
     const checkPermissionsAndFetchData = async () => {
-      if (!user) {
-        router.replace('/login?redirect=/admin/user-management');
-        return;
-      }
-      
       setIsVerifyingAdmin(true);
       setLoadingData(true);
       setError(null);
@@ -92,10 +95,7 @@ export default function UserManagementPage() {
         setLoadingData(false);
       }
     };
-
-    if (!authLoading) {
-      checkPermissionsAndFetchData();
-    }
+    checkPermissionsAndFetchData();
   }, [user, authLoading, router]);
 
 
