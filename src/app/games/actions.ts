@@ -26,8 +26,10 @@ export async function createGame(formData: GameFormData, userId: string): Promis
         
         const newGameData = {
             homeTeamId: formData.homeTeamId,
-            awayTeamId: formData.awayTeamId,
+            homeTeamClubId: homeTeamData.clubId,
             homeTeamName: homeTeamData.name,
+            awayTeamId: formData.awayTeamId,
+            awayTeamClubId: awayTeamData.clubId,
             awayTeamName: awayTeamData.name,
             date: admin.firestore.Timestamp.fromDate(gameDateTime),
             location: formData.location,
@@ -50,33 +52,59 @@ export async function createGame(formData: GameFormData, userId: string): Promis
     }
 }
 
-// Action to get games for a specific team
-export async function getGamesByTeam(teamId: string): Promise<Game[]> {
+export async function getAllGames(): Promise<Game[]> {
     if (!adminDb) return [];
     try {
         const gamesRef = adminDb.collection('games');
-        const homeGamesQuery = gamesRef.where('homeTeamId', '==', teamId).get();
-        const awayGamesQuery = gamesRef.where('awayTeamId', '==', teamId).get();
-
-        const [homeGamesSnap, awayGamesSnap] = await Promise.all([homeGamesQuery, awayGamesQuery]);
-        
-        const games: Game[] = [];
-        homeGamesSnap.forEach(doc => games.push({ id: doc.id, ...doc.data(), date: doc.data().date.toDate() } as Game));
-        awayGamesSnap.forEach(doc => {
-            // Avoid duplicates if a team plays against itself
-            if (!games.some(g => g.id === doc.id)) {
-                 games.push({ id: doc.id, ...doc.data(), date: doc.data().date.toDate() } as Game)
-            }
+        const snapshot = await gamesRef.orderBy('date', 'asc').get();
+        return snapshot.docs.map(doc => {
+            const data = doc.data();
+            return {
+                id: doc.id,
+                ...data,
+                date: data.date.toDate(),
+            } as Game;
         });
-
-        games.sort((a, b) => b.date.getTime() - a.date.getTime());
-
-        return games;
     } catch (error: any) {
-        console.error("Error fetching games by team:", error);
+        console.error("Error fetching all games:", error);
         return [];
     }
 }
+
+export async function getGamesByClub(clubId: string): Promise<Game[]> {
+    if (!adminDb || !clubId) return [];
+    try {
+        const gamesRef = adminDb.collection('games');
+        const homeGamesQuery = gamesRef.where('homeTeamClubId', '==', clubId).get();
+        const awayGamesQuery = gamesRef.where('awayTeamClubId', '==', clubId).get();
+
+        const [homeGamesSnap, awayGamesSnap] = await Promise.all([homeGamesQuery, awayGamesQuery]);
+        
+        const gamesMap = new Map<string, Game>();
+        const processSnapshot = (snap: admin.firestore.QuerySnapshot) => {
+            snap.forEach(doc => {
+                const gameData = doc.data();
+                gamesMap.set(doc.id, {
+                    id: doc.id,
+                    ...gameData,
+                    date: gameData.date.toDate(),
+                } as Game);
+            });
+        };
+
+        processSnapshot(homeGamesSnap);
+        processSnapshot(awayGamesSnap);
+
+        const games = Array.from(gamesMap.values());
+        games.sort((a, b) => a.date.getTime() - b.date.getTime());
+
+        return games;
+    } catch (error: any) {
+        console.error("Error fetching games by club:", error);
+        return [];
+    }
+}
+
 
 export async function getGamesByCoach(userId: string): Promise<Game[]> {
     if (!adminDb) return [];

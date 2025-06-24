@@ -40,26 +40,28 @@ export default function NewGamePage() {
       setLoadingData(true);
       setError(null);
       try {
-        const [profile, fetchedCoachTeams, fetchedAllTeams, formats, categories, fetchedSeasons] = await Promise.all([
-          getUserProfileById(user.uid),
-          getTeamsByCoach(user.uid),
-          getAllTeams(),
-          getGameFormats(),
-          getCompetitionCategories(),
-          getSeasons()
-        ]);
-        
-        if (!profile || (profile.profileTypeId !== 'coach' && profile.profileTypeId !== 'super_admin' && profile.profileTypeId !== 'coordinator')) {
-            setError("Acceso Denegado. Debes ser entrenador, coordinador o administrador para programar partidos.");
+        const profile = await getUserProfileById(user.uid);
+        setUserProfile(profile);
+
+        if (!profile || !['coach', 'super_admin', 'coordinator', 'club_admin'].includes(profile.profileTypeId)) {
+            setError("Acceso Denegado. Debes tener un rol de entrenador, coordinador o administrador para programar partidos.");
+            setLoadingData(false);
             return;
         }
 
-        setUserProfile(profile);
-        setCoachTeams(fetchedCoachTeams);
+        const [fetchedAllTeams, formats, categories, fetchedSeasons, fetchedCoachTeams] = await Promise.all([
+          getAllTeams(),
+          getGameFormats(),
+          getCompetitionCategories(),
+          getSeasons(),
+          profile.profileTypeId === 'coach' ? getTeamsByCoach(user.uid) : Promise.resolve([]),
+        ]);
+
         setAllTeams(fetchedAllTeams);
         setGameFormats(formats);
         setCompetitionCategories(categories);
-        setSeasons(fetchedSeasons.filter(s => s.status === 'active')); // Only allow scheduling for active seasons
+        setSeasons(fetchedSeasons.filter(s => s.status === 'active'));
+        setCoachTeams(fetchedCoachTeams);
 
       } catch (err: any) {
         setError("Error al cargar los datos necesarios para programar un partido.");
@@ -108,6 +110,7 @@ export default function NewGamePage() {
         </CardHeader>
         <CardContent>
           <GameForm 
+            userProfile={userProfile}
             coachTeams={coachTeams}
             allTeams={allTeams}
             gameFormats={gameFormats}

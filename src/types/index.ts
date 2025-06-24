@@ -182,8 +182,10 @@ export interface Season {
 export interface Game {
     id: string;
     homeTeamId: string;
-    awayTeamId: string;
+    homeTeamClubId: string;
     homeTeamName: string;
+    awayTeamId: string;
+    awayTeamClubId: string;
     awayTeamName: string;
     date: Date;
     location: string;

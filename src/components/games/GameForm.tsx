@@ -7,13 +7,13 @@ import { Button } from "@/components/ui/button";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import type { GameFormData, Team, GameFormat, CompetitionCategory, Season } from "@/types";
+import type { GameFormData, Team, GameFormat, CompetitionCategory, Season, UserFirestoreProfile } from "@/types";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/hooks/use-toast";
 import { createGame } from "@/app/games/actions";
 import { useAuth } from "@/hooks/useAuth";
 import { Loader2 } from "lucide-react";
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useMemo, useEffect } from 'react';
 
 const gameFormSchema = z.object({
   seasonId: z.string().min(1, "Debes seleccionar una temporada."),
@@ -31,6 +31,7 @@ const gameFormSchema = z.object({
 
 
 interface GameFormProps {
+  userProfile: UserFirestoreProfile | null;
   coachTeams: Team[];
   allTeams: Team[];
   gameFormats: GameFormat[];
@@ -38,7 +39,7 @@ interface GameFormProps {
   seasons: Season[];
 }
 
-export function GameForm({ coachTeams, allTeams, gameFormats, competitionCategories, seasons }: GameFormProps) {
+export function GameForm({ userProfile, coachTeams, allTeams, gameFormats, competitionCategories, seasons }: GameFormProps) {
   const router = useRouter();
   const { toast } = useToast();
   const { user } = useAuth();
@@ -79,8 +80,18 @@ export function GameForm({ coachTeams, allTeams, gameFormats, competitionCategor
   }, [selectedSeason, selectedCompetitionId, allTeams]);
 
   const homeTeamOptions = useMemo(() => {
+    if (!userProfile) return [];
+
+    if (['super_admin', 'club_admin', 'coordinator'].includes(userProfile.profileTypeId)) {
+      return eligibleTeams;
+    }
+
+    if (userProfile.profileTypeId === 'coach') {
       return eligibleTeams.filter(et => coachTeams.some(ct => ct.id === et.id));
-  }, [eligibleTeams, coachTeams]);
+    }
+    
+    return [];
+  }, [eligibleTeams, coachTeams, userProfile]);
 
   const awayTeamOptions = useMemo(() => {
       return eligibleTeams.filter(et => et.id !== selectedHomeTeamId);
@@ -164,7 +175,7 @@ export function GameForm({ coachTeams, allTeams, gameFormats, competitionCategor
                   field.onChange(value);
                   setValue('homeTeamId', '');
                   setValue('awayTeamId', '');
-              }} value={field.value} disabled={!selectedSeasonId || availableCompetitions.length === 0}>
+              }} value={field.value || ""} disabled={!selectedSeasonId || availableCompetitions.length === 0}>
                 <FormControl>
                   <SelectTrigger>
                     <SelectValue placeholder={!selectedSeasonId ? "Primero selecciona una temporada" : "Selecciona una competición"} />
@@ -186,11 +197,11 @@ export function GameForm({ coachTeams, allTeams, gameFormats, competitionCategor
           name="homeTeamId"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>3. Selecciona el Equipo Local (Tu Equipo)</FormLabel>
+              <FormLabel>3. Selecciona el Equipo Local</FormLabel>
               <Select onValueChange={field.onChange} value={field.value} disabled={!selectedCompetitionId || homeTeamOptions.length === 0}>
                 <FormControl>
                   <SelectTrigger>
-                    <SelectValue placeholder={!selectedCompetitionId ? "Primero selecciona una competición" : "Selecciona tu equipo"} />
+                    <SelectValue placeholder={!selectedCompetitionId ? "Primero selecciona competición" : "Selecciona el equipo local"} />
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
@@ -199,7 +210,7 @@ export function GameForm({ coachTeams, allTeams, gameFormats, competitionCategor
                   ))}
                 </SelectContent>
               </Select>
-              {homeTeamOptions.length === 0 && selectedCompetitionId && <p className="text-sm text-muted-foreground mt-1">No entrenas a ningún equipo registrado en esta competición.</p>}
+              {userProfile?.profileTypeId === 'coach' && homeTeamOptions.length === 0 && selectedCompetitionId && <p className="text-sm text-muted-foreground mt-1">No entrenas a ningún equipo registrado en esta competición.</p>}
               <FormMessage />
             </FormItem>
           )}

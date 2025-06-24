@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'next/navigation';
-import { getGamesByCoach } from '@/app/games/actions';
+import { getGamesByCoach, getAllGames, getGamesByClub } from '@/app/games/actions';
 import { getUserProfileById } from '@/app/users/actions';
 import type { Game, UserFirestoreProfile } from '@/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -34,19 +34,26 @@ export default function GamesPage() {
       setLoading(true);
       setError(null);
       try {
-        const [profile, fetchedGames] = await Promise.all([
-          getUserProfileById(user.uid),
-          getGamesByCoach(user.uid)
-        ]);
+        const profile = await getUserProfileById(user.uid);
+        setUserProfile(profile);
 
-        if (!profile || (profile.profileTypeId !== 'coach' && profile.profileTypeId !== 'coordinator' && profile.profileTypeId !== 'super_admin')) {
-           setError("Acceso Denegado. Debes ser entrenador, coordinador o administrador para gestionar partidos.");
+        if (!profile || !['coach', 'coordinator', 'club_admin', 'super_admin'].includes(profile.profileTypeId)) {
+           setError("Acceso Denegado. No tienes permisos para ver esta página.");
            setLoading(false);
            return;
         }
-
-        setUserProfile(profile);
+        
+        let fetchedGames: Game[] = [];
+        if (profile.profileTypeId === 'super_admin') {
+            fetchedGames = await getAllGames();
+        } else if (profile.profileTypeId === 'coordinator' || profile.profileTypeId === 'club_admin') {
+            fetchedGames = await getGamesByClub(profile.clubId);
+        } else if (profile.profileTypeId === 'coach') {
+            fetchedGames = await getGamesByCoach(user.uid);
+        }
+        
         setGames(fetchedGames);
+
       } catch (err: any) {
         setError("Error al cargar los datos de los partidos.");
       } finally {
@@ -100,7 +107,7 @@ export default function GamesPage() {
              <div className="text-center py-10 border-2 border-dashed rounded-lg">
                 <Shield className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
                 <h2 className="text-xl font-semibold">No se Encontraron Partidos</h2>
-                <p className="text-muted-foreground">Aún no has programado ningún partido.</p>
+                <p className="text-muted-foreground">No hay partidos programados que coincidan con tu rol y club.</p>
             </div>
           ) : (
              <Table>
