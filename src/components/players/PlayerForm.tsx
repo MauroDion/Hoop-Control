@@ -21,8 +21,8 @@ import { Loader2 } from "lucide-react";
 import React from 'react';
 
 const playerFormSchema = z.object({
-  firstName: z.string().min(1, "First name is required."),
-  lastName: z.string().min(1, "Last name is required."),
+  firstName: z.string().min(1, "El nombre es obligatorio."),
+  lastName: z.string().min(1, "El apellido es obligatorio."),
   jerseyNumber: z.coerce.number().optional().nullable(),
   position: z.string().optional().nullable(),
 });
@@ -59,7 +59,7 @@ export function PlayerForm({ teamId, clubId, onFormSubmit, player }: PlayerFormP
 
   async function onSubmit(values: z.infer<typeof playerFormSchema>) {
     if (authLoading || !user) {
-      toast({ variant: "destructive", title: "Authentication Error", description: "You must be logged in." });
+      toast({ variant: "destructive", title: "Error de autenticación", description: "Debes haber iniciado sesión." });
       return;
     }
 
@@ -69,16 +69,16 @@ export function PlayerForm({ teamId, clubId, onFormSubmit, player }: PlayerFormP
 
     if (result.success) {
       toast({
-        title: player ? "Player Updated" : "Player Added",
-        description: `Player "${values.firstName} ${values.lastName}" has been successfully ${player ? 'updated' : 'added'}.`,
+        title: player ? "Jugador Actualizado" : "Jugador Añadido",
+        description: `El jugador "${values.firstName} ${values.lastName}" ha sido ${player ? 'actualizado' : 'añadido'} correctamente.`,
       });
       if (!player) form.reset();
       onFormSubmit();
     } else {
       toast({
         variant: "destructive",
-        title: player ? "Update Failed" : "Failed to Add Player",
-        description: result.error || "An unexpected error occurred.",
+        title: player ? "Error al actualizar" : "Error al añadir jugador",
+        description: result.error || "Ocurrió un error inesperado.",
       });
     }
   }
@@ -92,9 +92,9 @@ export function PlayerForm({ teamId, clubId, onFormSubmit, player }: PlayerFormP
             name="firstName"
             render={({ field }) => (
                 <FormItem>
-                <FormLabel>First Name</FormLabel>
+                <FormLabel>Nombre</FormLabel>
                 <FormControl>
-                    <Input placeholder="e.g., Lionel" {...field} />
+                    <Input placeholder="Ej: Lionel" {...field} />
                 </FormControl>
                 <FormMessage />
                 </FormItem>
@@ -105,9 +105,9 @@ export function PlayerForm({ teamId, clubId, onFormSubmit, player }: PlayerFormP
             name="lastName"
             render={({ field }) => (
                 <FormItem>
-                <FormLabel>Last Name</FormLabel>
+                <FormLabel>Apellido</FormLabel>
                 <FormControl>
-                    <Input placeholder="e.g., Messi" {...field} />
+                    <Input placeholder="Ej: Messi" {...field} />
                 </FormControl>
                 <FormMessage />
                 </FormItem>
@@ -120,9 +120,9 @@ export function PlayerForm({ teamId, clubId, onFormSubmit, player }: PlayerFormP
             name="jerseyNumber"
             render={({ field }) => (
                 <FormItem>
-                <FormLabel>Jersey Number (Optional)</FormLabel>
+                <FormLabel>Dorsal (Opcional)</FormLabel>
                 <FormControl>
-                    <Input type="number" placeholder="e.g., 10" {...field} onChange={e => field.onChange(e.target.value === '' ? null : e.target.value)} value={field.value ?? ''}/>
+                    <Input type="number" placeholder="Ej: 10" {...field} onChange={e => field.onChange(e.target.value === '' ? null : e.target.value)} value={field.value ?? ''}/>
                 </FormControl>
                 <FormMessage />
                 </FormItem>
@@ -133,9 +133,9 @@ export function PlayerForm({ teamId, clubId, onFormSubmit, player }: PlayerFormP
             name="position"
             render={({ field }) => (
                 <FormItem>
-                <FormLabel>Position (Optional)</FormLabel>
+                <FormLabel>Posición (Opcional)</FormLabel>
                 <FormControl>
-                    <Input placeholder="e.g., Forward" {...field} value={field.value ?? ''} />
+                    <Input placeholder="Ej: Delantero" {...field} value={field.value ?? ''} />
                 </FormControl>
                 <FormMessage />
                 </FormItem>
@@ -145,7 +145,7 @@ export function PlayerForm({ teamId, clubId, onFormSubmit, player }: PlayerFormP
         
         <Button type="submit" className="w-full sm:w-auto" disabled={form.formState.isSubmitting || authLoading}>
           {form.formState.isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-          {player ? "Save Changes" : "Add Player"}
+          {player ? "Guardar Cambios" : "Añadir Jugador"}
         </Button>
       </form>
     </Form>

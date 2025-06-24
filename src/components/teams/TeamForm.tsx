@@ -26,8 +26,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "../ui/separator";
 
 const teamFormSchema = z.object({
-  name: z.string().min(2, "Team name must be at least 2 characters long.").max(100, "Team name must be 100 characters or less."),
-  competitionCategoryId: z.string().min(1, "Competition Category is required."),
+  name: z.string().min(2, "El nombre del equipo debe tener al menos 2 caracteres.").max(100, "El nombre del equipo debe tener 100 caracteres o menos."),
+  competitionCategoryId: z.string().min(1, "La categoría de competición es obligatoria."),
   gameFormatId: z.string().optional().nullable(),
   coachIds: z.array(z.string()).optional().default([]),
   coordinatorIds: z.array(z.string()).optional().default([]),
@@ -87,7 +87,7 @@ export function TeamForm({ clubId, gameFormats, competitionCategories, coaches, 
 
   async function onSubmit(values: z.infer<typeof teamFormSchema>) {
     if (authLoading || !user) {
-      toast({ variant: "destructive", title: "Authentication Error", description: "You must be logged in." });
+      toast({ variant: "destructive", title: "Error de autenticación", description: "Debes haber iniciado sesión." });
       return;
     }
 
@@ -97,8 +97,8 @@ export function TeamForm({ clubId, gameFormats, competitionCategories, coaches, 
       
     if (result.success) {
       toast({
-        title: team ? "Team Updated" : "Team Created",
-        description: `Team "${values.name}" has been successfully ${team ? 'updated' : 'created'}.`,
+        title: team ? "Equipo Actualizado" : "Equipo Creado",
+        description: `El equipo "${values.name}" ha sido ${team ? 'actualizado' : 'creado'} correctamente.`,
       });
       if (!team) form.reset();
       if (onFormSubmit) onFormSubmit();
@@ -106,8 +106,8 @@ export function TeamForm({ clubId, gameFormats, competitionCategories, coaches, 
     } else {
       toast({
         variant: "destructive",
-        title: team ? "Update Failed" : "Creation Failed",
-        description: result.error || "An unexpected error occurred.",
+        title: team ? "Error al actualizar" : "Error en la creación",
+        description: result.error || "Ocurrió un error inesperado.",
       });
     }
   }
@@ -130,9 +130,9 @@ export function TeamForm({ clubId, gameFormats, competitionCategories, coaches, 
           name="name"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Team Name</FormLabel>
+              <FormLabel>Nombre del Equipo</FormLabel>
               <FormControl>
-                <Input placeholder="Enter team name (e.g., U12 Eagles)" {...field} />
+                <Input placeholder="Introduce el nombre del equipo (ej: U12 Águilas)" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -144,7 +144,7 @@ export function TeamForm({ clubId, gameFormats, competitionCategories, coaches, 
           name="competitionCategoryId"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Competition Category</FormLabel>
+              <FormLabel>Categoría de Competición</FormLabel>
               <Select 
                 onValueChange={field.onChange} 
                 value={field.value}
@@ -152,7 +152,7 @@ export function TeamForm({ clubId, gameFormats, competitionCategories, coaches, 
               >
                 <FormControl>
                   <SelectTrigger>
-                    <SelectValue placeholder={competitionCategories.length === 0 ? "No categories available" : "Select a category"} />
+                    <SelectValue placeholder={competitionCategories.length === 0 ? "No hay categorías disponibles" : "Selecciona una categoría"} />
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
@@ -167,15 +167,15 @@ export function TeamForm({ clubId, gameFormats, competitionCategories, coaches, 
         />
         
         <FormItem>
-          <FormLabel>Game Format</FormLabel>
+          <FormLabel>Formato de Partido</FormLabel>
           <FormControl>
               <Input 
-                value={selectedGameFormatName || "Automatically selected based on category"} 
+                value={selectedGameFormatName || "Se selecciona automáticamente según la categoría"} 
                 disabled 
               />
           </FormControl>
            <FormDescription>
-            The game format is determined by the selected competition category.
+            El formato del partido lo determina la categoría de la competición.
           </FormDescription>
           <FormMessage />
         </FormItem>
@@ -188,9 +188,9 @@ export function TeamForm({ clubId, gameFormats, competitionCategories, coaches, 
           render={() => (
             <FormItem>
               <div className="mb-4">
-                <FormLabel className="text-base">Assign Coaches</FormLabel>
+                <FormLabel className="text-base">Asignar Entrenadores</FormLabel>
                 <FormDescription>
-                  Select from the approved coaches for this club.
+                  Selecciona entre los entrenadores aprobados para este club.
                 </FormDescription>
               </div>
               <div className="space-y-2">
@@ -226,7 +226,7 @@ export function TeamForm({ clubId, gameFormats, competitionCategories, coaches, 
                       )
                     }}
                   />
-                )) : <p className="text-sm text-muted-foreground italic">No coaches found for this club.</p>}
+                )) : <p className="text-sm text-muted-foreground italic">No se encontraron entrenadores para este club.</p>}
               </div>
               <FormMessage />
             </FormItem>
@@ -241,9 +241,9 @@ export function TeamForm({ clubId, gameFormats, competitionCategories, coaches, 
           render={() => (
             <FormItem>
               <div className="mb-4">
-                <FormLabel className="text-base">Assign Coordinators</FormLabel>
+                <FormLabel className="text-base">Asignar Coordinadores</FormLabel>
                 <FormDescription>
-                  Select from the approved coordinators for this club.
+                  Selecciona entre los coordinadores aprobados para este club.
                 </FormDescription>
               </div>
               <div className="space-y-2">
@@ -279,7 +279,7 @@ export function TeamForm({ clubId, gameFormats, competitionCategories, coaches, 
                       )
                     }}
                   />
-                )) : <p className="text-sm text-muted-foreground italic">No coordinators found for this club.</p>}
+                )) : <p className="text-sm text-muted-foreground italic">No se encontraron coordinadores para este club.</p>}
               </div>
               <FormMessage />
             </FormItem>
@@ -288,7 +288,7 @@ export function TeamForm({ clubId, gameFormats, competitionCategories, coaches, 
 
         <Button type="submit" className="w-full sm:w-auto" disabled={form.formState.isSubmitting || authLoading}>
           {form.formState.isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-          {form.formState.isSubmitting ? (team ? "Saving..." : "Creating...") : (team ? "Save Changes" : "Create Team")}
+          {form.formState.isSubmitting ? (team ? "Guardando..." : "Creando...") : (team ? "Guardar Cambios" : "Crear Equipo")}
         </Button>
       </form>
     </Form>
