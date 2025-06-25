@@ -20,8 +20,7 @@ import {
     Settings as SettingsIcon,
     Basketball,
     LogOut,
-    UserCircle,
-    Settings
+    UserCircle
 } from 'lucide-react';
 import { useEffect, useState } from 'react'; 
 import { getUserProfileById } from '@/app/users/actions';
@@ -184,7 +183,7 @@ export default function Header() {
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem disabled className="flex items-center cursor-not-allowed">
-                    <Settings className="mr-2 h-4 w-4" />
+                    <SettingsIcon className="mr-2 h-4 w-4" />
                     Configuración
                     <span className="ml-auto text-xs text-muted-foreground">(Pronto)</span>
                   </DropdownMenuItem>
