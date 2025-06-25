@@ -22,6 +22,10 @@ const LogoUploader = ({ title, currentLogo, onSave }: { title: string, currentLo
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const [isSaving, setIsSaving] = useState(false);
 
+    useEffect(() => {
+        setLogoPreview(currentLogo);
+    }, [currentLogo]);
+
     const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
         if (file) {
