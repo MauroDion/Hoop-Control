@@ -51,6 +51,7 @@ export default function AnalysisPage() {
         }
         
         const completedGames = fetchedGames.filter(game => game.status === 'completed');
+        completedGames.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
         setGames(completedGames);
 
       } catch (err: any) {

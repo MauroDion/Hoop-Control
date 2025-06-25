@@ -35,8 +35,8 @@ export default function GamesPage() {
       try {
         const profile = await getUserProfileById(user.uid);
 
-        if (!profile || !['coach', 'coordinator', 'club_admin', 'super_admin'].includes(profile.profileTypeId)) {
-           setError("Acceso Denegado. No tienes permisos para ver esta página.");
+        if (!profile) {
+           setError("No se pudo cargar el perfil de usuario.");
            setLoading(false);
            return;
         }
@@ -51,6 +51,7 @@ export default function GamesPage() {
         }
         
         const activeGames = fetchedGames.filter(game => game.status === 'scheduled' || game.status === 'inprogress');
+        activeGames.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
         setGames(activeGames);
 
       } catch (err: any) {
