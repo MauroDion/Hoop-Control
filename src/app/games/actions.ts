@@ -1,3 +1,4 @@
+
 'use server';
 import { adminDb } from '@/lib/firebase/admin';
 import admin from 'firebase-admin';
@@ -325,3 +326,5 @@ export async function releaseScoringRole(gameId: string, role: StatCategory, use
     return { success: false, error: error.message };
   }
 }
+
+    

@@ -1,3 +1,4 @@
+
 "use client";
 
 import { GameForm } from "@/components/games/GameForm";
@@ -56,12 +57,13 @@ export default function NewGamePage() {
           getSeasons(),
           profile.profileTypeId === 'coach' ? getTeamsByCoach(user.uid) : Promise.resolve([]),
         ]);
-        
+
         const sortedTeams = fetchedAllTeams.sort((a,b) => a.name.localeCompare(b.name));
         setAllTeams(sortedTeams);
         setGameFormats(formats);
         setCompetitionCategories(categories);
-        setSeasons(fetchedSeasons.filter(s => s.status === 'active'));
+        const sortedSeasons = fetchedSeasons.sort((a, b) => b.name.localeCompare(a.name));
+        setSeasons(sortedSeasons.filter(s => s.status === 'active'));
         setCoachTeams(fetchedCoachTeams);
 
       } catch (err: any) {
@@ -123,3 +125,5 @@ export default function NewGamePage() {
     </div>
   );
 }
+
+    

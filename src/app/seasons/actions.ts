@@ -1,3 +1,4 @@
+
 'use server';
 import { adminDb } from '@/lib/firebase/admin';
 import type { Season, SeasonFormData } from '@/types';
@@ -8,7 +9,7 @@ export async function getSeasons(): Promise<Season[]> {
     if (!adminDb) return [];
     try {
         const seasonsRef = adminDb.collection('seasons');
-        const snapshot = await seasonsRef.orderBy('name', 'desc').get();
+        const snapshot = await seasonsRef.get();
         return snapshot.docs.map(doc => {
             const data = doc.data();
             return {
@@ -92,3 +93,5 @@ export async function updateSeason(
         return { success: false, error: error.message };
     }
 }
+
+    
