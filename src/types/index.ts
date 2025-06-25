@@ -6,9 +6,9 @@ export interface Task {
   description?: string;
   status: 'todo' | 'inprogress' | 'done';
   priority: 'low' | 'medium' | 'high';
-  dueDate?: string | null;
-  createdAt: string;
-  updatedAt: string;
+  dueDate?: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
   userId: string;
 }
 
@@ -48,8 +48,8 @@ export interface UserFirestoreProfile {
   profileTypeId: ProfileType;
   clubId: string;
   status: UserProfileStatus;
-  createdAt: string;
-  updatedAt: string;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 export interface UserProfileAdminView extends UserFirestoreProfile {
@@ -68,7 +68,7 @@ export interface Club {
   logoUrl?: string;
   approved?: boolean;
   createdBy?: string;
-  createdAt?: string;
+  createdAt?: Date;
 }
 
 export interface ClubFormData {
@@ -98,8 +98,8 @@ export interface Team {
   playerIds?: string[];
   logoUrl?: string | null;
   city?: string | null;
-  createdAt: string;
-  updatedAt: string;
+  createdAt: Date;
+  updatedAt: Date;
   createdByUserId: string;
 }
 
@@ -119,7 +119,7 @@ export interface GameFormat {
   periodDurationMinutes?: number;
   defaultTotalTimeouts?: number;
   minPeriodsPlayerMustPlay?: number;
-  createdAt?: string;
+  createdAt?: Date;
   createdBy?: string;
 }
 
@@ -138,8 +138,8 @@ export interface CompetitionCategory {
   description?: string;
   level?: number;
   gameFormatId?: string | null;
-  createdAt?: string;
-  updatedAt?: string;
+  createdAt?: Date;
+  updatedAt?: Date;
   createdBy?: string;
 }
 
@@ -159,7 +159,7 @@ export interface Player {
   position?: string;
   teamId?: string;
   createdBy?: string;
-  createdAt?: string;
+  createdAt?: Date;
 }
 
 export interface PlayerFormData {
@@ -177,9 +177,9 @@ export interface Season {
         competitionCategoryId: string;
         teamIds: string[];
     }[];
-    createdAt?: string;
+    createdAt?: Date;
     createdBy?: string;
-    updatedAt?: string;
+    updatedAt?: Date;
     updatedBy?: string;
 }
 
@@ -276,4 +276,8 @@ export interface GameEvent {
     period: number;
     gameTimeSeconds: number;
     createdAt: string; // ISO string
+}
+
+export interface BrandingSettings {
+  logoDataUrl?: string;
 }

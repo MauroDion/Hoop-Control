@@ -141,6 +141,12 @@ export default function Header() {
                         <span>Poblar Datos (Dev)</span>
                       </Link>
                     </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                      <Link href="/admin/settings" className="flex items-center w-full cursor-pointer">
+                        <SettingsIcon className="mr-2 h-4 w-4" />
+                        <span>Ajustes de Marca</span>
+                      </Link>
+                    </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
               )}
@@ -175,11 +181,6 @@ export default function Header() {
                       <UserCircle className="mr-2 h-4 w-4" />
                       Perfil
                     </Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem disabled className="flex items-center cursor-not-allowed">
-                    <SettingsIcon className="mr-2 h-4 w-4" />
-                    Configuración
-                    <span className="ml-auto text-xs text-muted-foreground">(Pronto)</span>
                   </DropdownMenuItem>
                 </DropdownMenuGroup>
                 <DropdownMenuSeparator />
