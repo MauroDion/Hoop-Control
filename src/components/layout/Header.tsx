@@ -1,4 +1,3 @@
-
 "use client";
 
 import Link from 'next/link';
@@ -140,12 +139,6 @@ export default function Header() {
                       <Link href="/admin/seeder" className="flex items-center w-full cursor-pointer">
                         <Database className="mr-2 h-4 w-4" />
                         <span>Poblar Datos (Dev)</span>
-                      </Link>
-                    </DropdownMenuItem>
-                     <DropdownMenuItem asChild>
-                      <Link href="/admin/settings" className="flex items-center w-full cursor-pointer">
-                        <SettingsIcon className="mr-2 h-4 w-4" />
-                        <span>Ajustes</span>
                       </Link>
                     </DropdownMenuItem>
                   </DropdownMenuContent>

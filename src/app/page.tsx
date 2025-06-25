@@ -4,7 +4,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { Dribbble } from 'lucide-react';
 
-export default async function HomePage() {
+export default function HomePage() {
 
   return (
     <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)] text-center p-6 bg-gradient-to-br from-background to-secondary/30 rounded-xl shadow-2xl">
