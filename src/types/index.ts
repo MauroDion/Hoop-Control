@@ -201,7 +201,11 @@ export interface TeamStats {
     threePointMade: number;
     fouls: number;
     timeouts: number;
+    rebounds: number;
+    assists: number;
     steals: number;
+    blocks: number;
+    turnovers: number;
 }
 
 export type StatCategory = 'shots' | 'fouls' | 'timeouts' | 'steals';
@@ -253,4 +257,26 @@ export interface GameFormData {
 
 export interface BrandingSettings {
   logoDataUrl?: string;
+}
+
+export type GameEventAction = 
+  | 'shot_made_1p' | 'shot_miss_1p'
+  | 'shot_made_2p' | 'shot_miss_2p'
+  | 'shot_made_3p' | 'shot_miss_3p'
+  | 'rebound'
+  | 'assist'
+  | 'steal'
+  | 'block'
+  | 'turnover'
+  | 'foul';
+
+export interface GameEvent {
+    id: string;
+    gameId: string;
+    teamId: string;
+    playerId: string;
+    action: GameEventAction;
+    period: number;
+    gameTimeSeconds: number;
+    createdAt: string; // ISO string
 }

@@ -2,10 +2,9 @@
 import { adminDb } from '@/lib/firebase/admin';
 import admin from 'firebase-admin';
 import { revalidatePath } from 'next/cache';
-import type { Game, GameFormData, Team, TeamStats, StatCategory } from '@/types';
+import type { Game, GameFormData, Team, TeamStats, StatCategory, GameEvent, GameEventAction } from '@/types';
 import { getTeamsByCoach as getCoachTeams } from '@/app/teams/actions';
 
-// Action to create a new game
 export async function createGame(formData: GameFormData, userId: string): Promise<{ success: boolean; error?: string; id?: string }> {
     if (!userId) return { success: false, error: "User not authenticated." };
     if (!adminDb) return { success: false, error: "Database not initialized."};
@@ -28,7 +27,7 @@ export async function createGame(formData: GameFormData, userId: string): Promis
             onePointAttempts: 0, onePointMade: 0,
             twoPointAttempts: 0, twoPointMade: 0,
             threePointAttempts: 0, threePointMade: 0,
-            fouls: 0, timeouts: 0, steals: 0,
+            fouls: 0, timeouts: 0, rebounds: 0, assists: 0, steals: 0, blocks: 0, turnovers: 0,
         };
 
         const newGameData = {
@@ -77,7 +76,7 @@ export async function getAllGames(): Promise<Game[]> {
     try {
         const gamesRef = adminDb.collection('games');
         const snapshot = await gamesRef.get();
-        return snapshot.docs.map(doc => {
+        const games = snapshot.docs.map(doc => {
             const data = doc.data();
             return {
                 id: doc.id,
@@ -87,6 +86,7 @@ export async function getAllGames(): Promise<Game[]> {
                 updatedAt: data.updatedAt ? data.updatedAt.toDate().toISOString() : undefined,
             } as Game;
         });
+        return games;
     } catch (error: any) {
         console.error("Error fetching all games: ", error);
         return [];
@@ -104,7 +104,6 @@ export async function getGamesByClub(clubId: string): Promise<Game[]> {
     }
 }
 
-
 export async function getGamesByCoach(userId: string): Promise<Game[]> {
     if (!adminDb) return [];
     try {
@@ -112,32 +111,9 @@ export async function getGamesByCoach(userId: string): Promise<Game[]> {
         if (coachTeams.length === 0) {
             return [];
         }
-
         const teamIds = coachTeams.map(team => team.id);
-        
-        const gamesRef = adminDb.collection('games');
-        const homeGamesQuery = gamesRef.where('homeTeamId', 'in', teamIds).get();
-        const awayGamesQuery = gamesRef.where('awayTeamId', 'in', teamIds).get();
-
-        const [homeGamesSnap, awayGamesSnap] = await Promise.all([homeGamesQuery, awayGamesQuery]);
-
-        const gamesMap = new Map<string, Game>();
-        const processSnapshot = (snap: admin.firestore.QuerySnapshot) => {
-             snap.forEach(doc => {
-                const gameData = doc.data();
-                gamesMap.set(doc.id, {
-                    id: doc.id,
-                    ...gameData,
-                    date: gameData.date.toDate().toISOString(),
-                } as Game);
-            });
-        };
-       
-        processSnapshot(homeGamesSnap);
-        processSnapshot(awayGamesSnap);
-
-        const games = Array.from(gamesMap.values());
-        return games;
+        const allGames = await getAllGames();
+        return allGames.filter(game => teamIds.includes(game.homeTeamId) || teamIds.includes(game.awayTeamId));
     } catch (error: any) {
         console.error("Error fetching games by coach:", error);
         return [];
@@ -150,7 +126,6 @@ export async function getGameById(gameId: string): Promise<Game | null> {
         const gameRef = adminDb.collection('games').doc(gameId);
         const docSnap = await gameRef.get();
         if (!docSnap.exists) {
-            console.warn(`Could not find game with ID: ${gameId}`);
             return null;
         }
         const data = docSnap.data()!;
@@ -158,13 +133,31 @@ export async function getGameById(gameId: string): Promise<Game | null> {
             id: docSnap.id,
             ...data,
             date: data.date.toDate().toISOString(),
-            createdAt: data.createdAt.toDate().toISOString(),
-            updatedAt: data.updatedAt.toDate().toISOString(),
+            createdAt: data.createdAt?.toDate().toISOString(),
+            updatedAt: data.updatedAt?.toDate().toISOString(),
         } as Game;
     } catch (error: any) {
-        console.error(`Error fetching game by ID ${gameId}:`, error);
         return null;
     }
+}
+
+export async function getGameEvents(gameId: string): Promise<GameEvent[]> {
+  if (!adminDb) return [];
+  try {
+    const eventsRef = adminDb.collection('games').doc(gameId).collection('events');
+    const snapshot = await eventsRef.orderBy('createdAt', 'desc').limit(20).get();
+    return snapshot.docs.map(doc => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        ...data,
+        createdAt: data.createdAt.toDate().toISOString(),
+      } as GameEvent;
+    });
+  } catch (error) {
+    console.error("Error fetching game events:", error);
+    return [];
+  }
 }
 
 export async function updateGameRoster(
@@ -216,92 +209,63 @@ export async function updateLiveGameState(
   }
 }
 
-export async function recordShot(
+export async function recordGameEvent(
   gameId: string,
-  team: 'home' | 'away',
-  points: 1 | 2 | 3,
-  type: 'made' | 'miss'
+  event: Omit<GameEvent, 'id' | 'createdAt' | 'gameId'>
 ): Promise<{ success: boolean; error?: string }> {
-  if (!adminDb) return { success: false, error: 'Database not initialized' };
-  const gameRef = adminDb.collection('games').doc(gameId);
-  const updates: { [key: string]: any } = {};
-  const statPrefix = team === 'home' ? 'homeTeamStats' : 'awayTeamStats';
-  const pointField = points === 1 ? 'onePoint' : points === 2 ? 'twoPoint' : 'threePoint';
-  
-  updates[`${statPrefix}.${pointField}Attempts`] = admin.firestore.FieldValue.increment(1);
-
-  if (type === 'made') {
-    updates[`${statPrefix}.${pointField}Made`] = admin.firestore.FieldValue.increment(1);
-    updates[`${team}TeamScore`] = admin.firestore.FieldValue.increment(points);
-  }
-  
-  await gameRef.update(updates);
-  return { success: true };
-}
-
-export async function incrementGameStat(
-  gameId: string,
-  team: 'home' | 'away',
-  stat: 'fouls' | 'timeouts' | 'steals',
-  value: number
-): Promise<{ success: boolean; error?: string }> {
-  if (!adminDb) return { success: false, error: 'Database not initialized' };
-  const gameRef = adminDb.collection('games').doc(gameId);
-  const updates: { [key: string]: any } = {};
-  const statPrefix = team === 'home' ? 'homeTeamStats' : 'awayTeamStats';
-
-  updates[`${statPrefix}.${stat}`] = admin.firestore.FieldValue.increment(value);
-  
-  await gameRef.update(updates);
-  return { success: true };
-}
-
-export async function claimScoringRole(gameId: string, role: StatCategory, userId: string, displayName: string): Promise<{ success: boolean; error?: string }> {
   if (!adminDb) return { success: false, error: 'Database not initialized.' };
 
   const gameRef = adminDb.collection('games').doc(gameId);
+  const eventRef = gameRef.collection('events').doc();
+  const { action, teamId } = event;
+
   try {
     await adminDb.runTransaction(async (transaction) => {
-      const gameDoc = await transaction.get(gameRef);
-      if (!gameDoc.exists) {
-        throw new Error("El partido no existe.");
-      }
-      const gameData = gameDoc.data() as Game;
-      const assignmentPath = `scorerAssignments.${role}`;
+      const updates: { [key: string]: any } = {
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      };
+      const statPrefix = teamId === 'home' ? 'homeTeamStats' : 'awayTeamStats';
+      
+      const pointMapping: { [key: string]: number } = {
+        'shot_made_1p': 1, 'shot_made_2p': 2, 'shot_made_3p': 3,
+      };
 
-      if (gameData.scorerAssignments && gameData.scorerAssignments[role]) {
-        throw new Error(`El rol de '${role}' ya ha sido asignado a ${gameData.scorerAssignments[role]?.displayName}.`);
+      if (pointMapping[action]) {
+        const points = pointMapping[action];
+        const scoreField = teamId === 'home' ? 'homeTeamScore' : 'awayTeamScore';
+        updates[scoreField] = admin.firestore.FieldValue.increment(points);
+      }
+
+      const attemptMapping: { [key: string]: string } = {
+        'shot_made_1p': 'onePointAttempts', 'shot_miss_1p': 'onePointAttempts',
+        'shot_made_2p': 'twoPointAttempts', 'shot_miss_2p': 'twoPointAttempts',
+        'shot_made_3p': 'threePointAttempts', 'shot_miss_3p': 'threePointAttempts',
+      };
+
+      if (attemptMapping[action]) {
+        updates[`${statPrefix}.${attemptMapping[action]}`] = admin.firestore.FieldValue.increment(1);
       }
       
-      transaction.update(gameRef, { [assignmentPath]: { uid: userId, displayName } });
-    });
-    return { success: true };
-  } catch (error: any) {
-    return { success: false, error: error.message };
-  }
-}
-
-export async function releaseScoringRole(gameId: string, role: StatCategory, userId: string): Promise<{ success: boolean; error?: string }> {
-  if (!adminDb) return { success: false, error: 'Database not initialized.' };
-
-  const gameRef = adminDb.collection('games').doc(gameId);
-  try {
-    await adminDb.runTransaction(async (transaction) => {
-      const gameDoc = await transaction.get(gameRef);
-      if (!gameDoc.exists) {
-        throw new Error("El partido no existe.");
+      const madeMapping: { [key: string]: string } = {
+        'shot_made_1p': 'onePointMade', 'shot_made_2p': 'twoPointMade', 'shot_made_3p': 'threePointMade',
+      };
+       if (madeMapping[action]) {
+        updates[`${statPrefix}.${madeMapping[action]}`] = admin.firestore.FieldValue.increment(1);
       }
-      const gameData = gameDoc.data() as Game;
-      const assignmentPath = `scorerAssignments.${role}`;
+
+      const otherStats: GameEventAction[] = ['rebound', 'assist', 'steal', 'block', 'turnover', 'foul'];
+      if(otherStats.includes(action)) {
+          const statField = action === 'foul' ? 'fouls' : `${action}s`;
+          updates[`${statPrefix}.${statField}`] = admin.firestore.FieldValue.increment(1);
+      }
       
-      if (!gameData.scorerAssignments || !gameData.scorerAssignments[role] || gameData.scorerAssignments[role]?.uid !== userId) {
-        throw new Error("No puedes liberar un rol que no te pertenece.");
-      }
-
-      transaction.update(gameRef, { [assignmentPath]: null });
+      transaction.set(eventRef, { ...event, gameId, createdAt: admin.firestore.FieldValue.serverTimestamp() });
+      transaction.update(gameRef, updates);
     });
+
     return { success: true };
   } catch (error: any) {
+    console.error("Error recording game event:", error);
     return { success: false, error: error.message };
   }
 }
