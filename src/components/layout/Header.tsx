@@ -18,6 +18,7 @@ import {
     ListOrdered,
     Database,
     BarChart2,
+    Settings as SettingsIcon,
     Basketball
 } from 'lucide-react';
 import { useEffect, useState } from 'react'; 
@@ -111,6 +112,12 @@ export default function Header() {
                       <Link href="/admin/game-formats" className="flex items-center w-full cursor-pointer">
                         <ListOrdered className="mr-2 h-4 w-4" />
                         <span>Formatos de Partido</span>
+                      </Link>
+                    </DropdownMenuItem>
+                     <DropdownMenuItem asChild>
+                      <Link href="/admin/settings" className="flex items-center w-full cursor-pointer">
+                          <SettingsIcon className="mr-2 h-4 w-4" />
+                          <span>Ajustes</span>
                       </Link>
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
