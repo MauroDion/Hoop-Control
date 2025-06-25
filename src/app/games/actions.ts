@@ -27,7 +27,9 @@ export async function createGame(formData: GameFormData, userId: string): Promis
             onePointAttempts: 0, onePointMade: 0,
             twoPointAttempts: 0, twoPointMade: 0,
             threePointAttempts: 0, threePointMade: 0,
-            fouls: 0, timeouts: 0, rebounds: 0, assists: 0, steals: 0, blocks: 0, turnovers: 0,
+            fouls: 0, timeouts: 0, 
+            reboundsOffensive: 0, reboundsDefensive: 0,
+            assists: 0, steals: 0, blocks: 0, turnovers: 0,
         };
 
         const newGameData = {
@@ -253,9 +255,18 @@ export async function recordGameEvent(
         updates[`${statPrefix}.${madeMapping[action]}`] = admin.firestore.FieldValue.increment(1);
       }
 
-      const otherStats: GameEventAction[] = ['rebound', 'assist', 'steal', 'block', 'turnover', 'foul'];
-      if(otherStats.includes(action)) {
-          const statField = action === 'foul' ? 'fouls' : `${action}s`;
+      const otherStatsMapping: { [key in GameEventAction]?: string } = {
+          'assist': 'assists',
+          'steal': 'steals',
+          'block': 'blocks',
+          'turnover': 'turnovers',
+          'foul': 'fouls',
+          'rebound_offensive': 'reboundsOffensive',
+          'rebound_defensive': 'reboundsDefensive',
+      };
+
+      if (otherStatsMapping[action]) {
+          const statField = otherStatsMapping[action]!;
           updates[`${statPrefix}.${statField}`] = admin.firestore.FieldValue.increment(1);
       }
       

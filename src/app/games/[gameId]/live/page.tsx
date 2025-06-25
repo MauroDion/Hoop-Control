@@ -10,11 +10,11 @@ import { db } from '@/lib/firebase/client';
 import { updateLiveGameState, recordGameEvent } from '@/app/games/actions';
 import { getGameFormatById } from '@/app/game-formats/actions';
 import { getPlayersByTeamId } from '@/app/players/actions';
-import type { Game, GameFormat, Player, GameEvent, GameEventAction, TeamStats } from '@/types';
+import type { Game, GameFormat, Player, GameEvent, GameEventAction } from '@/types';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, AlertTriangle, ChevronLeft, Gamepad2, Play, Flag, Pause, TimerReset, FastForward, Timer as TimerIcon } from 'lucide-react';
+import { Loader2, AlertTriangle, ChevronLeft, Play, Flag, Pause, TimerReset, FastForward, Timer as TimerIcon } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
@@ -44,14 +44,12 @@ export default function LiveGamePage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
-    // Fetch players whenever the game data is updated
     useEffect(() => {
         const fetchPlayers = async () => {
             if (!game) return;
 
             if (game.homeTeamId) {
                 const allHomePlayers = await getPlayersByTeamId(game.homeTeamId);
-                // If roster is defined and not empty, use it. Otherwise, use all players.
                 const homeRoster = (game.homeTeamPlayerIds && game.homeTeamPlayerIds.length > 0)
                     ? allHomePlayers.filter(p => game.homeTeamPlayerIds!.includes(p.id))
                     : allHomePlayers;
@@ -59,7 +57,6 @@ export default function LiveGamePage() {
             }
              if (game.awayTeamId) {
                 const allAwayPlayers = await getPlayersByTeamId(game.awayTeamId);
-                 // If roster is defined and not empty, use it. Otherwise, use all players.
                 const awayRoster = (game.awayTeamPlayerIds && game.awayTeamPlayerIds.length > 0)
                     ? allAwayPlayers.filter(p => game.awayTeamPlayerIds!.includes(p.id))
                     : allAwayPlayers;
@@ -69,7 +66,6 @@ export default function LiveGamePage() {
         fetchPlayers();
     }, [game]);
 
-    // Main useEffect for subscribing to game and event data
     useEffect(() => {
         if (!gameId) {
             setError("ID del partido no encontrado.");
@@ -118,7 +114,6 @@ export default function LiveGamePage() {
         };
     }, [gameId, gameFormat]);
 
-    // Client-side timer logic
     useEffect(() => {
        if (game?.isTimerRunning && displayTime > 0) {
            const timerId = setInterval(() => setDisplayTime(prev => prev > 0 ? prev - 1 : 0), 1000);
@@ -195,35 +190,48 @@ export default function LiveGamePage() {
     if (error) return <AlertTriangle className="h-12 w-12 text-destructive mx-auto my-20" />;
     if (!game) return null;
 
-    const TeamRosterPanel = ({ players, teamType }: { players: Player[], teamType: 'home' | 'away'}) => (
-        <div className="space-y-2">
-            <h3 className="font-bold text-center">{teamType === 'home' ? game.homeTeamName : game.awayTeamName}</h3>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                {players.map(player => (
-                    <Button 
-                        key={player.id} 
-                        variant={selectedPlayer?.id === player.id ? 'default' : 'outline'}
-                        className="h-auto flex flex-col p-2"
-                        onClick={() => setSelectedPlayer({id: player.id, teamId: teamType, name: `${player.firstName} ${player.lastName}`})}
-                    >
-                        <span className="font-bold text-lg">{player.jerseyNumber || 'S/N'}</span>
-                        <span className="text-xs truncate">{player.firstName} {player.lastName}</span>
-                    </Button>
-                ))}
-                 {players.length === 0 && <p className="text-xs text-muted-foreground col-span-full text-center">No hay jugadores en la convocatoria para este equipo.</p>}
-            </div>
-        </div>
-    );
+    const TeamPanel = ({ players, teamType }: { players: Player[], teamType: 'home' | 'away'}) => {
+        const teamName = teamType === 'home' ? game.homeTeamName : game.awayTeamName;
+        const score = teamType === 'home' ? game.homeTeamScore : game.awayTeamScore;
+
+        return (
+            <Card className="shadow-lg">
+                <CardHeader className="text-center">
+                    <CardTitle className="truncate text-xl">{teamName}</CardTitle>
+                    <CardDescription>Equipo {teamType === 'home' ? 'Local' : 'Visitante'}</CardDescription>
+                    <div className="text-6xl font-bold text-primary pt-2">{score ?? 0}</div>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                    <h4 className="font-medium text-center text-sm text-muted-foreground">Seleccionar Jugador</h4>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                        {players.map(player => (
+                            <Button 
+                                key={player.id} 
+                                variant={selectedPlayer?.id === player.id ? 'default' : 'outline'}
+                                className="h-auto flex flex-col p-2"
+                                onClick={() => setSelectedPlayer({id: player.id, teamId: teamType, name: `${player.firstName} ${player.lastName}`})}
+                            >
+                                <span className="font-bold text-lg">{player.jerseyNumber || 'S/N'}</span>
+                                <span className="text-xs truncate w-full">{player.firstName} {player.lastName}</span>
+                            </Button>
+                        ))}
+                        {players.length === 0 && <p className="text-xs text-muted-foreground col-span-full text-center">No hay jugadores en la convocatoria.</p>}
+                    </div>
+                </CardContent>
+            </Card>
+        )
+    }
     
     const renderActionButtons = () => (
          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-            <ActionButton onClick={() => handleRecordAction('shot_made_2p')}>Canasta de 2</ActionButton>
-            <ActionButton onClick={() => handleRecordAction('shot_miss_2p')}>Fallo de 2</ActionButton>
-            <ActionButton onClick={() => handleRecordAction('shot_made_3p')}>Canasta de 3</ActionButton>
-            <ActionButton onClick={() => handleRecordAction('shot_miss_3p')}>Fallo de 3</ActionButton>
-            <ActionButton onClick={() => handleRecordAction('shot_made_1p')}>Tiro Libre Anotado</ActionButton>
-            <ActionButton onClick={() => handleRecordAction('shot_miss_1p')}>Tiro Libre Fallado</ActionButton>
-            <ActionButton onClick={() => handleRecordAction('rebound')}>Rebote</ActionButton>
+            <ActionButton onClick={() => handleRecordAction('shot_made_1p')}>+1</ActionButton>
+            <ActionButton onClick={() => handleRecordAction('shot_miss_1p')}>Casi 1</ActionButton>
+            <ActionButton onClick={() => handleRecordAction('shot_made_2p')}>+2</ActionButton>
+            <ActionButton onClick={() => handleRecordAction('shot_miss_2p')}>Casi 2</ActionButton>
+            <ActionButton onClick={() => handleRecordAction('shot_made_3p')}>+3</ActionButton>
+            <ActionButton onClick={() => handleRecordAction('shot_miss_3p')}>Casi 3</ActionButton>
+            <ActionButton onClick={() => handleRecordAction('rebound_offensive')}>Rebote Ofensivo</ActionButton>
+            <ActionButton onClick={() => handleRecordAction('rebound_defensive')}>Rebote Defensivo</ActionButton>
             <ActionButton onClick={() => handleRecordAction('assist')}>Asistencia</ActionButton>
             <ActionButton onClick={() => handleRecordAction('steal')}>Robo</ActionButton>
             <ActionButton onClick={() => handleRecordAction('block')}>Tapón</ActionButton>
@@ -243,65 +251,64 @@ export default function LiveGamePage() {
             
             <Card>
                 <CardHeader className="text-center pb-2">
-                    <CardTitle className="text-xl md:text-2xl">{game.homeTeamName} vs {game.awayTeamName}</CardTitle>
+                    <CardTitle className="flex justify-center items-center gap-4 text-xl md:text-2xl">
+                        <span>{game.homeTeamName}</span>
+                        <span className="text-4xl md:text-6xl font-bold text-primary">{game.homeTeamScore ?? 0}</span>
+                        <span>-</span>
+                        <span className="text-4xl md:text-6xl font-bold text-primary">{game.awayTeamScore ?? 0}</span>
+                        <span>{game.awayTeamName}</span>
+                    </CardTitle>
+                     <CardDescription>
+                        Período {game.currentPeriod || 1} / {gameFormat?.numPeriods || 'N/A'}
+                    </CardDescription>
                 </CardHeader>
-                <CardContent className="flex justify-between items-center px-4">
-                    <span className="text-5xl md:text-7xl font-bold text-primary">{game.homeTeamScore ?? 0}</span>
-                    <div className="text-center">
-                        <p className="font-bold text-lg">Período {game.currentPeriod || 1}</p>
-                        <p className="text-3xl md:text-5xl font-mono tracking-tighter">{formatTime(displayTime)}</p>
+                <CardContent className="flex flex-col items-center gap-4">
+                     <div className="text-6xl font-mono text-center tracking-tighter py-2 px-4 bg-secondary text-secondary-foreground rounded-lg">
+                        {formatTime(displayTime)}
                     </div>
-                    <span className="text-5xl md:text-7xl font-bold text-primary">{game.awayTeamScore ?? 0}</span>
+                     <div className="flex justify-center flex-wrap gap-2">
+                        {game.status === 'scheduled' && (
+                            <Button size="lg" className="w-full md:w-auto bg-green-600 hover:bg-green-700" onClick={() => handleUpdate({ status: 'inprogress', periodTimeRemainingSeconds: (gameFormat?.periodDurationMinutes || 10) * 60 })}>
+                                <Play className="mr-2 h-5 w-5"/> Empezar Partido
+                            </Button>
+                        )}
+                        {game.status === 'inprogress' && (
+                            <>
+                                <Button onClick={handleToggleTimer} size="lg">
+                                    {game.isTimerRunning ? <Pause className="mr-2"/> : <Play className="mr-2"/>}
+                                    {game.isTimerRunning ? 'Pausar' : 'Iniciar'}
+                                </Button>
+                                <Button onClick={handleNextPeriod} disabled={game.isTimerRunning || (game.currentPeriod || 0) >= (gameFormat?.numPeriods || 4)} variant="outline" size="lg">
+                                    <FastForward className="mr-2"/> Siguiente Per.
+                                </Button>
+                                <Button onClick={handleResetTimer} variant="secondary" size="icon" aria-label="Reiniciar cronómetro"><TimerReset/></Button>
+                                <Button size="lg" variant="destructive" className="w-full mt-2 md:mt-0 md:w-auto" onClick={() => handleUpdate({ status: 'completed', isTimerRunning: false })}>
+                                    <Flag className="mr-2 h-5 w-5"/> Finalizar Partido
+                                </Button>
+                            </>
+                        )}
+                        {game.status === 'completed' && <p className="text-center font-bold text-lg text-green-700">Partido Finalizado</p>}
+                    </div>
                 </CardContent>
             </Card>
 
-            <Card>
-                <CardHeader className="text-center">
-                    <CardTitle className="text-2xl">Control del Partido</CardTitle>
-                </CardHeader>
-                <CardContent className="flex flex-col md:flex-row justify-center items-center gap-2">
-                    {game.status === 'scheduled' && (
-                        <Button size="lg" className="w-full md:w-auto bg-green-600 hover:bg-green-700" onClick={() => handleUpdate({ status: 'inprogress', periodTimeRemainingSeconds: (gameFormat?.periodDurationMinutes || 10) * 60 })}>
-                            <Play className="mr-2 h-5 w-5"/> Empezar Partido
-                        </Button>
-                    )}
-                     {game.status === 'inprogress' && (
-                        <>
-                            <Button onClick={handleToggleTimer} size="lg">
-                                {game.isTimerRunning ? <Pause className="mr-2"/> : <Play className="mr-2"/>}
-                                {game.isTimerRunning ? 'Pausar' : 'Iniciar'}
-                            </Button>
-                             <Button onClick={handleNextPeriod} disabled={game.isTimerRunning || (game.currentPeriod || 0) >= (gameFormat?.numPeriods || 4)} variant="outline" size="lg">
-                                <FastForward className="mr-2"/> Siguiente Período
-                            </Button>
-                             <Button onClick={handleResetTimer} variant="secondary" size="icon" aria-label="Reiniciar cronómetro"><TimerReset/></Button>
-                             <Button size="lg" variant="destructive" className="w-full mt-2 md:mt-0 md:w-auto" onClick={() => handleUpdate({ status: 'completed', isTimerRunning: false })}>
-                                <Flag className="mr-2 h-5 w-5"/> Finalizar Partido
-                            </Button>
-                        </>
-                    )}
-                    {game.status === 'completed' && <p className="text-center font-bold text-lg text-green-700">Partido Finalizado</p>}
-                </CardContent>
-            </Card>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+                <TeamRosterPanel players={homePlayers} teamType="home" />
+                
+                <Card className="lg:sticky lg:top-24">
+                     <CardHeader>
+                        <CardTitle className="text-center">Registrar Acción</CardTitle>
+                        <CardDescription className="text-center">
+                            {selectedPlayer ? `Para: ${selectedPlayer.name}` : 'Selecciona un jugador'}
+                        </CardDescription>
+                     </CardHeader>
+                     <CardContent className={cn(!selectedPlayer && 'opacity-50 pointer-events-none')}>
+                        {renderActionButtons()}
+                    </CardContent>
+                </Card>
 
-            <Card>
-                 <CardHeader><CardTitle>Anotación</CardTitle></CardHeader>
-                 <CardContent className="space-y-4">
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                         <TeamRosterPanel teamType="home" players={homePlayers} />
-                         <TeamRosterPanel teamType="away" players={awayPlayers} />
-                    </div>
-                    <Separator />
-                     <div>
-                        <h3 className="text-lg font-semibold text-center mb-2">
-                           {selectedPlayer ? `Registrar acción para: ${selectedPlayer.name}` : 'Selecciona un jugador para registrar una acción'}
-                        </h3>
-                        <div className={cn(!selectedPlayer && 'opacity-50 pointer-events-none')}>
-                            {renderActionButtons()}
-                        </div>
-                    </div>
-                 </CardContent>
-            </Card>
+                <TeamRosterPanel players={awayPlayers} teamType="away" />
+            </div>
 
             <Card>
                  <CardHeader><CardTitle>Registro de Eventos Recientes</CardTitle></CardHeader>

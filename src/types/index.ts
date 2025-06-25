@@ -201,7 +201,8 @@ export interface TeamStats {
     threePointMade: number;
     fouls: number;
     timeouts: number;
-    rebounds: number;
+    reboundsOffensive: number;
+    reboundsDefensive: number;
     assists: number;
     steals: number;
     blocks: number;
@@ -259,7 +260,7 @@ export type GameEventAction =
   | 'shot_made_1p' | 'shot_miss_1p'
   | 'shot_made_2p' | 'shot_miss_2p'
   | 'shot_made_3p' | 'shot_miss_3p'
-  | 'rebound'
+  | 'rebound_offensive' | 'rebound_defensive'
   | 'assist'
   | 'steal'
   | 'block'
