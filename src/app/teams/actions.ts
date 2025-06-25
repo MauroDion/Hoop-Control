@@ -183,7 +183,7 @@ export async function getAllTeams(): Promise<Team[]> {
     if (!adminDb) return [];
     try {
         const teamsRef = adminDb.collection('teams');
-        const querySnapshot = await teamsRef.orderBy('name', 'asc').get();
+        const querySnapshot = await teamsRef.get();
         const teams = querySnapshot.docs.map(doc => {
             const data = doc.data();
             return {
@@ -195,9 +195,7 @@ export async function getAllTeams(): Promise<Team[]> {
         });
         return teams;
     } catch (e: any) {
-        if (e.code === 'failed-precondition') {
-            console.error("Firestore error: Missing index for teams collection on 'name' field.");
-        }
+        console.error("Error fetching all teams:", e);
         return [];
     }
 }

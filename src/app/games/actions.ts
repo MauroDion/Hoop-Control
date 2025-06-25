@@ -76,7 +76,7 @@ export async function getAllGames(): Promise<Game[]> {
     if (!adminDb) return [];
     try {
         const gamesRef = adminDb.collection('games');
-        const snapshot = await gamesRef.get(); // Removed orderBy to prevent index errors
+        const snapshot = await gamesRef.get();
         return snapshot.docs.map(doc => {
             const data = doc.data();
             return {
@@ -156,7 +156,10 @@ export async function getGamesByCoach(userId: string): Promise<Game[]> {
         processSnapshot(homeGamesSnap);
         processSnapshot(awayGamesSnap);
 
-        return Array.from(gamesMap.values());
+        const games = Array.from(gamesMap.values());
+        games.sort((a, b) => b.date.getTime() - a.date.getTime());
+
+        return games;
     } catch (error: any) {
         console.error("Error fetching games by coach:", error);
         return [];

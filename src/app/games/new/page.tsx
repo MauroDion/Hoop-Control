@@ -3,7 +3,7 @@
 import { GameForm } from "@/components/games/GameForm";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { CalendarClock, Loader2, AlertTriangle, ChevronLeft } from "lucide-react";
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from "next/navigation";
 import React, { useEffect, useState } from "react";
 import type { Team, GameFormat, CompetitionCategory, UserFirestoreProfile, Season } from "@/types";
@@ -56,8 +56,9 @@ export default function NewGamePage() {
           getSeasons(),
           profile.profileTypeId === 'coach' ? getTeamsByCoach(user.uid) : Promise.resolve([]),
         ]);
-
-        setAllTeams(fetchedAllTeams);
+        
+        const sortedTeams = fetchedAllTeams.sort((a,b) => a.name.localeCompare(b.name));
+        setAllTeams(sortedTeams);
         setGameFormats(formats);
         setCompetitionCategories(categories);
         setSeasons(fetchedSeasons.filter(s => s.status === 'active'));
