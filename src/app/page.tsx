@@ -1,6 +1,5 @@
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import Image from 'next/image';
 
 export default function HomePage() {
   // This page is now a simple Server Component.
@@ -12,15 +11,6 @@ export default function HomePage() {
   return (
     <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)] text-center p-6 bg-gradient-to-br from-background to-secondary/30 rounded-xl shadow-2xl">
       <div className="max-w-2xl">
-        <Image 
-          src="https://placehold.co/600x300.png" 
-          alt="Ilustración de la plataforma Hoop Control" 
-          width={600} 
-          height={300} 
-          priority 
-          className="rounded-lg mb-10 shadow-lg"
-          data-ai-hint="basketball action"
-        />
         <h1 className="text-5xl md:text-6xl font-headline font-extrabold mb-6 text-primary tracking-tight">
           Bienvenido a Hoop Control
         </h1>
