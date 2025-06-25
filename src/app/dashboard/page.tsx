@@ -154,7 +154,7 @@ export default function DashboardPage() {
           width={100} 
           height={100} 
           className="rounded-full shadow-md hidden sm:block"
-          data-ai-hint="professional avatar"
+          data-ai-hint="basketball coach avatar"
         />
       </div>
 
