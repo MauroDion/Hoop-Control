@@ -141,6 +141,12 @@ export default function Header() {
                         <span>Poblar Datos (Dev)</span>
                       </Link>
                     </DropdownMenuItem>
+                     <DropdownMenuItem asChild>
+                      <Link href="/admin/settings" className="flex items-center w-full cursor-pointer">
+                        <Settings className="mr-2 h-4 w-4" />
+                        <span>Ajustes</span>
+                      </Link>
+                    </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
               )}

@@ -277,3 +277,7 @@ export interface GameEvent {
     gameTimeSeconds: number;
     createdAt: string; // ISO string
 }
+
+export interface BrandingSettings {
+  logoDataUrl?: string;
+}
