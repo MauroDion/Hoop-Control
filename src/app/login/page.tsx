@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import Link from "next/link";
 import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Clock, ShieldX, Basketball } from "lucide-react";
+import { Clock, ShieldX, Dribbble } from "lucide-react";
 
 export default function LoginPage({ searchParams }: { searchParams: { [key: string]: string | string[] | undefined } }) {
   const status = searchParams?.status;
@@ -41,7 +41,7 @@ export default function LoginPage({ searchParams }: { searchParams: { [key: stri
       <Card className="w-full max-w-md shadow-xl">
         <CardHeader className="text-center space-y-4">
           <div className="flex justify-center">
-            <Basketball className="h-16 w-16 text-primary" />
+            <Dribbble className="h-16 w-16 text-primary" />
           </div>
           <CardTitle className="text-3xl font-headline">¡Bienvenido de nuevo!</CardTitle>
           <CardDescription>Inicia sesión para acceder a tu panel.</CardDescription>

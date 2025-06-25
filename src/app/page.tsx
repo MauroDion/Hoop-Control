@@ -1,7 +1,7 @@
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import Image from 'next/image';
-import { Basketball } from 'lucide-react';
+import { Dribbble } from 'lucide-react';
 
 export default async function HomePage() {
 
@@ -20,7 +20,7 @@ export default async function HomePage() {
           />
         </div>
         <h1 className="text-5xl md:text-6xl font-headline font-extrabold mb-6 text-primary tracking-tight flex justify-center items-center gap-4">
-          <Basketball className="h-16 w-16" />
+          <Dribbble className="h-16 w-16" />
           Hoop Control
         </h1>
         <p className="text-lg md:text-xl text-foreground/80 mb-10 leading-relaxed">
