@@ -1,4 +1,3 @@
-
 import { LoginForm } from "@/components/auth/LoginForm";
 import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -6,9 +5,13 @@ import Link from "next/link";
 import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Clock, ShieldX, Dribbble } from "lucide-react";
+import Image from "next/image";
+import { getBrandingSettings } from "../admin/settings/actions";
 
-export default function LoginPage({ searchParams }: { searchParams: { [key: string]: string | string[] | undefined } }) {
+
+export default async function LoginPage({ searchParams }: { searchParams: { [key: string]: string | string[] | undefined } }) {
   const status = searchParams?.status;
+  const { logoDataUrl } = await getBrandingSettings();
 
   const renderStatusMessage = () => {
     switch (status) {
@@ -41,9 +44,15 @@ export default function LoginPage({ searchParams }: { searchParams: { [key: stri
     <div className="flex min-h-[calc(100vh-10rem)] items-center justify-center">
       <Card className="w-full max-w-md shadow-xl">
         <CardHeader className="text-center space-y-4">
-          <div className="flex justify-center">
-            <Dribbble className="h-16 w-16 text-primary" />
-          </div>
+          {logoDataUrl ? (
+             <div className="relative h-16 w-48 mx-auto">
+                <Image src={logoDataUrl} alt="Logo" fill style={{ objectFit: 'contain' }}/>
+             </div>
+          ) : (
+            <div className="flex justify-center">
+              <Dribbble className="h-16 w-16 text-primary" />
+            </div>
+          )}
           <CardTitle className="text-3xl font-headline">¡Bienvenido de nuevo!</CardTitle>
           <CardDescription>Inicia sesión para acceder a tu panel.</CardDescription>
         </CardHeader>
