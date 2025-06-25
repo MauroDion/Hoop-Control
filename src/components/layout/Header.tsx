@@ -17,7 +17,6 @@ import {
     Building,
     ListOrdered,
     Database,
-    Settings,
     BarChart2,
     Basketball
 } from 'lucide-react';
