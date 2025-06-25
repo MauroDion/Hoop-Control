@@ -69,16 +69,15 @@ export async function getUserProfileById(uid: string): Promise<UserFirestoreProf
 
     if (docSnap.exists) {
       console.log(`UserActions: Profile found for UID: ${uid}.`);
-      const data = docSnap.data();
+      const data = docSnap.data()!;
       
-      // Convert Firestore Timestamps to serializable JS Date objects
-      const serializableProfile = {
+      // Convert Firestore Timestamps to serializable ISO strings
+      return { 
+        uid: docSnap.id, 
         ...data,
-        createdAt: data.createdAt.toDate(),
-        updatedAt: data.updatedAt.toDate(),
-      };
-
-      return { uid: docSnap.id, ...serializableProfile } as UserFirestoreProfile;
+        createdAt: data.createdAt.toDate().toISOString(),
+        updatedAt: data.updatedAt.toDate().toISOString(),
+       } as UserFirestoreProfile;
     } else {
       console.warn(`UserActions: No profile found for UID: ${uid} using Admin SDK.`);
       return null;
@@ -111,8 +110,8 @@ export async function getUsersByProfileTypeAndClub(
       return {
         uid: doc.id,
         ...data,
-        createdAt: data.createdAt.toDate(),
-        updatedAt: data.updatedAt.toDate(),
+        createdAt: data.createdAt.toDate().toISOString(),
+        updatedAt: data.updatedAt.toDate().toISOString(),
       } as UserFirestoreProfile;
     });
 

@@ -101,9 +101,9 @@ export async function getTasks(userId: string): Promise<Task[]> {
         return {
             id: doc.id,
             ...data,
-            dueDate: data.dueDate ? data.dueDate.toDate() : null,
-            createdAt: data.createdAt.toDate(),
-            updatedAt: data.updatedAt.toDate(),
+            dueDate: data.dueDate ? data.dueDate.toDate().toISOString() : null,
+            createdAt: data.createdAt.toDate().toISOString(),
+            updatedAt: data.updatedAt.toDate().toISOString(),
         } as Task
     });
     return tasks;
@@ -130,9 +130,9 @@ export async function getTaskById(id: string, userId: string): Promise<Task | nu
        return {
             id: taskSnap.id,
             ...data,
-            dueDate: data.dueDate ? data.dueDate.toDate() : null,
-            createdAt: data.createdAt.toDate(),
-            updatedAt: data.updatedAt.toDate(),
+            dueDate: data.dueDate ? data.dueDate.toDate().toISOString() : null,
+            createdAt: data.createdAt.toDate().toISOString(),
+            updatedAt: data.updatedAt.toDate().toISOString(),
         } as Task;
     }
     return null;

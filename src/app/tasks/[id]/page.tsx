@@ -132,9 +132,9 @@ export default function TaskDetailPage({ params }: { params: { id: string } }) {
     high: 'Alta',
   }
   
-  const formatDate = (date?: Date | null) => {
-    if (!date) return 'N/A';
-    return format(date, 'PPP', { locale: es });
+  const formatDate = (dateString?: string | null) => {
+    if (!dateString) return 'N/A';
+    return format(new Date(dateString), 'PPP', { locale: es });
   };
 
 

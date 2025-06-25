@@ -43,9 +43,9 @@ const priorityText: Record<Task['priority'], string> = {
   high: "Alta",
 };
 
-const formatDate = (date?: Date | null) => {
-  if (!date) return 'N/A';
-  return format(date, 'd MMM, yyyy', { locale: es });
+const formatDate = (dateString?: string | null) => {
+  if (!dateString) return 'N/A';
+  return format(new Date(dateString), 'd MMM, yyyy', { locale: es });
 };
 
 export function TasksList({ tasks }: TasksListProps) {
@@ -63,7 +63,7 @@ export function TasksList({ tasks }: TasksListProps) {
       const matchesStatus = statusFilter === "all" || task.status === statusFilter;
       const matchesPriority = priorityFilter === "all" || task.priority === priorityFilter;
       return matchesSearch && matchesStatus && matchesPriority;
-    }).sort((a, b) => (a.createdAt?.getTime() || 0) - (b.createdAt?.getTime() || 0)); // Sort by creation date
+    }).sort((a, b) => (new Date(a.createdAt).getTime()) - (new Date(b.createdAt).getTime())); // Sort by creation date
   }, [tasks, searchTerm, statusFilter, priorityFilter]);
 
   const handleDelete = async (taskId: string, taskTitle: string) => {
