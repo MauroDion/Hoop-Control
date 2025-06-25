@@ -255,11 +255,6 @@ export interface GameFormData {
     gameFormatId?: string | null;
 }
 
-export interface BrandingSettings {
-  homePageImageUrl?: string;
-  dashboardAvatarUrl?: string;
-}
-
 export type GameEventAction = 
   | 'shot_made_1p' | 'shot_miss_1p'
   | 'shot_made_2p' | 'shot_miss_2p'

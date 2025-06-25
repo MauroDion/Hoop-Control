@@ -8,11 +8,9 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { getUserProfileById } from '@/app/users/actions';
 import type { UserFirestoreProfile } from '@/types';
-import { useRouter } from 'next/navigation';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import Image from 'next/image';
-import { getBrandingSettings } from '@/app/admin/settings/actions';
 
 // Dummy data - replace with actual data fetching
 const summaryData = {
@@ -39,8 +37,7 @@ export default function DashboardPage() {
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [profileError, setProfileError] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState<string | null>(null);
-  const [dashboardAvatar, setDashboardAvatar] = useState<string | undefined>(undefined);
-
+  
    useEffect(() => {
     const timer = setInterval(() => {
       setCurrentTime(format(new Date(), 'HH:mm:ss', { locale: es }));
@@ -58,20 +55,15 @@ export default function DashboardPage() {
 
     setLoadingProfile(true);
     setProfileError(null);
-    Promise.all([
-        getUserProfileById(user.uid),
-        getBrandingSettings()
-    ]).then(([profile, settings]) => {
+    getUserProfileById(user.uid)
+      .then(profile => {
         if (profile) {
             setUserProfile(profile);
         } else {
             setProfileError("Tu perfil no se encontró en la base de datos. Por favor, contacta a un administrador.");
         }
-        if (settings.dashboardAvatarUrl) {
-            setDashboardAvatar(settings.dashboardAvatarUrl);
-        }
     }).catch(err => {
-        setProfileError("Ocurrió un error al cargar tus datos.");
+        setProfileError("Ocurrió un error al cargar tu perfil.");
     }).finally(() => {
         setLoadingProfile(false);
     });
@@ -145,7 +137,7 @@ export default function DashboardPage() {
           <p className="text-lg text-muted-foreground mt-1">Este es un resumen de tu espacio de trabajo en Hoop Control.</p>
         </div>
          <Image 
-            src={dashboardAvatar || "https://placehold.co/150x150.png"} 
+            src={"https://placehold.co/150x150.png"} 
             alt="Avatar decorativo del panel" 
             width={100} 
             height={100} 

@@ -1,18 +1,16 @@
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import Image from 'next/image';
-import { getBrandingSettings } from '@/app/admin/settings/actions';
 import { Basketball } from 'lucide-react';
 
 export default async function HomePage() {
-  const { homePageImageUrl } = await getBrandingSettings();
 
   return (
     <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)] text-center p-6 bg-gradient-to-br from-background to-secondary/30 rounded-xl shadow-2xl">
       <div className="max-w-2xl">
         <div className="mb-10 shadow-lg">
           <Image 
-            src={homePageImageUrl || "https://placehold.co/600x300.png"} 
+            src={"https://placehold.co/600x300.png"} 
             alt="Hoop Control Platform Illustration" 
             width={600} 
             height={300} 
