@@ -1,3 +1,4 @@
+
 "use client";
 
 import Link from 'next/link';
@@ -17,7 +18,7 @@ import {
     ListOrdered,
     Database,
     BarChart2,
-    Settings,
+    Settings as SettingsIcon,
     Dribbble,
     LogOut,
     UserCircle
@@ -143,7 +144,7 @@ export default function Header() {
                     </DropdownMenuItem>
                      <DropdownMenuItem asChild>
                       <Link href="/admin/settings" className="flex items-center w-full cursor-pointer">
-                        <Settings className="mr-2 h-4 w-4" />
+                        <SettingsIcon className="mr-2 h-4 w-4" />
                         <span>Ajustes</span>
                       </Link>
                     </DropdownMenuItem>
@@ -183,7 +184,7 @@ export default function Header() {
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem disabled className="flex items-center cursor-not-allowed">
-                    <Settings className="mr-2 h-4 w-4" />
+                    <SettingsIcon className="mr-2 h-4 w-4" />
                     Configuración
                     <span className="ml-auto text-xs text-muted-foreground">(Pronto)</span>
                   </DropdownMenuItem>
