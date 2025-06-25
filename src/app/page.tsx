@@ -16,7 +16,7 @@ export default function HomePage() {
           <SiteLogo className="h-24 w-auto text-primary" />
         </div>
         <p className="text-lg md:text-xl text-foreground/80 mb-10 leading-relaxed">
-          Seguimiento de partidos de baloncesto simplificado. Gestiona equipos, jugadores y estadísticas en vivo,
+          Seguimiento de partidos de baloncesto  simplificado. Gestiona equipos, jugadores y estadísticas en vivo,
         </p>
         <div className="space-x-6">
           <Button asChild size="lg" className="shadow-lg hover:shadow-primary/50 transition-shadow duration-300">
@@ -27,7 +27,7 @@ export default function HomePage() {
           </Button>
         </div>
         <p className="mt-12 text-sm text-muted-foreground">
-          Impulsado por tecnología moderna para una experiencia fluida.
+          Impulsado por tecnología de KILRON SOFTWARE
         </p>
       </div>
     </div>
