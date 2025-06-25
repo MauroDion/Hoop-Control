@@ -193,7 +193,7 @@ export default function ManageGamePage() {
                        {game.homeTeamName} vs {game.awayTeamName}
                     </CardTitle>
                     <CardDescription className="text-lg">
-                       {format(game.date, 'PPPP p', { locale: es })} en {game.location}
+                       {format(new Date(game.date), 'PPPP p', { locale: es })} en {game.location}
                     </CardDescription>
                 </CardHeader>
             </Card>

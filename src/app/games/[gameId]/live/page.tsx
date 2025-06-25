@@ -60,7 +60,7 @@ export default function LiveGamePage() {
         const unsubscribe = onSnapshot(gameRef, async (docSnap) => {
             if (docSnap.exists()) {
                 const data = docSnap.data();
-                const gameData = { id: docSnap.id, ...data, date: data.date.toDate() } as Game;
+                const gameData = { id: docSnap.id, ...data, date: data.date.toDate().toISOString() } as Game;
                 setGame(gameData);
                 
                 if (gameData.periodTimeRemainingSeconds !== undefined && !gameData.isTimerRunning) {
@@ -92,6 +92,12 @@ export default function LiveGamePage() {
            return () => clearInterval(timerId);
        }
     }, [game?.isTimerRunning, displayTime]);
+
+    useEffect(() => {
+        if (game?.periodTimeRemainingSeconds !== undefined) {
+            setDisplayTime(game.periodTimeRemainingSeconds);
+        }
+    }, [game?.periodTimeRemainingSeconds]);
 
     const handleUpdate = useCallback(async (updates: Partial<Game>) => {
         const result = await updateLiveGameState(gameId, updates);

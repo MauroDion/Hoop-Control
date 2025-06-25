@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'next/navigation';
-import { getGamesByCoach, getAllGames } from '@/app/games/actions';
+import { getGamesByCoach, getAllGames, getGamesByClub } from '@/app/games/actions';
 import { getUserProfileById } from '@/app/users/actions';
 import type { Game } from '@/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -42,17 +42,15 @@ export default function AnalysisPage() {
         }
         
         let fetchedGames: Game[] = [];
-        if (profile.profileTypeId === 'coach') {
-            fetchedGames = await getGamesByCoach(user.uid);
-        } else if (['coordinator', 'club_admin'].includes(profile.profileTypeId)) {
-            const allGames = await getAllGames();
-            fetchedGames = allGames.filter(g => g.homeTeamClubId === profile.clubId || g.awayTeamClubId === profile.clubId);
-        } else { // super_admin
+        if (profile.profileTypeId === 'super_admin') {
             fetchedGames = await getAllGames();
+        } else if (['coordinator', 'club_admin'].includes(profile.profileTypeId)) {
+            fetchedGames = await getGamesByClub(profile.clubId);
+        } else if (profile.profileTypeId === 'coach') {
+            fetchedGames = await getGamesByCoach(user.uid);
         }
         
-        const sortedGames = fetchedGames.sort((a,b) => b.date.getTime() - a.date.getTime());
-        const completedGames = sortedGames.filter(game => game.status === 'completed');
+        const completedGames = fetchedGames.filter(game => game.status === 'completed');
         setGames(completedGames);
 
       } catch (err: any) {
@@ -120,7 +118,7 @@ export default function AnalysisPage() {
                 <TableBody>
                   {games.map((game) => (
                     <TableRow key={game.id}>
-                      <TableCell>{format(game.date, 'PPp', { locale: es })}</TableCell>
+                      <TableCell>{format(new Date(game.date), 'PPp', { locale: es })}</TableCell>
                       <TableCell className="font-medium">{game.homeTeamName} vs {game.awayTeamName}</TableCell>
                       <TableCell className="font-bold">{game.homeTeamScore ?? 0} - {game.awayTeamScore ?? 0}</TableCell>
                       <TableCell className="text-right">

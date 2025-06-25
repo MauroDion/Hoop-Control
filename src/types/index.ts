@@ -6,9 +6,9 @@ export interface Task {
   description?: string;
   status: 'todo' | 'inprogress' | 'done';
   priority: 'low' | 'medium' | 'high';
-  dueDate?: Date | null;
-  createdAt: Date;
-  updatedAt: Date;
+  dueDate?: string | null;
+  createdAt: string;
+  updatedAt: string;
   userId: string;
 }
 
@@ -48,8 +48,8 @@ export interface UserFirestoreProfile {
   profileTypeId: ProfileType;
   clubId: string;
   status: UserProfileStatus;
-  createdAt: Date;
-  updatedAt: Date;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface UserProfileAdminView extends UserFirestoreProfile {
@@ -68,7 +68,7 @@ export interface Club {
   logoUrl?: string;
   approved?: boolean;
   createdBy?: string;
-  createdAt?: Date;
+  createdAt?: string;
 }
 
 export interface ClubFormData {
@@ -98,8 +98,8 @@ export interface Team {
   playerIds?: string[];
   logoUrl?: string | null;
   city?: string | null;
-  createdAt: Date;
-  updatedAt: Date;
+  createdAt: string;
+  updatedAt: string;
   createdByUserId: string;
 }
 
@@ -119,7 +119,7 @@ export interface GameFormat {
   periodDurationMinutes?: number;
   defaultTotalTimeouts?: number;
   minPeriodsPlayerMustPlay?: number;
-  createdAt?: Date;
+  createdAt?: string;
   createdBy?: string;
 }
 
@@ -138,8 +138,8 @@ export interface CompetitionCategory {
   description?: string;
   level?: number;
   gameFormatId?: string | null;
-  createdAt?: Date;
-  updatedAt?: Date;
+  createdAt?: string;
+  updatedAt?: string;
   createdBy?: string;
 }
 
@@ -159,7 +159,7 @@ export interface Player {
   position?: string;
   teamId?: string;
   createdBy?: string;
-  createdAt?: Date;
+  createdAt?: string;
 }
 
 export interface PlayerFormData {
@@ -177,9 +177,9 @@ export interface Season {
         competitionCategoryId: string;
         teamIds: string[];
     }[];
-    createdAt?: Date;
+    createdAt?: string;
     createdBy?: string;
-    updatedAt?: Date;
+    updatedAt?: string;
     updatedBy?: string;
 }
 
@@ -214,7 +214,7 @@ export interface Game {
     awayTeamId: string;
     awayTeamClubId: string;
     awayTeamName: string;
-    date: Date;
+    date: string;
     location: string;
     status: 'scheduled' | 'inprogress' | 'completed' | 'cancelled';
     seasonId: string;
@@ -236,8 +236,8 @@ export interface Game {
       } | null;
     };
     createdBy: string;
-    createdAt: Date;
-    updatedAt: Date;
+    createdAt: string;
+    updatedAt: string;
 }
 
 export interface GameFormData {

@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'next/navigation';
-import { getGamesByCoach, getAllGames } from '@/app/games/actions';
+import { getGamesByCoach, getAllGames, getGamesByClub } from '@/app/games/actions';
 import { getUserProfileById } from '@/app/users/actions';
 import type { Game, UserFirestoreProfile } from '@/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -42,17 +42,15 @@ export default function GamesPage() {
         }
         
         let fetchedGames: Game[] = [];
-        if (profile.profileTypeId === 'coach') {
-            fetchedGames = await getGamesByCoach(user.uid);
-        } else if (['coordinator', 'club_admin'].includes(profile.profileTypeId)) {
-            const allGames = await getAllGames();
-            fetchedGames = allGames.filter(g => g.homeTeamClubId === profile.clubId || g.awayTeamClubId === profile.clubId);
-        } else { // super_admin
+        if (profile.profileTypeId === 'super_admin') {
             fetchedGames = await getAllGames();
+        } else if (['coordinator', 'club_admin'].includes(profile.profileTypeId)) {
+            fetchedGames = await getGamesByClub(profile.clubId);
+        } else if (profile.profileTypeId === 'coach') {
+            fetchedGames = await getGamesByCoach(user.uid);
         }
         
-        const sortedGames = fetchedGames.sort((a, b) => b.date.getTime() - a.date.getTime());
-        const activeGames = sortedGames.filter(game => game.status === 'scheduled' || game.status === 'inprogress');
+        const activeGames = fetchedGames.filter(game => game.status === 'scheduled' || game.status === 'inprogress');
         setGames(activeGames);
 
       } catch (err: any) {
@@ -125,7 +123,7 @@ export default function GamesPage() {
                 <TableBody>
                   {games.map((game) => (
                     <TableRow key={game.id}>
-                      <TableCell>{format(game.date, 'PPp', { locale: es })}</TableCell>
+                      <TableCell>{format(new Date(game.date), 'PPp', { locale: es })}</TableCell>
                       <TableCell className="font-medium">{game.homeTeamName} vs {game.awayTeamName}</TableCell>
                       <TableCell>{game.location}</TableCell>
                       <TableCell className="capitalize">{game.status}</TableCell>
