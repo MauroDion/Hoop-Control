@@ -204,6 +204,8 @@ export interface TeamStats {
     steals: number;
 }
 
+export type StatCategory = 'shots' | 'fouls' | 'timeouts' | 'steals';
+
 export interface Game {
     id: string;
     homeTeamId: string;
@@ -227,6 +229,12 @@ export interface Game {
     currentPeriod?: number;
     periodTimeRemainingSeconds?: number;
     isTimerRunning?: boolean;
+    scorerAssignments?: {
+      [key in StatCategory]?: {
+        uid: string;
+        displayName: string;
+      } | null;
+    };
     createdBy: string;
     createdAt: Date;
     updatedAt: Date;

@@ -1,19 +1,25 @@
 "use client";
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import Link from 'next/link';
 
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '@/lib/firebase/client';
-import { updateLiveGameState, recordShot, incrementGameStat } from '@/app/games/actions';
+import { 
+    updateLiveGameState, 
+    recordShot, 
+    incrementGameStat,
+    claimScoringRole,
+    releaseScoringRole
+} from '@/app/games/actions';
 import { getGameFormatById } from '@/app/game-formats/actions';
-import type { Game, GameFormat, TeamStats } from '@/types';
+import type { Game, GameFormat, TeamStats, StatCategory } from '@/types';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, AlertTriangle, ChevronLeft, Gamepad2, Minus, Plus, Play, Flag, Pause, TimerReset, FastForward, Timer as TimerIcon } from 'lucide-react';
+import { Loader2, AlertTriangle, ChevronLeft, Gamepad2, Minus, Plus, Play, Flag, Pause, TimerReset, FastForward, Timer as TimerIcon, UserCheck, UserX } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Separator } from '@/components/ui/separator';
 
@@ -25,11 +31,18 @@ const ShotButton = ({ children, ...props }: React.ComponentProps<typeof Button>)
     <Button variant="secondary" className="w-full" {...props}>{children}</Button>
 );
 
+const statCategories: { id: StatCategory, label: string }[] = [
+    { id: 'shots', label: 'Tiros' },
+    { id: 'fouls', label: 'Faltas' },
+    { id: 'timeouts', label: 'Tiempos Muertos' },
+    { id: 'steals', label: 'Robos' },
+];
+
 export default function LiveGamePage() {
     const params = useParams();
     const { toast } = useToast();
     const gameId = typeof params.gameId === 'string' ? params.gameId : '';
-    const { loading: authLoading } = useAuth();
+    const { user, loading: authLoading } = useAuth();
 
     const [game, setGame] = useState<Game | null>(null);
     const [gameFormat, setGameFormat] = useState<GameFormat | null>(null);
@@ -49,6 +62,10 @@ export default function LiveGamePage() {
                 const data = docSnap.data();
                 const gameData = { id: docSnap.id, ...data, date: data.date.toDate() } as Game;
                 setGame(gameData);
+                
+                if (gameData.periodTimeRemainingSeconds !== undefined && !gameData.isTimerRunning) {
+                    setDisplayTime(gameData.periodTimeRemainingSeconds);
+                }
 
                 if (!gameFormat && gameData.gameFormatId) {
                     const format = await getGameFormatById(gameData.gameFormatId);
@@ -66,29 +83,55 @@ export default function LiveGamePage() {
 
         return () => unsubscribe();
     }, [gameId, gameFormat]);
-
+    
     useEffect(() => {
-        if (game?.isTimerRunning && displayTime > 0) {
-            const timerId = setInterval(() => {
-                setDisplayTime(prev => prev > 0 ? prev - 1 : 0);
-            }, 1000);
-            return () => clearInterval(timerId);
-        }
+       if (game?.isTimerRunning && displayTime > 0) {
+           const timerId = setInterval(() => {
+               setDisplayTime(prev => prev > 0 ? prev - 1 : 0);
+           }, 1000);
+           return () => clearInterval(timerId);
+       }
     }, [game?.isTimerRunning, displayTime]);
 
-    useEffect(() => {
-        if (game?.periodTimeRemainingSeconds !== undefined) {
-            setDisplayTime(game.periodTimeRemainingSeconds);
-        }
-    }, [game?.periodTimeRemainingSeconds]);
-
-    const handleUpdate = async (updates: Partial<Game>) => {
+    const handleUpdate = useCallback(async (updates: Partial<Game>) => {
         const result = await updateLiveGameState(gameId, updates);
         if (!result.success) {
             toast({ variant: 'destructive', title: 'Error al Actualizar', description: result.error });
         }
-    };
+    }, [gameId, toast]);
     
+    const handleToggleTimer = () => {
+        if (!game) return;
+        const newIsTimerRunning = !game.isTimerRunning;
+        const updates: Partial<Game> = { isTimerRunning: newIsTimerRunning };
+        if (!newIsTimerRunning) {
+             updates.periodTimeRemainingSeconds = displayTime;
+        }
+        handleUpdate(updates);
+    };
+
+    const handleClaimRole = async (role: StatCategory) => {
+        if (!user || !user.displayName) return;
+        const result = await claimScoringRole(gameId, role, user.uid, user.displayName);
+        if (!result.success) {
+            toast({ variant: 'destructive', title: 'Error al Reclamar Rol', description: result.error });
+        }
+    }
+
+    const handleReleaseRole = async (role: StatCategory) => {
+        if (!user) return;
+        const result = await releaseScoringRole(gameId, role, user.uid);
+         if (!result.success) {
+            toast({ variant: 'destructive', title: 'Error al Liberar Rol', description: result.error });
+        }
+    }
+
+    const formatTime = (totalSeconds: number) => {
+        const minutes = Math.floor(totalSeconds / 60);
+        const seconds = totalSeconds % 60;
+        return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+    };
+
     const handleRecordShot = async (team: 'home' | 'away', points: 1 | 2 | 3, type: 'made' | 'miss') => {
         if (!game || game.status !== 'inprogress') return;
         const result = await recordShot(gameId, team, points, type);
@@ -103,11 +146,6 @@ export default function LiveGamePage() {
          if (!result.success) {
              toast({ variant: 'destructive', title: `Error al registrar ${stat}`, description: result.error });
         }
-    };
-
-    const handleToggleTimer = () => {
-        if (!game) return;
-        handleUpdate({ isTimerRunning: !game.isTimerRunning });
     };
 
     const handleNextPeriod = () => {
@@ -129,12 +167,6 @@ export default function LiveGamePage() {
             isTimerRunning: false,
             periodTimeRemainingSeconds: (gameFormat.periodDurationMinutes || 10) * 60,
         });
-    };
-
-    const formatTime = (totalSeconds: number) => {
-        const minutes = Math.floor(totalSeconds / 60);
-        const seconds = totalSeconds % 60;
-        return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
     };
     
     if (loading || authLoading) {
@@ -161,7 +193,7 @@ export default function LiveGamePage() {
     
     if (!game) return null;
 
-    const TeamPanel = ({ teamType }: { teamType: 'home' | 'away' }) => {
+    const TeamPanel = ({ teamType, canScoreShots, canScoreStats }: { teamType: 'home' | 'away', canScoreShots: boolean, canScoreStats: boolean }) => {
         const teamName = teamType === 'home' ? game.homeTeamName : game.awayTeamName;
         const teamStats = (teamType === 'home' ? game.homeTeamStats : game.awayTeamStats) || {} as TeamStats;
         const score = teamType === 'home' ? game.homeTeamScore : game.awayTeamScore;
@@ -180,12 +212,12 @@ export default function LiveGamePage() {
                     <div className="space-y-3">
                         <h4 className="font-medium text-center">Registro de Tiros</h4>
                         <div className="grid grid-cols-2 gap-2">
-                           <ShotButton onClick={() => handleRecordShot(teamType, 1, 'made')}>+1 Pto</ShotButton>
-                           <ShotButton variant="destructive" onClick={() => handleRecordShot(teamType, 1, 'miss')}>Fallo 1 Pto</ShotButton>
-                           <ShotButton onClick={() => handleRecordShot(teamType, 2, 'made')}>+2 Ptos</ShotButton>
-                           <ShotButton variant="destructive" onClick={() => handleRecordShot(teamType, 2, 'miss')}>Fallo 2 Ptos</ShotButton>
-                           <ShotButton onClick={() => handleRecordShot(teamType, 3, 'made')}>+3 Ptos</ShotButton>
-                           <ShotButton variant="destructive" onClick={() => handleRecordShot(teamType, 3, 'miss')}>Fallo 3 Ptos</ShotButton>
+                           <ShotButton disabled={!canScoreShots} onClick={() => handleRecordShot(teamType, 1, 'made')}>+1 Pto</ShotButton>
+                           <ShotButton disabled={!canScoreShots} variant="destructive" onClick={() => handleRecordShot(teamType, 1, 'miss')}>Fallo 1 Pto</ShotButton>
+                           <ShotButton disabled={!canScoreShots} onClick={() => handleRecordShot(teamType, 2, 'made')}>+2 Ptos</ShotButton>
+                           <ShotButton disabled={!canScoreShots} variant="destructive" onClick={() => handleRecordShot(teamType, 2, 'miss')}>Fallo 2 Ptos</ShotButton>
+                           <ShotButton disabled={!canScoreShots} onClick={() => handleRecordShot(teamType, 3, 'made')}>+3 Ptos</ShotButton>
+                           <ShotButton disabled={!canScoreShots} variant="destructive" onClick={() => handleRecordShot(teamType, 3, 'miss')}>Fallo 3 Ptos</ShotButton>
                         </div>
                     </div>
                     
@@ -196,22 +228,22 @@ export default function LiveGamePage() {
                          <div className="flex justify-between items-center">
                             <span className="font-semibold">Faltas: {teamStats.fouls ?? 0}</span>
                             <div className="space-x-1">
-                                <StatButton size="icon" onClick={() => handleIncrementStat(teamType, 'fouls', 1)}><Plus/></StatButton>
-                                <StatButton size="icon" onClick={() => handleIncrementStat(teamType, 'fouls', -1)}><Minus/></StatButton>
+                                <StatButton disabled={!canScoreStats} size="icon" onClick={() => handleIncrementStat(teamType, 'fouls', 1)}><Plus/></StatButton>
+                                <StatButton disabled={!canScoreStats} size="icon" onClick={() => handleIncrementStat(teamType, 'fouls', -1)}><Minus/></StatButton>
                             </div>
                          </div>
                          <div className="flex justify-between items-center">
                             <span className="font-semibold">T. Muertos: {teamStats.timeouts ?? 0}</span>
                              <div className="space-x-1">
-                                <StatButton size="icon" onClick={() => handleIncrementStat(teamType, 'timeouts', 1)}><Plus/></StatButton>
-                                <StatButton size="icon" onClick={() => handleIncrementStat(teamType, 'timeouts', -1)}><Minus/></StatButton>
+                                <StatButton disabled={!canScoreStats} size="icon" onClick={() => handleIncrementStat(teamType, 'timeouts', 1)}><Plus/></StatButton>
+                                <StatButton disabled={!canScoreStats} size="icon" onClick={() => handleIncrementStat(teamType, 'timeouts', -1)}><Minus/></StatButton>
                             </div>
                          </div>
                           <div className="flex justify-between items-center">
                             <span className="font-semibold">Robos: {teamStats.steals ?? 0}</span>
                              <div className="space-x-1">
-                                <StatButton size="icon" onClick={() => handleIncrementStat(teamType, 'steals', 1)}><Plus/></StatButton>
-                                <StatButton size="icon" onClick={() => handleIncrementStat(teamType, 'steals', -1)}><Minus/></StatButton>
+                                <StatButton disabled={!canScoreStats} size="icon" onClick={() => handleIncrementStat(teamType, 'steals', 1)}><Plus/></StatButton>
+                                <StatButton disabled={!canScoreStats} size="icon" onClick={() => handleIncrementStat(teamType, 'steals', -1)}><Minus/></StatButton>
                             </div>
                          </div>
                     </div>
@@ -219,6 +251,12 @@ export default function LiveGamePage() {
             </Card>
         )
     }
+    
+    const canScoreShots = game.scorerAssignments?.shots?.uid === user?.uid;
+    const canScoreStats = game.scorerAssignments?.fouls?.uid === user?.uid &&
+                          game.scorerAssignments?.timeouts?.uid === user?.uid &&
+                          game.scorerAssignments?.steals?.uid === user?.uid;
+
 
     return (
         <div className="space-y-8">
@@ -247,6 +285,37 @@ export default function LiveGamePage() {
                     {game.status === 'completed' && <p className="text-center font-bold text-lg text-green-700">Partido Finalizado</p>}
                 </CardContent>
             </Card>
+            
+             <Card>
+                <CardHeader><CardTitle>Asignación de Anotadores</CardTitle></CardHeader>
+                <CardContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    {statCategories.map(role => {
+                        const assignment = game.scorerAssignments?.[role.id];
+                        const isAssignedToCurrentUser = assignment?.uid === user?.uid;
+                        return (
+                            <div key={role.id} className="p-4 border rounded-lg flex flex-col items-center justify-center text-center">
+                                <h4 className="font-semibold">{role.label}</h4>
+                                {assignment ? (
+                                    <>
+                                        <p className="text-sm text-muted-foreground mt-1">Asignado a:</p>
+                                        <p className="font-bold">{isAssignedToCurrentUser ? "Ti" : assignment.displayName}</p>
+                                        {isAssignedToCurrentUser && (
+                                            <Button size="sm" variant="destructive" className="mt-2" onClick={() => handleReleaseRole(role.id)}>
+                                                <UserX className="mr-2 h-4 w-4"/> Liberar Rol
+                                            </Button>
+                                        )}
+                                    </>
+                                ) : (
+                                    <Button size="sm" variant="default" className="mt-2" onClick={() => handleClaimRole(role.id)}>
+                                        <UserCheck className="mr-2 h-4 w-4"/> Reclamar Rol
+                                    </Button>
+                                )}
+                            </div>
+                        )
+                    })}
+                </CardContent>
+            </Card>
+
 
             {game.status !== 'scheduled' && (
                  <Card>
@@ -273,8 +342,8 @@ export default function LiveGamePage() {
             )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <TeamPanel teamType="home" />
-                <TeamPanel teamType="away" />
+                <TeamPanel teamType="home" canScoreShots={canScoreShots} canScoreStats={canScoreStats} />
+                <TeamPanel teamType="away" canScoreShots={canScoreShots} canScoreStats={canScoreStats} />
             </div>
         </div>
     )

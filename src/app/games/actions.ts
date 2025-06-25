@@ -2,7 +2,7 @@
 import { adminDb } from '@/lib/firebase/admin';
 import admin from 'firebase-admin';
 import { revalidatePath } from 'next/cache';
-import type { Game, GameFormData, Team, TeamStats } from '@/types';
+import type { Game, GameFormData, Team, TeamStats, StatCategory } from '@/types';
 import { getTeamsByCoach as getCoachTeams } from '@/app/teams/actions';
 
 // Action to create a new game
@@ -54,6 +54,12 @@ export async function createGame(formData: GameFormData, userId: string): Promis
             currentPeriod: 1,
             isTimerRunning: false,
             periodTimeRemainingSeconds: 0,
+            scorerAssignments: {
+                shots: null,
+                fouls: null,
+                timeouts: null,
+                steals: null
+            },
         };
 
         const docRef = await adminDb.collection('games').add(newGameData);
@@ -274,4 +280,54 @@ export async function incrementGameStat(
   
   await gameRef.update(updates);
   return { success: true };
+}
+
+export async function claimScoringRole(gameId: string, role: StatCategory, userId: string, displayName: string): Promise<{ success: boolean; error?: string }> {
+  if (!adminDb) return { success: false, error: 'Database not initialized.' };
+
+  const gameRef = adminDb.collection('games').doc(gameId);
+  try {
+    await adminDb.runTransaction(async (transaction) => {
+      const gameDoc = await transaction.get(gameRef);
+      if (!gameDoc.exists) {
+        throw new Error("El partido no existe.");
+      }
+      const gameData = gameDoc.data() as Game;
+      const assignmentPath = `scorerAssignments.${role}`;
+
+      if (gameData.scorerAssignments && gameData.scorerAssignments[role]) {
+        throw new Error(`El rol de '${role}' ya ha sido asignado a ${gameData.scorerAssignments[role]?.displayName}.`);
+      }
+      
+      transaction.update(gameRef, { [assignmentPath]: { uid: userId, displayName } });
+    });
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
+export async function releaseScoringRole(gameId: string, role: StatCategory, userId: string): Promise<{ success: boolean; error?: string }> {
+  if (!adminDb) return { success: false, error: 'Database not initialized.' };
+
+  const gameRef = adminDb.collection('games').doc(gameId);
+  try {
+    await adminDb.runTransaction(async (transaction) => {
+      const gameDoc = await transaction.get(gameRef);
+      if (!gameDoc.exists) {
+        throw new Error("El partido no existe.");
+      }
+      const gameData = gameDoc.data() as Game;
+      const assignmentPath = `scorerAssignments.${role}`;
+      
+      if (!gameData.scorerAssignments || !gameData.scorerAssignments[role] || gameData.scorerAssignments[role]?.uid !== userId) {
+        throw new Error("No puedes liberar un rol que no te pertenece.");
+      }
+
+      transaction.update(gameRef, { [assignmentPath]: null });
+    });
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
 }
