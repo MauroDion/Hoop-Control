@@ -22,11 +22,6 @@ export default function SettingsPage() {
     const [pageState, setPageState] = useState<'loading' | 'error' | 'success'>('loading');
     const [error, setError] = useState<string | null>(null);
     const [isSaving, setIsSaving] = useState(false);
-
-    // States for Logo
-    const [currentLogo, setCurrentLogo] = useState<string | null>(null);
-    const [logoPreview, setLogoPreview] = useState<string | null>(null);
-    const [selectedLogoFile, setSelectedLogoFile] = useState<File | null>(null);
     
     // States for Home Page Image
     const [currentHomePageImage, setCurrentHomePageImage] = useState<string | null>(null);
@@ -41,7 +36,6 @@ export default function SettingsPage() {
     const loadSettings = useCallback(async () => {
         try {
             const settings = await getBrandingSettings();
-            if (settings.logoDataUrl) setCurrentLogo(settings.logoDataUrl);
             if (settings.homePageImageUrl) setCurrentHomePageImage(settings.homePageImageUrl);
             if (settings.dashboardAvatarUrl) setCurrentDashboardAvatar(settings.dashboardAvatarUrl);
         } catch (err: any) {
@@ -70,7 +64,7 @@ export default function SettingsPage() {
 
     }, [user, authLoading, router, loadSettings]);
 
-    const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>, type: 'logo' | 'home' | 'dashboard') => {
+    const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>, type: 'home' | 'dashboard') => {
         const file = event.target.files?.[0];
         if (file) {
             if (file.size > 1024 * 1024) { // 1MB limit
@@ -81,10 +75,7 @@ export default function SettingsPage() {
             const reader = new FileReader();
             reader.onloadend = () => {
                 const result = reader.result as string;
-                if (type === 'logo') {
-                    setSelectedLogoFile(file);
-                    setLogoPreview(result);
-                } else if (type === 'home') {
+                if (type === 'home') {
                     setSelectedHomePageFile(file);
                     setHomePageImagePreview(result);
                 } else if (type === 'dashboard') {
@@ -100,7 +91,6 @@ export default function SettingsPage() {
         setIsSaving(true);
         const settingsToSave: BrandingSettings = {};
 
-        if (selectedLogoFile && logoPreview) settingsToSave.logoDataUrl = logoPreview;
         if (selectedHomePageFile && homePageImagePreview) settingsToSave.homePageImageUrl = homePageImagePreview;
         if (selectedDashboardAvatarFile && dashboardAvatarPreview) settingsToSave.dashboardAvatarUrl = dashboardAvatarPreview;
         
@@ -194,11 +184,10 @@ export default function SettingsPage() {
                     <CardDescription>Sube imágenes personalizadas para diferentes partes de la aplicación.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
-                    {renderUploadSection("Logotipo de la Aplicación", "Aparece en la cabecera y en la página de inicio de sesión.", currentLogo, logoPreview, (e) => handleFileChange(e, 'logo'), 'logo-upload')}
                     {renderUploadSection("Imagen de la Página de Inicio", "Imagen principal en la página de bienvenida para usuarios no autenticados.", currentHomePageImage, homePageImagePreview, (e) => handleFileChange(e, 'home'), 'home-page-image-upload')}
                     {renderUploadSection("Avatar del Panel de Control", "Imagen decorativa junto al saludo de bienvenida en el panel.", currentDashboardAvatar, dashboardAvatarPreview, (e) => handleFileChange(e, 'dashboard'), 'dashboard-avatar-upload')}
 
-                    <Button onClick={handleSave} disabled={isSaving || (!selectedLogoFile && !selectedHomePageFile && !selectedDashboardAvatarFile)}>
+                    <Button onClick={handleSave} disabled={isSaving || (!selectedHomePageFile && !selectedDashboardAvatarFile)}>
                         {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Upload className="mr-2 h-4 w-4"/>}
                         {isSaving ? 'Guardando...' : 'Guardar Cambios'}
                     </Button>

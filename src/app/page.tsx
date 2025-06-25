@@ -1,8 +1,8 @@
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import SiteLogo from '@/components/layout/SiteLogo';
 import Image from 'next/image';
 import { getBrandingSettings } from '@/app/admin/settings/actions';
+import { Basketball } from 'lucide-react';
 
 export default async function HomePage() {
   const { homePageImageUrl } = await getBrandingSettings();
@@ -21,9 +21,12 @@ export default async function HomePage() {
             data-ai-hint="basketball court"
           />
         </div>
-        <SiteLogo className="h-20 w-auto text-primary mx-auto mb-6" />
+        <h1 className="text-5xl md:text-6xl font-headline font-extrabold mb-6 text-primary tracking-tight flex justify-center items-center gap-4">
+          <Basketball className="h-16 w-16" />
+          Hoop Control
+        </h1>
         <p className="text-lg md:text-xl text-foreground/80 mb-10 leading-relaxed">
-          Seguimiento de partidos de baloncesto simplificado. Gestiona equipos, jugadores y estadísticas en vivo.
+          Seguimiento de partidos de baloncesto  simplificado. Gestiona equipos, jugadores y estadísticas en vivo.
         </p>
         <div className="space-x-6">
           <Button asChild size="lg" className="shadow-lg hover:shadow-primary/50 transition-shadow duration-300">

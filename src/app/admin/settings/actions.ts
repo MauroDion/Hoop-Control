@@ -13,9 +13,6 @@ export async function saveBrandingSettings(settings: BrandingSettings): Promise<
     return { success: false, error: 'Database not initialized.' };
   }
   
-  if (settings.logoDataUrl && settings.logoDataUrl.length > MAX_IMAGE_SIZE_BYTES) {
-      return { success: false, error: 'La imagen del logo es demasiado grande. El límite es 1MB.' };
-  }
   if (settings.homePageImageUrl && settings.homePageImageUrl.length > MAX_IMAGE_SIZE_BYTES) {
       return { success: false, error: 'La imagen de la página de inicio es demasiado grande. El límite es 1MB.' };
   }

@@ -35,7 +35,6 @@ const apiSampleData: ApiData[] = [
 
 export default function DashboardPage() {
   const { user, loading: authLoading, logout } = useAuth();
-  const router = useRouter();
   const [userProfile, setUserProfile] = useState<UserFirestoreProfile | null>(null);
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [profileError, setProfileError] = useState<string | null>(null);

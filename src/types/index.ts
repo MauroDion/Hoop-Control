@@ -256,7 +256,6 @@ export interface GameFormData {
 }
 
 export interface BrandingSettings {
-  logoDataUrl?: string;
   homePageImageUrl?: string;
   dashboardAvatarUrl?: string;
 }

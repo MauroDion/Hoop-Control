@@ -3,7 +3,6 @@
 import Link from 'next/link';
 import { useAuth } from '@/hooks/useAuth';
 import UserNav from './UserNav';
-import SiteLogo from './SiteLogo';
 import { Button } from '@/components/ui/button';
 import { 
     LayoutDashboard, 
@@ -20,6 +19,7 @@ import {
     Database,
     Settings,
     BarChart2,
+    Basketball
 } from 'lucide-react';
 import { useEffect, useState } from 'react'; 
 import { getUserProfileById } from '@/app/users/actions';
@@ -50,7 +50,8 @@ export default function Header() {
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 shadow-sm">
       <div className="container flex h-20 items-center">
         <Link href="/" className="mr-8 flex items-center space-x-2">
-          <SiteLogo className="h-12 w-auto" />
+          <Basketball className="h-8 w-8 text-primary" />
+          <span className="font-headline text-2xl font-bold text-primary">Hoop Control</span>
         </Link>
         
         <nav className="hidden md:flex items-center space-x-6 text-sm font-medium">
