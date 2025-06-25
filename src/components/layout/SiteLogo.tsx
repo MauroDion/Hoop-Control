@@ -1,12 +1,16 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import Image from 'next/image';
 import { getBrandingSettings } from '@/app/admin/settings/actions';
 import Logo from './Logo'; // Fallback SVG logo
 import { Skeleton } from '../ui/skeleton';
+import { cn } from '@/lib/utils';
 
-const SiteLogo = () => {
+interface SiteLogoProps {
+    className?: string;
+}
+
+const SiteLogo = ({ className }: SiteLogoProps) => {
     const [logoUrl, setLogoUrl] = useState<string | null | undefined>(undefined);
 
     useEffect(() => {
@@ -16,16 +20,17 @@ const SiteLogo = () => {
     }, []);
 
     if (logoUrl === undefined) {
-        return <Skeleton className="h-8 w-8 rounded-md" />;
+        return <Skeleton className={cn("h-8 w-8 rounded-md", className)} />;
     }
 
     if (logoUrl) {
-        // Increased width to allow the logo to be wider while maintaining its aspect ratio.
-        // The height is constrained to 32px.
-        return <Image src={logoUrl} alt="Hoop Control Logo" width={128} height={32} style={{ objectFit: 'contain', height: '32px' }} />;
+        // Using `img` tag for better flexibility with Data URLs and styling
+        // The parent container should control the size.
+        // We ensure object-contain to prevent stretching.
+        return <img src={logoUrl} alt="Hoop Control Logo" className={cn("object-contain", className)} />;
     }
     
-    return <Logo className="h-8 w-8 text-primary" />;
+    return <Logo className={cn("text-primary", className)} />;
 };
 
 export default SiteLogo;

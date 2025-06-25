@@ -1,5 +1,6 @@
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
+import SiteLogo from '@/components/layout/SiteLogo';
 
 export default function HomePage() {
   // This page is now a simple Server Component.
@@ -11,9 +12,9 @@ export default function HomePage() {
   return (
     <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)] text-center p-6 bg-gradient-to-br from-background to-secondary/30 rounded-xl shadow-2xl">
       <div className="max-w-2xl">
-        <h1 className="text-5xl md:text-6xl font-headline font-extrabold mb-6 text-primary tracking-tight">
-          Bienvenido a Hoop Control
-        </h1>
+        <div className="mb-6 flex justify-center">
+          <SiteLogo className="h-24 w-auto text-primary" />
+        </div>
         <p className="text-lg md:text-xl text-foreground/80 mb-10 leading-relaxed">
           El seguimiento de partidos de baloncesto, simplificado. Gestiona equipos, jugadores y estadísticas en vivo, todo en un solo lugar.
         </p>
