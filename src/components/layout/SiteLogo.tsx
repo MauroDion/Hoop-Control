@@ -20,7 +20,9 @@ const SiteLogo = () => {
     }
 
     if (logoUrl) {
-        return <Image src={logoUrl} alt="Hoop Control Logo" width={32} height={32} style={{ objectFit: 'contain', height: '32px' }} />;
+        // Increased width to allow the logo to be wider while maintaining its aspect ratio.
+        // The height is constrained to 32px.
+        return <Image src={logoUrl} alt="Hoop Control Logo" width={128} height={32} style={{ objectFit: 'contain', height: '32px' }} />;
     }
     
     return <Logo className="h-8 w-8 text-primary" />;
