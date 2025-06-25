@@ -16,7 +16,7 @@ export default function HomePage() {
           <SiteLogo className="h-24 w-auto text-primary" />
         </div>
         <p className="text-lg md:text-xl text-foreground/80 mb-10 leading-relaxed">
-          El seguimiento de partidos de baloncesto, simplificado. Gestiona equipos, jugadores y estadísticas en vivo, todo en un solo lugar.
+          Seguimiento de partidos de baloncesto simplificado. Gestiona equipos, jugadores y estadísticas en vivo,
         </p>
         <div className="space-x-6">
           <Button asChild size="lg" className="shadow-lg hover:shadow-primary/50 transition-shadow duration-300">
