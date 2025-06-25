@@ -17,7 +17,7 @@ import {
     ListOrdered,
     Database,
     BarChart2,
-    Settings as SettingsIcon,
+    Settings,
     Basketball,
     LogOut,
     UserCircle
@@ -134,12 +134,6 @@ export default function Header() {
                         <span>Formatos de Partido</span>
                       </Link>
                     </DropdownMenuItem>
-                     <DropdownMenuItem asChild>
-                      <Link href="/admin/settings" className="flex items-center w-full cursor-pointer">
-                          <SettingsIcon className="mr-2 h-4 w-4" />
-                          <span>Ajustes</span>
-                      </Link>
-                    </DropdownMenuItem>
                     <DropdownMenuSeparator />
                      <DropdownMenuItem asChild>
                       <Link href="/admin/seeder" className="flex items-center w-full cursor-pointer">
@@ -183,7 +177,7 @@ export default function Header() {
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem disabled className="flex items-center cursor-not-allowed">
-                    <SettingsIcon className="mr-2 h-4 w-4" />
+                    <Settings className="mr-2 h-4 w-4" />
                     Configuración
                     <span className="ml-auto text-xs text-muted-foreground">(Pronto)</span>
                   </DropdownMenuItem>

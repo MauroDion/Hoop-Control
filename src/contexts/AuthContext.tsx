@@ -21,12 +21,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const { toast } = useToast();
 
   const logout = useCallback(async (showToast = true) => {
-    console.log("AuthProvider: Logout process initiated.");
     try {
+      // Clear the server-side session cookie
       await fetch('/api/auth/session-logout', { method: 'POST' });
     } catch (error) {
       console.error("Logout API call failed, proceeding with client-side cleanup:", error);
     } finally {
+      // Always perform client-side sign out
       await firebaseSignOut(auth);
       if (showToast) {
         toast({ title: "Sesión Cerrada", description: "Has cerrado sesión correctamente." });
