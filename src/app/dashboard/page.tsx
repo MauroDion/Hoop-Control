@@ -32,54 +32,66 @@ const bcsjdApiSampleData: ApiData[] = [
 
 export default function DashboardPage() {
   const { user, loading: authLoading } = useAuth();
-  const router = useRouter();
   const [userProfile, setUserProfile] = useState<UserFirestoreProfile | null>(null);
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [profileError, setProfileError] = useState<string | null>(null);
 
   useEffect(() => {
-    // The middleware is now responsible for ensuring only authenticated users reach this page.
-    // So, we expect the `user` object to be available shortly after `authLoading` is false.
+    // This effect runs when the authentication state changes.
+    if (authLoading) {
+      // If auth is still loading, we wait.
+      return;
+    }
+
     if (user) {
-      console.log(`Dashboard: User authenticated. Fetching profile for UID: ${user.uid}`);
+      // If a user object exists, fetch their profile.
       setLoadingProfile(true);
       setProfileError(null);
       getUserProfileById(user.uid)
         .then(profile => {
           if (profile) {
-            console.log("Dashboard: Successfully fetched profile data:", profile);
             setUserProfile(profile);
           } else {
-            console.error("Dashboard: getUserProfileById returned null. This means no profile document was found for the UID in 'user_profiles' collection or there was a permission issue.");
-            setProfileError("No se pudo encontrar tu perfil de usuario en la base de datos. Podría ser un problema de permisos. Por favor, contacta a un administrador.");
-            setUserProfile(null);
+            setProfileError("No se pudo encontrar tu perfil de usuario en la base de datos. Por favor, contacta a un administrador.");
           }
         })
         .catch(err => {
-          console.error("Dashboard: An error occurred while fetching user profile:", err);
-          setProfileError("Ocurrió un error al cargar tu perfil. Por favor, inténtalo de nuevo más tarde.");
-          setUserProfile(null);
+          setProfileError("Ocurrió un error al cargar tu perfil.");
         })
         .finally(() => {
-          console.log("Dashboard: Finished fetching profile.");
           setLoadingProfile(false);
         });
-    } else if (!authLoading && !user) {
-      // This is a failsafe. If for any reason an unauthenticated user gets here
-      // (e.g., session expires while on page), redirect them.
-      console.warn("Dashboard: Failsafe triggered. Unauthenticated user detected. Redirecting to login.");
-      router.replace('/login');
+    } else {
+      // If auth has loaded and there is STILL no user, it's a genuine unauthenticated state.
+      // The middleware should have already redirected, but as a final client-side failsafe,
+      // we show an error instead of redirecting to avoid loops.
+      setLoadingProfile(false);
+      setProfileError("No se pudo verificar tu sesión. Por favor, intenta iniciar sesión de nuevo.");
     }
-  }, [user, authLoading, router]);
+  }, [user, authLoading]);
 
-  // A single, reliable loading state. Middleware ensures we don't need an "unauthenticated" UI here.
-  // We wait for auth to be confirmed (`!authLoading && user`) before proceeding to render the dashboard.
-  if (authLoading || !user) {
+  // Main loading state for the entire page
+  if (authLoading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)]">
         <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
         <h1 className="text-2xl font-headline font-semibold">Verificando sesión...</h1>
         <p className="text-muted-foreground">Por favor, espera.</p>
+      </div>
+    );
+  }
+
+  // If there's no user object after loading, it means authentication failed.
+  // We show an error message instead of redirecting to break the loop.
+  if (!user) {
+    return (
+       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)] text-center p-6">
+        <AlertTriangle className="h-12 w-12 text-destructive mb-4" />
+        <h1 className="text-2xl font-headline font-semibold text-destructive">Error de Sesión</h1>
+        <p className="text-muted-foreground mb-4">{profileError || "Tu sesión no es válida o ha expirado."}</p>
+        <Button asChild>
+          <Link href="/login">Ir a Iniciar Sesión</Link>
+        </Button>
       </div>
     );
   }
@@ -135,7 +147,6 @@ export default function DashboardPage() {
       );
     }
 
-    // Fallback for non-super-admin users without a clubId, or if profile is somehow empty but not errored.
     return (
       <div className="flex items-center text-muted-foreground">
         <AlertTriangle className="mr-2 h-5 w-5 text-yellow-500" />
@@ -144,7 +155,6 @@ export default function DashboardPage() {
     );
   };
   
-  // From here on, we can safely assume `user` exists.
   return (
     <div className="space-y-8">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 p-6 bg-card rounded-lg shadow-lg">
@@ -162,7 +172,6 @@ export default function DashboardPage() {
         />
       </div>
 
-      {/* Summary Cards */}
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
         <Card className="shadow-md hover:shadow-lg transition-shadow">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -206,7 +215,6 @@ export default function DashboardPage() {
         </Card>
       </div>
 
-      {/* Club & Team Management Section */}
       <Card className="shadow-lg">
         <CardHeader>
           <CardTitle className="text-2xl font-headline flex items-center">
@@ -219,7 +227,6 @@ export default function DashboardPage() {
         </CardContent>
       </Card>
 
-      {/* BCSJD API Data Section (Placeholder) */}
       <Card className="shadow-lg">
         <CardHeader>
           <CardTitle className="text-2xl font-headline flex items-center">
