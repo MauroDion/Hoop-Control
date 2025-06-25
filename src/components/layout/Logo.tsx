@@ -12,11 +12,10 @@ const Logo = (props: React.SVGProps<SVGSVGElement>) => (
     {...props}
   >
     <title>Hoop Control Logo</title>
-    <circle cx="12" cy="12" r="10" />
-    <path d="M4.93 4.93l14.14 14.14" />
-    <path d="M19.07 4.93L4.93 19.07" />
-    <path d="M2 12h20" />
-    <path d="M12 2v20" />
+    <circle cx="12" cy="12" r="10"></circle>
+    <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10"></path>
+    <path d="M12 2a15.3 15.3 0 0 0-4 10 15.3 15.3 0 0 0 4 10"></path>
+    <path d="M2 12h20"></path>
   </svg>
 );
 
