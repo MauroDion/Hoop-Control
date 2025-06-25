@@ -8,10 +8,9 @@ import { Clock, ShieldX, Dribbble } from "lucide-react";
 import Image from "next/image";
 import { getBrandingSettings } from "../admin/settings/actions";
 
-
 export default async function LoginPage({ searchParams }: { searchParams: { [key: string]: string | string[] | undefined } }) {
   const status = searchParams?.status;
-  const { logoDataUrl } = await getBrandingSettings();
+  const { appName, logoLoginUrl } = await getBrandingSettings();
 
   const renderStatusMessage = () => {
     switch (status) {
@@ -44,13 +43,14 @@ export default async function LoginPage({ searchParams }: { searchParams: { [key
     <div className="flex min-h-[calc(100vh-10rem)] items-center justify-center">
       <Card className="w-full max-w-md shadow-xl">
         <CardHeader className="text-center space-y-4">
-          {logoDataUrl ? (
+          {logoLoginUrl ? (
              <div className="relative h-16 w-48 mx-auto">
-                <Image src={logoDataUrl} alt="Logo" fill style={{ objectFit: 'contain' }}/>
+                <Image src={logoLoginUrl} alt={appName || "Logo"} fill style={{ objectFit: 'contain' }}/>
              </div>
           ) : (
-            <div className="flex justify-center">
-              <Dribbble className="h-16 w-16 text-primary" />
+            <div className="flex justify-center items-center gap-2">
+              <Dribbble className="h-12 w-12 text-primary" />
+              <h1 className="text-4xl font-headline font-bold text-primary">{appName || "Hoop Control"}</h1>
             </div>
           )}
           <CardTitle className="text-3xl font-headline">¡Bienvenido de nuevo!</CardTitle>

@@ -279,5 +279,8 @@ export interface GameEvent {
 }
 
 export interface BrandingSettings {
-  logoDataUrl?: string;
+  appName?: string;
+  logoHeaderUrl?: string;
+  logoLoginUrl?: string;
+  logoHeroUrl?: string;
 }

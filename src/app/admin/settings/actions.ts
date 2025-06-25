@@ -7,15 +7,11 @@ import { revalidatePath } from 'next/cache';
 const SETTINGS_COLLECTION = 'settings';
 const BRANDING_DOC = 'branding';
 
-export async function saveBrandingSettings(settings: BrandingSettings): Promise<{ success: boolean; error?: string }> {
+export async function saveBrandingSettings(settings: Partial<BrandingSettings>): Promise<{ success: boolean; error?: string }> {
   if (!adminDb) {
     return { success: false, error: 'Database not initialized.' };
   }
   
-  if (settings.logoDataUrl && settings.logoDataUrl.length > 1000 * 1000) {
-      return { success: false, error: 'La imagen es demasiado grande. El límite es aproximadamente 1MB.' };
-  }
-
   try {
     const brandingRef = adminDb.collection(SETTINGS_COLLECTION).doc(BRANDING_DOC);
     await brandingRef.set(settings, { merge: true });
