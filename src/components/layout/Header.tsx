@@ -19,6 +19,7 @@ import {
     ListOrdered,
     Database,
     Settings,
+    BarChart2,
 } from 'lucide-react';
 import { useEffect, useState } from 'react'; 
 import { getUserProfileById } from '@/app/users/actions';
@@ -64,6 +65,9 @@ export default function Header() {
               </Link>
               <Link href="/games" className="transition-colors hover:text-primary flex items-center">
                 <CalendarClock className="mr-2 h-4 w-4" /> Partidos
+              </Link>
+              <Link href="/analysis" className="transition-colors hover:text-primary flex items-center">
+                <BarChart2 className="mr-2 h-4 w-4" /> Análisis
               </Link>
               <Link href="/api-data" className="transition-colors hover:text-primary flex items-center">
                 <BarChart3 className="mr-2 h-4 w-4" /> Datos API
