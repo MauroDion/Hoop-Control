@@ -1,13 +1,17 @@
+
 "use client";
 
 import { useAuth } from '@/hooks/useAuth';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { BarChart, Building, CheckSquare, Users, AlertTriangle, Loader2 } from 'lucide-react';
+import { BarChart, Building, CheckSquare, Users, AlertTriangle, Loader2, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { getUserProfileById } from '@/app/users/actions';
 import type { UserFirestoreProfile } from '@/types';
+import { useRouter } from 'next/navigation';
+import { format } from 'date-fns';
+import { es } from 'date-fns/locale';
 
 // Dummy data - replace with actual data fetching
 const summaryData = {
@@ -30,9 +34,19 @@ const apiSampleData: ApiData[] = [
 
 export default function DashboardPage() {
   const { user, loading: authLoading, logout } = useAuth();
+  const router = useRouter();
   const [userProfile, setUserProfile] = useState<UserFirestoreProfile | null>(null);
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [profileError, setProfileError] = useState<string | null>(null);
+  const [currentTime, setCurrentTime] = useState<string | null>(null);
+
+   useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(format(new Date(), 'HH:mm:ss', { locale: es }));
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     if (authLoading) {
@@ -151,24 +165,15 @@ export default function DashboardPage() {
             <p className="text-xs text-muted-foreground">+15 esta semana</p>
           </CardContent>
         </Card>
-        <Card className="shadow-md hover:shadow-lg transition-shadow">
+        <Card className="shadow-md hover:shadow-lg transition-shadow lg:col-span-2">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Miembros del Equipo</CardTitle>
-            <Users className="h-5 w-5 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Hora Actual (España)</CardTitle>
+            <Clock className="h-5 w-5 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-primary">{summaryData.teamMembers}</div>
-            <p className="text-xs text-muted-foreground">Todos activos</p>
-          </CardContent>
-        </Card>
-        <Card className="shadow-md hover:shadow-lg transition-shadow">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Alertas Críticas (Ejemplo)</CardTitle>
-            <AlertTriangle className="h-5 w-5 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold">{summaryData.alerts}</div>
-            <p className="text-xs text-muted-foreground">Esto es una tarjeta de ejemplo</p>
+            <div className="text-5xl font-bold text-center font-mono py-2">
+              {currentTime || "Calculando..."}
+            </div>
           </CardContent>
         </Card>
       </div>
