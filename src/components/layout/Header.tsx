@@ -16,8 +16,7 @@ import {
     ChevronDown,
     Building,
     ListOrdered,
-    Database,
-    Basketball
+    Database
 } from 'lucide-react';
 import { useEffect, useState } from 'react'; 
 import { getUserProfileById } from '@/app/users/actions';
@@ -48,7 +47,13 @@ export default function Header() {
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 shadow-sm">
       <div className="container flex h-20 items-center">
         <Link href="/" className="mr-8 flex items-center space-x-2">
-          <Basketball className="h-8 w-8 text-primary" />
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-8 w-8 text-primary">
+            <circle cx="12" cy="12" r="10"></circle>
+            <path d="M4.93 4.93l14.14 14.14"></path>
+            <path d="M19.07 4.93L4.93 19.07"></path>
+            <path d="M12 2a10 10 0 0 0-8.66 15"></path>
+            <path d="M12 22a10 10 0 0 1 8.66-15"></path>
+          </svg>
           <span className="font-headline text-2xl font-bold text-primary">Hoop Control</span>
         </Link>
         
