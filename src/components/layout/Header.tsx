@@ -85,12 +85,6 @@ export default function Header() {
                     <DropdownMenuLabel>Gestión</DropdownMenuLabel>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem asChild>
-                      <Link href="/admin/settings" className="flex items-center w-full cursor-pointer">
-                        <Settings className="mr-2 h-4 w-4" />
-                        <span>Ajustes Generales</span>
-                      </Link>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem asChild>
                       <Link href="/admin/user-management" className="flex items-center w-full cursor-pointer">
                         <UserCog className="mr-2 h-4 w-4" />
                         <span>Usuarios</span>
