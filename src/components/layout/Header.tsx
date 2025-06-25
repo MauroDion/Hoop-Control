@@ -36,11 +36,14 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
+import { getBrandingSettings } from '@/app/admin/settings/actions';
 
 export default function Header() {
   const { user, loading, logout } = useAuth();
   const router = useRouter();
   const [profile, setProfile] = useState<UserFirestoreProfile | null>(null);
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
 
   useEffect(() => {
     if (user && !profile) {
@@ -50,6 +53,16 @@ export default function Header() {
       setProfile(null);
     }
   }, [user, profile]);
+
+  useEffect(() => {
+    async function fetchLogo() {
+      const settings = await getBrandingSettings();
+      if (settings.logoDataUrl) {
+        setLogoUrl(settings.logoDataUrl);
+      }
+    }
+    fetchLogo();
+  }, []);
 
   const handleLogout = async () => {
     await logout();
@@ -70,8 +83,16 @@ export default function Header() {
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 shadow-sm">
       <div className="container flex h-20 items-center">
         <Link href="/" className="mr-8 flex items-center space-x-2">
-          <Dribbble className="h-8 w-8 text-primary" />
-          <span className="font-headline text-2xl font-bold text-primary">Hoop Control</span>
+          {logoUrl ? (
+             <div className="relative h-12 w-40">
+              <Image src={logoUrl} alt="Logo" fill style={{ objectFit: 'contain' }}/>
+            </div>
+          ) : (
+            <>
+              <Dribbble className="h-8 w-8 text-primary" />
+              <span className="font-headline text-2xl font-bold text-primary">Hoop Control</span>
+            </>
+          )}
         </Link>
         
         <nav className="hidden md:flex items-center space-x-6 text-sm font-medium">
