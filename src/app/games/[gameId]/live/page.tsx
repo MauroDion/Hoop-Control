@@ -43,28 +43,28 @@ export default function LiveGamePage() {
     const [displayTime, setDisplayTime] = useState(0);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [isClient, setIsClient] = useState(false);
 
     useEffect(() => {
-        const fetchPlayers = async () => {
-            if (!game) return;
+        setIsClient(true);
+    }, []);
 
-            if (game.homeTeamId) {
-                const allHomePlayers = await getPlayersByTeamId(game.homeTeamId);
-                const homeRoster = (game.homeTeamPlayerIds && game.homeTeamPlayerIds.length > 0)
-                    ? allHomePlayers.filter(p => game.homeTeamPlayerIds!.includes(p.id))
-                    : allHomePlayers;
-                setHomePlayers(homeRoster);
-            }
-             if (game.awayTeamId) {
-                const allAwayPlayers = await getPlayersByTeamId(game.awayTeamId);
-                const awayRoster = (game.awayTeamPlayerIds && game.awayTeamPlayerIds.length > 0)
-                    ? allAwayPlayers.filter(p => game.awayTeamPlayerIds!.includes(p.id))
-                    : allAwayPlayers;
-                setAwayPlayers(awayRoster);
-            }
-        };
-        fetchPlayers();
-    }, [game]);
+    const fetchPlayers = useCallback(async (gameData: Game) => {
+        if (gameData.homeTeamId) {
+            const allHomePlayers = await getPlayersByTeamId(gameData.homeTeamId);
+            const homeRoster = (gameData.homeTeamPlayerIds && gameData.homeTeamPlayerIds.length > 0)
+                ? allHomePlayers.filter(p => gameData.homeTeamPlayerIds!.includes(p.id))
+                : allHomePlayers;
+            setHomePlayers(homeRoster);
+        }
+         if (gameData.awayTeamId) {
+            const allAwayPlayers = await getPlayersByTeamId(gameData.awayTeamId);
+            const awayRoster = (gameData.awayTeamPlayerIds && gameData.awayTeamPlayerIds.length > 0)
+                ? allAwayPlayers.filter(p => gameData.awayTeamPlayerIds!.includes(p.id))
+                : allAwayPlayers;
+            setAwayPlayers(awayRoster);
+        }
+    }, []);
 
     useEffect(() => {
         if (!gameId) {
@@ -77,6 +77,7 @@ export default function LiveGamePage() {
         const unsubscribeGame = onSnapshot(gameRef, async (docSnap) => {
             if (docSnap.exists()) {
                 const data = docSnap.data();
+                // Ensure all date objects are converted to strings to prevent hydration errors.
                 const gameData = { 
                     id: docSnap.id, 
                     ...data, 
@@ -85,6 +86,7 @@ export default function LiveGamePage() {
                     updatedAt: data.updatedAt?.toDate().toISOString(),
                  } as Game;
                 setGame(gameData);
+                fetchPlayers(gameData);
                 
                 if (!gameFormat && gameData.gameFormatId) {
                     const format = await getGameFormatById(gameData.gameFormatId);
@@ -112,7 +114,7 @@ export default function LiveGamePage() {
             unsubscribeGame();
             unsubscribeEvents();
         };
-    }, [gameId, gameFormat]);
+    }, [gameId, gameFormat, fetchPlayers]);
 
     useEffect(() => {
        if (game?.isTimerRunning && displayTime > 0) {
@@ -190,7 +192,7 @@ export default function LiveGamePage() {
     if (error) return <AlertTriangle className="h-12 w-12 text-destructive mx-auto my-20" />;
     if (!game) return null;
 
-    const TeamPanel = ({ players, teamType }: { players: Player[], teamType: 'home' | 'away'}) => {
+    const TeamRosterPanel = ({ players, teamType }: { players: Player[], teamType: 'home' | 'away'}) => {
         const teamName = teamType === 'home' ? game.homeTeamName : game.awayTeamName;
         const score = teamType === 'home' ? game.homeTeamScore : game.awayTeamScore;
 
@@ -264,7 +266,7 @@ export default function LiveGamePage() {
                 </CardHeader>
                 <CardContent className="flex flex-col items-center gap-4">
                      <div className="text-6xl font-mono text-center tracking-tighter py-2 px-4 bg-secondary text-secondary-foreground rounded-lg">
-                        {formatTime(displayTime)}
+                        {isClient ? formatTime(displayTime) : '00:00'}
                     </div>
                      <div className="flex justify-center flex-wrap gap-2">
                         {game.status === 'scheduled' && (
@@ -320,7 +322,7 @@ export default function LiveGamePage() {
                              {event.teamId === 'home' ? game.homeTeamName : game.awayTeamName}
                            </span> ({event.playerName}): {event.action.replace(/_/g, ' ')}
                            <span className="text-muted-foreground text-xs ml-2">
-                               ({event.createdAt ? format(new Date(event.createdAt), 'HH:mm:ss') : ''})
+                               ({event.createdAt ? format(new Date(event.createdAt), 'HH:mm:ss', {locale: es}) : ''})
                            </span>
                         </li>
                     ))}
