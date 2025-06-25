@@ -49,13 +49,21 @@ export default function LiveGamePage() {
         const fetchPlayers = async () => {
             if (!game) return;
 
-            if (game.homeTeamId && game.homeTeamPlayerIds) {
-                const players = await getPlayersByTeamId(game.homeTeamId);
-                setHomePlayers(players.filter(p => game.homeTeamPlayerIds?.includes(p.id)));
+            if (game.homeTeamId) {
+                const allHomePlayers = await getPlayersByTeamId(game.homeTeamId);
+                // If roster is defined and not empty, use it. Otherwise, use all players.
+                const homeRoster = (game.homeTeamPlayerIds && game.homeTeamPlayerIds.length > 0)
+                    ? allHomePlayers.filter(p => game.homeTeamPlayerIds!.includes(p.id))
+                    : allHomePlayers;
+                setHomePlayers(homeRoster);
             }
-             if (game.awayTeamId && game.awayTeamPlayerIds) {
-                const players = await getPlayersByTeamId(game.awayTeamId);
-                setAwayPlayers(players.filter(p => game.awayTeamPlayerIds?.includes(p.id)));
+             if (game.awayTeamId) {
+                const allAwayPlayers = await getPlayersByTeamId(game.awayTeamId);
+                 // If roster is defined and not empty, use it. Otherwise, use all players.
+                const awayRoster = (game.awayTeamPlayerIds && game.awayTeamPlayerIds.length > 0)
+                    ? allAwayPlayers.filter(p => game.awayTeamPlayerIds!.includes(p.id))
+                    : allAwayPlayers;
+                setAwayPlayers(awayRoster);
             }
         };
         fetchPlayers();
