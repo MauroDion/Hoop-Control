@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useAuth } from '@/hooks/useAuth';
 import UserNav from './UserNav';
+import SiteLogo from './SiteLogo';
 import { Button } from '@/components/ui/button';
 import { 
     LayoutDashboard, 
@@ -16,7 +17,8 @@ import {
     ChevronDown,
     Building,
     ListOrdered,
-    Database
+    Database,
+    Settings,
 } from 'lucide-react';
 import { useEffect, useState } from 'react'; 
 import { getUserProfileById } from '@/app/users/actions';
@@ -29,7 +31,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import Logo from './Logo';
 
 export default function Header() {
   const { user, loading } = useAuth();
@@ -48,11 +49,11 @@ export default function Header() {
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 shadow-sm">
       <div className="container flex h-20 items-center">
         <Link href="/" className="mr-8 flex items-center space-x-2">
-          <Logo className="h-8 w-8 text-primary" />
+          <SiteLogo />
           <span className="font-headline text-2xl font-bold text-primary">Hoop Control</span>
         </Link>
         
-        <nav className="flex items-center space-x-6 text-sm font-medium">
+        <nav className="hidden md:flex items-center space-x-6 text-sm font-medium">
           {!loading && user && (
             <>
               <Link href="/dashboard" className="transition-colors hover:text-primary flex items-center">
@@ -79,6 +80,12 @@ export default function Header() {
                   <DropdownMenuContent align="end">
                     <DropdownMenuLabel>Gestión</DropdownMenuLabel>
                     <DropdownMenuSeparator />
+                    <DropdownMenuItem asChild>
+                      <Link href="/admin/settings" className="flex items-center w-full cursor-pointer">
+                        <Settings className="mr-2 h-4 w-4" />
+                        <span>Ajustes Generales</span>
+                      </Link>
+                    </DropdownMenuItem>
                     <DropdownMenuItem asChild>
                       <Link href="/admin/user-management" className="flex items-center w-full cursor-pointer">
                         <UserCog className="mr-2 h-4 w-4" />

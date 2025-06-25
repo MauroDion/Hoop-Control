@@ -242,3 +242,7 @@ export interface GameFormData {
     competitionCategoryId: string;
     gameFormatId?: string | null;
 }
+
+export interface BrandingSettings {
+  logoDataUrl?: string;
+}
