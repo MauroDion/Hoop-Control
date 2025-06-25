@@ -257,6 +257,8 @@ export interface GameFormData {
 
 export interface BrandingSettings {
   logoDataUrl?: string;
+  homePageImageUrl?: string;
+  dashboardAvatarUrl?: string;
 }
 
 export type GameEventAction = 
@@ -273,8 +275,9 @@ export type GameEventAction =
 export interface GameEvent {
     id: string;
     gameId: string;
-    teamId: string;
+    teamId: 'home' | 'away';
     playerId: string;
+    playerName: string;
     action: GameEventAction;
     period: number;
     gameTimeSeconds: number;

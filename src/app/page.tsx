@@ -1,22 +1,29 @@
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import SiteLogo from '@/components/layout/SiteLogo';
+import Image from 'next/image';
+import { getBrandingSettings } from '@/app/admin/settings/actions';
 
-export default function HomePage() {
-  // This page is now a simple Server Component.
-  // It no longer contains client-side logic to check for authentication.
-  // The middleware (`src/middleware.ts`) is solely responsible for redirecting
-  // authenticated users away from this page to the /dashboard.
-  // This approach simplifies the logic and prevents client-server race conditions.
+export default async function HomePage() {
+  const { homePageImageUrl } = await getBrandingSettings();
 
   return (
     <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)] text-center p-6 bg-gradient-to-br from-background to-secondary/30 rounded-xl shadow-2xl">
       <div className="max-w-2xl">
-        <div className="mb-6 flex justify-center">
-          <SiteLogo className="h-20 w-auto text-primary" />
+        <div className="mb-10 shadow-lg">
+          <Image 
+            src={homePageImageUrl || "https://placehold.co/600x300.png"} 
+            alt="Hoop Control Platform Illustration" 
+            width={600} 
+            height={300} 
+            priority 
+            className="rounded-lg object-cover"
+            data-ai-hint="basketball court"
+          />
         </div>
+        <SiteLogo className="h-20 w-auto text-primary mx-auto mb-6" />
         <p className="text-lg md:text-xl text-foreground/80 mb-10 leading-relaxed">
-          Seguimiento de partidos de baloncesto  simplificado. Gestiona equipos, jugadores y estadísticas en vivo,
+          Seguimiento de partidos de baloncesto simplificado. Gestiona equipos, jugadores y estadísticas en vivo.
         </p>
         <div className="space-x-6">
           <Button asChild size="lg" className="shadow-lg hover:shadow-primary/50 transition-shadow duration-300">

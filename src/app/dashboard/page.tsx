@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useAuth } from '@/hooks/useAuth';
@@ -12,6 +11,8 @@ import type { UserFirestoreProfile } from '@/types';
 import { useRouter } from 'next/navigation';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
+import Image from 'next/image';
+import { getBrandingSettings } from '@/app/admin/settings/actions';
 
 // Dummy data - replace with actual data fetching
 const summaryData = {
@@ -39,6 +40,7 @@ export default function DashboardPage() {
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [profileError, setProfileError] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState<string | null>(null);
+  const [dashboardAvatar, setDashboardAvatar] = useState<string | undefined>(undefined);
 
    useEffect(() => {
     const timer = setInterval(() => {
@@ -49,34 +51,35 @@ export default function DashboardPage() {
   }, []);
 
   useEffect(() => {
-    if (authLoading) {
+    if (authLoading) return;
+    if (!user) {
+      logout();
       return;
     }
 
-    if (user) {
-      setLoadingProfile(true);
-      setProfileError(null);
-      getUserProfileById(user.uid)
-        .then(profile => {
-          if (profile) {
+    setLoadingProfile(true);
+    setProfileError(null);
+    Promise.all([
+        getUserProfileById(user.uid),
+        getBrandingSettings()
+    ]).then(([profile, settings]) => {
+        if (profile) {
             setUserProfile(profile);
-          } else {
+        } else {
             setProfileError("Tu perfil no se encontró en la base de datos. Por favor, contacta a un administrador.");
-          }
-        })
-        .catch(err => {
-          setProfileError("Ocurrió un error al cargar tu perfil.");
-        })
-        .finally(() => {
-          setLoadingProfile(false);
-        });
-    } else {
-      console.warn("Dashboard: Auth state is null, triggering logout to clear session cookie.");
-      logout();
-    }
+        }
+        if (settings.dashboardAvatarUrl) {
+            setDashboardAvatar(settings.dashboardAvatarUrl);
+        }
+    }).catch(err => {
+        setProfileError("Ocurrió un error al cargar tus datos.");
+    }).finally(() => {
+        setLoadingProfile(false);
+    });
+
   }, [user, authLoading, logout]);
 
-  if (loadingProfile) {
+  if (loadingProfile || authLoading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)]">
         <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
@@ -142,6 +145,14 @@ export default function DashboardPage() {
           <h1 className="text-4xl font-headline font-bold text-primary">¡Bienvenido, {user?.displayName || user?.email}!</h1>
           <p className="text-lg text-muted-foreground mt-1">Este es un resumen de tu espacio de trabajo en Hoop Control.</p>
         </div>
+         <Image 
+            src={dashboardAvatar || "https://placehold.co/150x150.png"} 
+            alt="Avatar decorativo del panel" 
+            width={100} 
+            height={100} 
+            className="rounded-full shadow-md hidden sm:block object-cover"
+            data-ai-hint="professional avatar"
+          />
       </div>
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
