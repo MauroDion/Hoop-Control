@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Clock, ShieldX } from "lucide-react";
+import SiteLogo from "@/components/layout/SiteLogo";
 
 
 export default function LoginPage({ searchParams }: { searchParams: { [key: string]: string | string[] | undefined } }) {
@@ -40,9 +41,12 @@ export default function LoginPage({ searchParams }: { searchParams: { [key: stri
   return (
     <div className="flex min-h-[calc(100vh-10rem)] items-center justify-center">
       <Card className="w-full max-w-md shadow-xl">
-        <CardHeader className="text-center">
+        <CardHeader className="text-center space-y-4">
+          <div className="flex justify-center">
+            <SiteLogo className="h-16 w-auto" />
+          </div>
           <CardTitle className="text-3xl font-headline">¡Bienvenido de nuevo!</CardTitle>
-          <CardDescription>Inicia sesión para acceder a tu panel de Hoop Control.</CardDescription>
+          <CardDescription>Inicia sesión para acceder a tu panel.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           {renderStatusMessage()}

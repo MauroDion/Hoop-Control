@@ -13,7 +13,7 @@ export default function HomePage() {
     <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)] text-center p-6 bg-gradient-to-br from-background to-secondary/30 rounded-xl shadow-2xl">
       <div className="max-w-2xl">
         <div className="mb-6 flex justify-center">
-          <SiteLogo className="h-48 w-auto text-primary" />
+          <SiteLogo className="h-20 w-auto text-primary" />
         </div>
         <p className="text-lg md:text-xl text-foreground/80 mb-10 leading-relaxed">
           Seguimiento de partidos de baloncesto  simplificado. Gestiona equipos, jugadores y estadísticas en vivo,
