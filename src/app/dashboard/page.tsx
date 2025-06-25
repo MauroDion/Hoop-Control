@@ -35,14 +35,11 @@ export default function DashboardPage() {
   const [profileError, setProfileError] = useState<string | null>(null);
 
   useEffect(() => {
-    // This effect handles the logic after Firebase's auth state is resolved.
     if (authLoading) {
-      // While auth is loading, we show a general loading screen, so we do nothing here.
       return;
     }
 
     if (user) {
-      // If a user is authenticated on the client, fetch their detailed profile.
       setLoadingProfile(true);
       setProfileError(null);
       getUserProfileById(user.uid)
@@ -50,7 +47,6 @@ export default function DashboardPage() {
           if (profile) {
             setUserProfile(profile);
           } else {
-            // This is a critical state: client is auth'd but no profile exists.
             setProfileError("Tu perfil no se encontró en la base de datos. Por favor, contacta a un administrador.");
           }
         })
@@ -61,36 +57,21 @@ export default function DashboardPage() {
           setLoadingProfile(false);
         });
     } else {
-      // If auth has loaded and there's NO user, it means the session is invalid.
-      // This can happen if the server cookie is stale.
-      // We must trigger a full, silent logout to clear the bad cookie and redirect to login.
-      console.warn("Dashboard: Auth state is null, triggering silent logout to clear session cookie.");
-      logout(false);
+      console.warn("Dashboard: Auth state is null, triggering logout to clear session cookie.");
+      logout();
     }
   }, [user, authLoading, logout]);
 
-  // The main loading state for the entire page.
-  // It waits for the initial auth check to complete.
-  if (authLoading || !user) {
+  if (loadingProfile) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)]">
         <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-        <h1 className="text-2xl font-headline font-semibold">Verificando sesión...</h1>
-        <p className="text-muted-foreground">Por favor, espera.</p>
+        <p>Cargando información del panel...</p>
       </div>
     );
   }
 
   const renderClubManagement = () => {
-    if (loadingProfile) {
-      return (
-        <div className="flex items-center">
-          <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-          <span>Cargando información de usuario...</span>
-        </div>
-      );
-    }
-
     if (profileError) {
       return (
         <div className="flex items-center text-destructive p-4 bg-destructive/10 rounded-md">
@@ -144,7 +125,7 @@ export default function DashboardPage() {
     <div className="space-y-8">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 p-6 bg-card rounded-lg shadow-lg">
         <div>
-          <h1 className="text-4xl font-headline font-bold text-primary">¡Bienvenido, {user.displayName || user.email}!</h1>
+          <h1 className="text-4xl font-headline font-bold text-primary">¡Bienvenido, {user?.displayName || user?.email}!</h1>
           <p className="text-lg text-muted-foreground mt-1">Este es un resumen de tu espacio de trabajo en Hoop Control.</p>
         </div>
       </div>
