@@ -3,7 +3,6 @@
 import { useAuth } from '@/hooks/useAuth';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { BarChart, Building, CheckSquare, Users, AlertTriangle, Loader2 } from 'lucide-react';
-import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
@@ -148,14 +147,6 @@ export default function DashboardPage() {
           <h1 className="text-4xl font-headline font-bold text-primary">¡Bienvenido, {user.displayName || user.email}!</h1>
           <p className="text-lg text-muted-foreground mt-1">Este es un resumen de tu espacio de trabajo en Hoop Control.</p>
         </div>
-        <Image 
-          src="https://placehold.co/150x150.png" 
-          alt="Avatar de usuario o imagen decorativa" 
-          width={100} 
-          height={100} 
-          className="rounded-full shadow-md hidden sm:block"
-          data-ai-hint="basketball coach avatar"
-        />
       </div>
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
@@ -228,16 +219,6 @@ export default function DashboardPage() {
               <p className="text-2xl font-bold text-primary">{item.value}</p>
             </div>
           ))}
-           <div className="p-4 border rounded-md bg-secondary/30 flex items-center justify-center">
-             <Image 
-                src="https://placehold.co/300x150.png" 
-                alt="Gráfico de ejemplo" 
-                width={300} 
-                height={150} 
-                className="rounded shadow"
-                data-ai-hint="data chart"
-              />
-           </div>
         </CardContent>
       </Card>
     </div>
