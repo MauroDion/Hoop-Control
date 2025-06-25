@@ -2,14 +2,13 @@
 
 import { useAuth } from '@/hooks/useAuth';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { BarChart, Building, CheckSquare, Users, AlertTriangle, PlusCircle, Loader2 } from 'lucide-react';
+import { BarChart, Building, CheckSquare, Users, AlertTriangle, Loader2 } from 'lucide-react';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { getUserProfileById } from '@/app/users/actions';
 import type { UserFirestoreProfile } from '@/types';
-import { useRouter } from 'next/navigation';
 
 // Dummy data - replace with actual data fetching
 const summaryData = {
@@ -31,20 +30,20 @@ const bcsjdApiSampleData: ApiData[] = [
 
 
 export default function DashboardPage() {
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, logout } = useAuth();
   const [userProfile, setUserProfile] = useState<UserFirestoreProfile | null>(null);
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [profileError, setProfileError] = useState<string | null>(null);
 
   useEffect(() => {
-    // This effect runs when the authentication state changes.
+    // This effect handles the logic after Firebase's auth state is resolved.
     if (authLoading) {
-      // If auth is still loading, we wait.
+      // While auth is loading, we show a general loading screen, so we do nothing here.
       return;
     }
 
     if (user) {
-      // If a user object exists, fetch their profile.
+      // If a user is authenticated on the client, fetch their detailed profile.
       setLoadingProfile(true);
       setProfileError(null);
       getUserProfileById(user.uid)
@@ -52,7 +51,8 @@ export default function DashboardPage() {
           if (profile) {
             setUserProfile(profile);
           } else {
-            setProfileError("No se pudo encontrar tu perfil de usuario en la base de datos. Por favor, contacta a un administrador.");
+            // This is a critical state: client is auth'd but no profile exists.
+            setProfileError("Tu perfil no se encontró en la base de datos. Por favor, contacta a un administrador.");
           }
         })
         .catch(err => {
@@ -62,36 +62,22 @@ export default function DashboardPage() {
           setLoadingProfile(false);
         });
     } else {
-      // If auth has loaded and there is STILL no user, it's a genuine unauthenticated state.
-      // The middleware should have already redirected, but as a final client-side failsafe,
-      // we show an error instead of redirecting to avoid loops.
-      setLoadingProfile(false);
-      setProfileError("No se pudo verificar tu sesión. Por favor, intenta iniciar sesión de nuevo.");
+      // If auth has loaded and there's NO user, it means the session is invalid.
+      // This can happen if the server cookie is stale.
+      // We must trigger a full, silent logout to clear the bad cookie and redirect to login.
+      console.warn("Dashboard: Auth state is null, triggering silent logout to clear session cookie.");
+      logout(false);
     }
-  }, [user, authLoading]);
+  }, [user, authLoading, logout]);
 
-  // Main loading state for the entire page
-  if (authLoading) {
+  // The main loading state for the entire page.
+  // It waits for the initial auth check to complete.
+  if (authLoading || !user) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)]">
         <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
         <h1 className="text-2xl font-headline font-semibold">Verificando sesión...</h1>
         <p className="text-muted-foreground">Por favor, espera.</p>
-      </div>
-    );
-  }
-
-  // If there's no user object after loading, it means authentication failed.
-  // We show an error message instead of redirecting to break the loop.
-  if (!user) {
-    return (
-       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)] text-center p-6">
-        <AlertTriangle className="h-12 w-12 text-destructive mb-4" />
-        <h1 className="text-2xl font-headline font-semibold text-destructive">Error de Sesión</h1>
-        <p className="text-muted-foreground mb-4">{profileError || "Tu sesión no es válida o ha expirado."}</p>
-        <Button asChild>
-          <Link href="/login">Ir a Iniciar Sesión</Link>
-        </Button>
       </div>
     );
   }
