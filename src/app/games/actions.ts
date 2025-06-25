@@ -1,4 +1,3 @@
-
 'use server';
 import { adminDb } from '@/lib/firebase/admin';
 import admin from 'firebase-admin';
@@ -94,38 +93,6 @@ export async function getAllGames(): Promise<Game[]> {
     }
 }
 
-export async function getGamesByClub(clubId: string): Promise<Game[]> {
-    if (!adminDb || !clubId) return [];
-    try {
-        const gamesRef = adminDb.collection('games');
-        const homeGamesQuery = gamesRef.where('homeTeamClubId', '==', clubId).get();
-        const awayGamesQuery = gamesRef.where('awayTeamClubId', '==', clubId).get();
-
-        const [homeGamesSnap, awayGamesSnap] = await Promise.all([homeGamesQuery, awayGamesQuery]);
-        
-        const gamesMap = new Map<string, Game>();
-        const processSnapshot = (snap: admin.firestore.QuerySnapshot) => {
-            snap.forEach(doc => {
-                const gameData = doc.data();
-                gamesMap.set(doc.id, {
-                    id: doc.id,
-                    ...gameData,
-                    date: gameData.date.toDate(),
-                } as Game);
-            });
-        };
-
-        processSnapshot(homeGamesSnap);
-        processSnapshot(awayGamesSnap);
-
-        return Array.from(gamesMap.values());
-    } catch (error: any) {
-        console.error("Error fetching games by club:", error);
-        return [];
-    }
-}
-
-
 export async function getGamesByCoach(userId: string): Promise<Game[]> {
     if (!adminDb) return [];
     try {
@@ -158,8 +125,6 @@ export async function getGamesByCoach(userId: string): Promise<Game[]> {
         processSnapshot(awayGamesSnap);
 
         const games = Array.from(gamesMap.values());
-        games.sort((a, b) => b.date.getTime() - a.date.getTime());
-
         return games;
     } catch (error: any) {
         console.error("Error fetching games by coach:", error);
@@ -326,5 +291,3 @@ export async function releaseScoringRole(gameId: string, role: StatCategory, use
     return { success: false, error: error.message };
   }
 }
-
-    
