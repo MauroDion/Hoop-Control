@@ -52,9 +52,10 @@ export default function NewTeamPage() {
         
         const isSuperAdmin = profile?.profileTypeId === 'super_admin';
         const isClubAdmin = profile?.profileTypeId === 'club_admin' && profile.clubId === clubId;
+        const isCoordinator = profile?.profileTypeId === 'coordinator' && profile.clubId === clubId;
 
-        if (!isSuperAdmin && !isClubAdmin) {
-            setError("Access Denied. You must be an admin for this club to create teams.");
+        if (!isSuperAdmin && !isClubAdmin && !isCoordinator) {
+            setError("Access Denied. You must be an admin or coordinator for this club to create teams.");
             return;
         }
 

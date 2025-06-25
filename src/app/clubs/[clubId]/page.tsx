@@ -49,8 +49,9 @@ export default function ClubManagementPage() {
 
             const isSuperAdmin = profile?.profileTypeId === 'super_admin';
             const isClubAdmin = profile?.profileTypeId === 'club_admin' && profile.clubId === clubId;
+            const isCoordinator = profile?.profileTypeId === 'coordinator' && profile.clubId === clubId;
 
-            if (!isSuperAdmin && !isClubAdmin) {
+            if (!isSuperAdmin && !isClubAdmin && !isCoordinator) {
                 throw new Error("Access Denied. You do not have permission to manage this club.");
             }
             setHasPermission(true);

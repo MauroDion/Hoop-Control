@@ -80,9 +80,10 @@ export default function TeamManagementPage() {
             
             const isSuperAdmin = profile?.profileTypeId === 'super_admin';
             const isClubAdmin = profile?.profileTypeId === 'club_admin' && profile.clubId === clubId;
+            const isCoordinator = profile?.profileTypeId === 'coordinator' && profile.clubId === clubId;
             const isCoach = profile?.profileTypeId === 'coach' && teamData.coachIds?.includes(userId);
 
-            if (!isSuperAdmin && !isClubAdmin && !isCoach) {
+            if (!isSuperAdmin && !isClubAdmin && !isCoordinator && !isCoach) {
                 throw new Error("Acceso Denegado. No tienes permiso para gestionar este equipo.");
             }
             
