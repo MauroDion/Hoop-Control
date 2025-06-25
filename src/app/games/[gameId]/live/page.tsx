@@ -44,7 +44,24 @@ export default function LiveGamePage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
-    // Initial data fetch and real-time listeners
+    // Fetch players whenever the game data is updated
+    useEffect(() => {
+        const fetchPlayers = async () => {
+            if (!game) return;
+
+            if (game.homeTeamId && game.homeTeamPlayerIds) {
+                const players = await getPlayersByTeamId(game.homeTeamId);
+                setHomePlayers(players.filter(p => game.homeTeamPlayerIds?.includes(p.id)));
+            }
+             if (game.awayTeamId && game.awayTeamPlayerIds) {
+                const players = await getPlayersByTeamId(game.awayTeamId);
+                setAwayPlayers(players.filter(p => game.awayTeamPlayerIds?.includes(p.id)));
+            }
+        };
+        fetchPlayers();
+    }, [game]);
+
+    // Main useEffect for subscribing to game and event data
     useEffect(() => {
         if (!gameId) {
             setError("ID del partido no encontrado.");
@@ -69,14 +86,6 @@ export default function LiveGamePage() {
                     const format = await getGameFormatById(gameData.gameFormatId);
                     setGameFormat(format);
                 }
-                if (homePlayers.length === 0 && gameData.homeTeamId && gameData.homeTeamPlayerIds) {
-                    const players = await getPlayersByTeamId(gameData.homeTeamId);
-                    setHomePlayers(players.filter(p => gameData.homeTeamPlayerIds?.includes(p.id)));
-                }
-                if (awayPlayers.length === 0 && gameData.awayTeamId && gameData.awayTeamPlayerIds) {
-                    const players = await getPlayersByTeamId(gameData.awayTeamId);
-                    setAwayPlayers(players.filter(p => gameData.awayTeamPlayerIds?.includes(p.id)));
-                }
             } else {
                 setError("El partido no existe o ha sido eliminado.");
             }
@@ -88,7 +97,10 @@ export default function LiveGamePage() {
 
         const eventsQuery = query(collection(db, 'games', gameId, 'events'), orderBy('createdAt', 'desc'), limit(10));
         const unsubscribeEvents = onSnapshot(eventsQuery, (snapshot) => {
-            const fetchedEvents = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as GameEvent));
+            const fetchedEvents = snapshot.docs.map(doc => {
+                 const eventData = doc.data();
+                 return { ...eventData, id: doc.id, createdAt: eventData.createdAt?.toDate().toISOString() } as GameEvent
+            });
             setEvents(fetchedEvents);
         });
 
@@ -96,8 +108,7 @@ export default function LiveGamePage() {
             unsubscribeGame();
             unsubscribeEvents();
         };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [gameId]);
+    }, [gameId, gameFormat]);
 
     // Client-side timer logic
     useEffect(() => {
@@ -191,6 +202,7 @@ export default function LiveGamePage() {
                         <span className="text-xs truncate">{player.firstName} {player.lastName}</span>
                     </Button>
                 ))}
+                 {players.length === 0 && <p className="text-xs text-muted-foreground col-span-full text-center">No hay jugadores en la convocatoria para este equipo.</p>}
             </div>
         </div>
     );
