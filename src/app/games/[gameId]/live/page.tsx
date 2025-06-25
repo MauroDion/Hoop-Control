@@ -7,10 +7,10 @@ import Link from 'next/link';
 
 import { doc, onSnapshot, collection, query, orderBy, limit } from 'firebase/firestore';
 import { db } from '@/lib/firebase/client';
-import { updateLiveGameState, recordGameEvent, getGameEvents } from '@/app/games/actions';
+import { updateLiveGameState, recordGameEvent } from '@/app/games/actions';
 import { getGameFormatById } from '@/app/game-formats/actions';
 import { getPlayersByTeamId } from '@/app/players/actions';
-import type { Game, GameFormat, Player, GameEvent, GameEventAction } from '@/types';
+import type { Game, GameFormat, Player, GameEvent, GameEventAction, TeamStats } from '@/types';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -31,7 +31,7 @@ export default function LiveGamePage() {
     const params = useParams();
     const { toast } = useToast();
     const gameId = typeof params.gameId === 'string' ? params.gameId : '';
-    const { user, loading: authLoading } = useAuth();
+    const { loading: authLoading } = useAuth();
 
     const [game, setGame] = useState<Game | null>(null);
     const [gameFormat, setGameFormat] = useState<GameFormat | null>(null);
@@ -44,7 +44,7 @@ export default function LiveGamePage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
-    // Initial data fetch
+    // Initial data fetch and real-time listeners
     useEffect(() => {
         if (!gameId) {
             setError("ID del partido no encontrado.");
@@ -56,23 +56,27 @@ export default function LiveGamePage() {
         const unsubscribeGame = onSnapshot(gameRef, async (docSnap) => {
             if (docSnap.exists()) {
                 const data = docSnap.data();
-                const gameData = { id: docSnap.id, ...data, date: data.date.toDate().toISOString() } as Game;
+                const gameData = { 
+                    id: docSnap.id, 
+                    ...data, 
+                    date: data.date.toDate().toISOString(),
+                    createdAt: data.createdAt?.toDate().toISOString(),
+                    updatedAt: data.updatedAt?.toDate().toISOString(),
+                 } as Game;
                 setGame(gameData);
                 
                 if (!gameFormat && gameData.gameFormatId) {
                     const format = await getGameFormatById(gameData.gameFormatId);
                     setGameFormat(format);
                 }
-
-                if(homePlayers.length === 0 && gameData.homeTeamId) {
+                if (homePlayers.length === 0 && gameData.homeTeamId && gameData.homeTeamPlayerIds) {
                     const players = await getPlayersByTeamId(gameData.homeTeamId);
                     setHomePlayers(players.filter(p => gameData.homeTeamPlayerIds?.includes(p.id)));
                 }
-                if(awayPlayers.length === 0 && gameData.awayTeamId) {
-                     const players = await getPlayersByTeamId(gameData.awayTeamId);
+                if (awayPlayers.length === 0 && gameData.awayTeamId && gameData.awayTeamPlayerIds) {
+                    const players = await getPlayersByTeamId(gameData.awayTeamId);
                     setAwayPlayers(players.filter(p => gameData.awayTeamPlayerIds?.includes(p.id)));
                 }
-                
             } else {
                 setError("El partido no existe o ha sido eliminado.");
             }
@@ -84,7 +88,7 @@ export default function LiveGamePage() {
 
         const eventsQuery = query(collection(db, 'games', gameId, 'events'), orderBy('createdAt', 'desc'), limit(10));
         const unsubscribeEvents = onSnapshot(eventsQuery, (snapshot) => {
-            const fetchedEvents = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as GameEvent));
+            const fetchedEvents = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as GameEvent));
             setEvents(fetchedEvents);
         });
 
@@ -95,7 +99,7 @@ export default function LiveGamePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [gameId]);
 
-    // Timer logic
+    // Client-side timer logic
     useEffect(() => {
        if (game?.isTimerRunning && displayTime > 0) {
            const timerId = setInterval(() => setDisplayTime(prev => prev > 0 ? prev - 1 : 0), 1000);
@@ -132,6 +136,7 @@ export default function LiveGamePage() {
         await recordGameEvent(gameId, {
             teamId: selectedPlayer.teamId,
             playerId: selectedPlayer.id,
+            playerName: selectedPlayer.name,
             action,
             period: game.currentPeriod || 1,
             gameTimeSeconds: displayTime,
@@ -153,6 +158,14 @@ export default function LiveGamePage() {
         }
     };
     
+    const handleResetTimer = () => {
+        if (!game || !gameFormat) return;
+        handleUpdate({
+            isTimerRunning: false,
+            periodTimeRemainingSeconds: (gameFormat.periodDurationMinutes || 10) * 60,
+        });
+    };
+
     const formatTime = (totalSeconds: number) => {
         const minutes = Math.floor(totalSeconds / 60);
         const seconds = totalSeconds % 60;
@@ -163,7 +176,7 @@ export default function LiveGamePage() {
     if (error) return <AlertTriangle className="h-12 w-12 text-destructive mx-auto my-20" />;
     if (!game) return null;
 
-    const TeamRosterPanel = ({ team, players, teamType }: { team: 'home' | 'away', players: Player[]}) => (
+    const TeamRosterPanel = ({ players, teamType }: { players: Player[], teamType: 'home' | 'away'}) => (
         <div className="space-y-2">
             <h3 className="font-bold text-center">{teamType === 'home' ? game.homeTeamName : game.awayTeamName}</h3>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
@@ -201,13 +214,13 @@ export default function LiveGamePage() {
 
     return (
         <div className="space-y-6">
-            <Button variant="outline" size="sm" asChild>
+             <Button variant="outline" size="sm" asChild>
                 <Link href={`/games`}>
                     <ChevronLeft className="mr-2 h-4 w-4" />
                     Volver a la Lista de Partidos
                 </Link>
             </Button>
-
+            
             <Card>
                 <CardHeader className="text-center pb-2">
                     <CardTitle className="text-xl md:text-2xl">{game.homeTeamName} vs {game.awayTeamName}</CardTitle>
@@ -221,13 +234,42 @@ export default function LiveGamePage() {
                     <span className="text-5xl md:text-7xl font-bold text-primary">{game.awayTeamScore ?? 0}</span>
                 </CardContent>
             </Card>
-            
+
+            <Card>
+                <CardHeader className="text-center">
+                    <CardTitle className="text-2xl">Control del Partido</CardTitle>
+                </CardHeader>
+                <CardContent className="flex flex-col md:flex-row justify-center items-center gap-2">
+                    {game.status === 'scheduled' && (
+                        <Button size="lg" className="w-full md:w-auto bg-green-600 hover:bg-green-700" onClick={() => handleUpdate({ status: 'inprogress', periodTimeRemainingSeconds: (gameFormat?.periodDurationMinutes || 10) * 60 })}>
+                            <Play className="mr-2 h-5 w-5"/> Empezar Partido
+                        </Button>
+                    )}
+                     {game.status === 'inprogress' && (
+                        <>
+                            <Button onClick={handleToggleTimer} size="lg">
+                                {game.isTimerRunning ? <Pause className="mr-2"/> : <Play className="mr-2"/>}
+                                {game.isTimerRunning ? 'Pausar' : 'Iniciar'}
+                            </Button>
+                             <Button onClick={handleNextPeriod} disabled={game.isTimerRunning || (game.currentPeriod || 0) >= (gameFormat?.numPeriods || 4)} variant="outline" size="lg">
+                                <FastForward className="mr-2"/> Siguiente Período
+                            </Button>
+                             <Button onClick={handleResetTimer} variant="secondary" size="icon" aria-label="Reiniciar cronómetro"><TimerReset/></Button>
+                             <Button size="lg" variant="destructive" className="w-full mt-2 md:mt-0 md:w-auto" onClick={() => handleUpdate({ status: 'completed', isTimerRunning: false })}>
+                                <Flag className="mr-2 h-5 w-5"/> Finalizar Partido
+                            </Button>
+                        </>
+                    )}
+                    {game.status === 'completed' && <p className="text-center font-bold text-lg text-green-700">Partido Finalizado</p>}
+                </CardContent>
+            </Card>
+
             <Card>
                  <CardHeader><CardTitle>Anotación</CardTitle></CardHeader>
                  <CardContent className="space-y-4">
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                         <TeamRosterPanel team="home" players={homePlayers} />
-                         <TeamRosterPanel team="away" players={awayPlayers} />
+                         <TeamRosterPanel teamType="home" players={homePlayers} />
+                         <TeamRosterPanel teamType="away" players={awayPlayers} />
                     </div>
                     <Separator />
                      <div>
@@ -244,14 +286,14 @@ export default function LiveGamePage() {
             <Card>
                  <CardHeader><CardTitle>Registro de Eventos Recientes</CardTitle></CardHeader>
                  <CardContent>
-                    <ul className="space-y-2">
+                    <ul className="space-y-2 max-h-60 overflow-y-auto">
                     {events.map(event => (
                         <li key={event.id} className="text-sm p-2 bg-muted/50 rounded-md">
                            <span className="font-bold">
                              {event.teamId === 'home' ? game.homeTeamName : game.awayTeamName}
-                           </span>: {event.action.replace(/_/g, ' ')}
+                           </span> ({event.playerName}): {event.action.replace(/_/g, ' ')}
                            <span className="text-muted-foreground text-xs ml-2">
-                               ({format(new Date(event.createdAt), 'HH:mm:ss')})
+                               ({event.createdAt ? format(new Date(event.createdAt), 'HH:mm:ss') : ''})
                            </span>
                         </li>
                     ))}
@@ -262,4 +304,3 @@ export default function LiveGamePage() {
         </div>
     );
 }
-
