@@ -19,7 +19,7 @@ export default function HomePage() {
           height={300} 
           priority 
           className="rounded-lg mb-10 shadow-lg"
-          data-ai-hint="basketball court"
+          data-ai-hint="basketball action"
         />
         <h1 className="text-5xl md:text-6xl font-headline font-extrabold mb-6 text-primary tracking-tight">
           Bienvenido a Hoop Control

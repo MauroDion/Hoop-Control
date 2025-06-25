@@ -47,12 +47,13 @@ export default function Header() {
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 shadow-sm">
       <div className="container flex h-20 items-center">
         <Link href="/" className="mr-8 flex items-center space-x-2">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="h-8 w-8 text-primary">
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-8 w-8 text-primary">
             <circle cx="12" cy="12" r="10"></circle>
-            <path d="M12 2a10 10 0 0 0-4.93 1.34"></path>
-            <path d="M22 12a10 10 0 0 1-1.34 4.93"></path>
-            <path d="M19.07 4.93A10 10 0 0 1 22 12"></path>
-            <path d="M4.93 19.07A10 10 0 0 1 2 12"></path>
+            <path d="M4.93 4.93l14.14 14.14"></path>
+            <path d="M14.12 3.88c2.43 2.43 3.88 5.73 3.88 9.12"></path>
+            <path d="M3.88 9.88c0 3.39 1.45 6.69 3.88 9.12"></path>
+            <path d="M9.88 20.12c3.39 0 6.69-1.45 9.12-3.88"></path>
+            <path d="M20.12 14.12A10 10 0 0 0 12 2"></path>
           </svg>
           <span className="font-headline text-2xl font-bold text-primary">Hoop Control</span>
         </Link>
