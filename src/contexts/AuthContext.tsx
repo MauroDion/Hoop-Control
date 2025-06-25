@@ -4,15 +4,13 @@ import type { User as FirebaseUser } from 'firebase/auth';
 import { auth } from '@/lib/firebase/client';
 import { onAuthStateChanged, signOut as firebaseSignOut } from 'firebase/auth';
 import React, { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react';
-import { Skeleton } from '@/components/ui/skeleton';
-import { useToast } from '@/hooks/use-toast';
-import { useRouter } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 
 interface AuthContextType {
   user: FirebaseUser | null;
   loading: boolean;
-  logout: () => Promise<void>;
+  logout: (showToast?: boolean) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -21,29 +19,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<FirebaseUser | null>(null);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
-  const router = useRouter();
 
-  const logout = useCallback(async () => {
+  const logout = useCallback(async (showToast = true) => {
     console.log("AuthProvider: Logout process initiated.");
     try {
-      // First, attempt to clear the server session cookie.
       await fetch('/api/auth/session-logout', { method: 'POST' });
     } catch (error) {
       console.error("Logout API call failed, proceeding with client-side cleanup:", error);
     } finally {
-      // ALWAYS sign out from Firebase client-side and redirect.
-      try {
-        await firebaseSignOut(auth);
+      await firebaseSignOut(auth);
+      if (showToast) {
         toast({ title: "Sesión Cerrada", description: "Has cerrado sesión correctamente." });
-      } catch(e) {
-        console.error("Firebase client sign out failed:", e);
-      } finally {
-        // This is the most important part: ensure redirection happens.
-        router.push('/login');
-        router.refresh();
       }
     }
-  }, [toast, router]);
+  }, [toast]);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {

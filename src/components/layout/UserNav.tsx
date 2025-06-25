@@ -14,9 +14,17 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { useAuth } from '@/hooks/useAuth';
 import { LogOut, UserCircle, Settings } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 
 export default function UserNav() {
   const { user, logout } = useAuth();
+  const router = useRouter();
+
+  const handleLogout = async () => {
+    await logout();
+    router.push('/login');
+    router.refresh();
+  };
 
   if (!user) {
     return null;
@@ -65,7 +73,7 @@ export default function UserNav() {
           </DropdownMenuItem>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={logout} className="flex items-center cursor-pointer">
+        <DropdownMenuItem onClick={handleLogout} className="flex items-center cursor-pointer">
           <LogOut className="mr-2 h-4 w-4" />
           Cerrar Sesión
         </DropdownMenuItem>

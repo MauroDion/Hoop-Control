@@ -11,6 +11,7 @@ import type { UserFirestoreProfile } from '@/types';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import Image from 'next/image';
+import { useRouter } from 'next/navigation';
 
 // Dummy data - replace with actual data fetching
 const summaryData = {
@@ -33,6 +34,7 @@ const apiSampleData: ApiData[] = [
 
 export default function DashboardPage() {
   const { user, loading: authLoading, logout } = useAuth();
+  const router = useRouter();
   const [userProfile, setUserProfile] = useState<UserFirestoreProfile | null>(null);
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [profileError, setProfileError] = useState<string | null>(null);
@@ -48,29 +50,31 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (authLoading) return;
-    if (!user) {
-      logout();
-      return;
-    }
 
-    setLoadingProfile(true);
-    setProfileError(null);
-    getUserProfileById(user.uid)
-      .then(profile => {
-        if (profile) {
+    if (user) {
+      setLoadingProfile(true);
+      setProfileError(null);
+      getUserProfileById(user.uid)
+        .then(profile => {
+          if (profile) {
             setUserProfile(profile);
-        } else {
+          } else {
             setProfileError("Tu perfil no se encontró en la base de datos. Por favor, contacta a un administrador.");
-        }
-    }).catch(err => {
-        setProfileError("Ocurrió un error al cargar tu perfil.");
-    }).finally(() => {
-        setLoadingProfile(false);
-    });
+          }
+        }).catch(err => {
+          setProfileError("Ocurrió un error al cargar tu perfil.");
+        }).finally(() => {
+          setLoadingProfile(false);
+        });
+    } else {
+      logout(false).then(() => {
+        router.push('/login');
+        router.refresh();
+      });
+    }
+  }, [user, authLoading, logout, router]);
 
-  }, [user, authLoading, logout]);
-
-  if (loadingProfile || authLoading) {
+  if (loadingProfile || authLoading || !user) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)]">
         <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
