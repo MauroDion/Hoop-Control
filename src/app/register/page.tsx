@@ -9,7 +9,7 @@ export default function RegisterPage() {
       <Card className="w-full max-w-md shadow-xl">
         <CardHeader className="text-center">
           <CardTitle className="text-3xl font-headline">Crear una Cuenta</CardTitle>
-          <CardDescription>Únete a la plataforma BCSJD hoy.</CardDescription>
+          <CardDescription>Únete a la plataforma Hoop Control hoy.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           <RegisterForm />

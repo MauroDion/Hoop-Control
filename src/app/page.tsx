@@ -14,18 +14,18 @@ export default function HomePage() {
       <div className="max-w-2xl">
         <Image 
           src="https://placehold.co/600x300.png" 
-          alt="Ilustración de la plataforma BCSJD" 
+          alt="Ilustración de la plataforma Hoop Control" 
           width={600} 
           height={300} 
           priority 
           className="rounded-lg mb-10 shadow-lg"
-          data-ai-hint="collaboration team"
+          data-ai-hint="basketball court"
         />
         <h1 className="text-5xl md:text-6xl font-headline font-extrabold mb-6 text-primary tracking-tight">
-          Bienvenido a la Aplicación Web de BCSJD
+          Bienvenido a Hoop Control
         </h1>
         <p className="text-lg md:text-xl text-foreground/80 mb-10 leading-relaxed">
-          Optimiza tus flujos de trabajo, gestiona datos críticos y colabora eficazmente con nuestra plataforma integrada. Creada para el rendimiento y la facilidad de uso.
+          El seguimiento de partidos de baloncesto, simplificado. Gestiona equipos, jugadores y estadísticas en vivo, todo en un solo lugar.
         </p>
         <div className="space-x-6">
           <Button asChild size="lg" className="shadow-lg hover:shadow-primary/50 transition-shadow duration-300">

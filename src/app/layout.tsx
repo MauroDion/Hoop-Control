@@ -23,8 +23,8 @@ const playfairDisplay = Playfair_Display({
 });
 
 export const metadata: Metadata = {
-  title: 'BCSJD Web App',
-  description: 'Aplicación para la gestión de proyectos e integración de datos de BCSJD.',
+  title: 'Hoop Control',
+  description: 'Basketball Game Tracker para gestionar equipos, jugadores y partidos en directo.',
 };
 
 export default function RootLayout({

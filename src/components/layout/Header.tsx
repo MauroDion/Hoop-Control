@@ -47,10 +47,14 @@ export default function Header() {
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 shadow-sm">
       <div className="container flex h-20 items-center">
         <Link href="/" className="mr-8 flex items-center space-x-2">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-8 w-8 text-primary">
-            <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"></path>
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="h-8 w-8 text-primary">
+            <circle cx="12" cy="12" r="10"></circle>
+            <path d="M12 2a10 10 0 0 0-4.93 1.34"></path>
+            <path d="M22 12a10 10 0 0 1-1.34 4.93"></path>
+            <path d="M19.07 4.93A10 10 0 0 1 22 12"></path>
+            <path d="M4.93 19.07A10 10 0 0 1 2 12"></path>
           </svg>
-          <span className="font-headline text-2xl font-bold text-primary">BCSJD App</span>
+          <span className="font-headline text-2xl font-bold text-primary">Hoop Control</span>
         </Link>
         
         <nav className="flex items-center space-x-6 text-sm font-medium">
@@ -65,7 +69,7 @@ export default function Header() {
               <Link href="/games" className="transition-colors hover:text-primary flex items-center">
                 <CalendarClock className="mr-2 h-4 w-4" /> Partidos
               </Link>
-              <Link href="/bcsjd-api-data" className="transition-colors hover:text-primary flex items-center">
+              <Link href="/api-data" className="transition-colors hover:text-primary flex items-center">
                 <BarChart3 className="mr-2 h-4 w-4" /> Datos API
               </Link>
               

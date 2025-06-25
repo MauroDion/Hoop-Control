@@ -42,7 +42,7 @@ export default function LoginPage({ searchParams }: { searchParams: { [key: stri
       <Card className="w-full max-w-md shadow-xl">
         <CardHeader className="text-center">
           <CardTitle className="text-3xl font-headline">¡Bienvenido de nuevo!</CardTitle>
-          <CardDescription>Inicia sesión para acceder a tu panel de BCSJD.</CardDescription>
+          <CardDescription>Inicia sesión para acceder a tu panel de Hoop Control.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           {renderStatusMessage()}

@@ -23,7 +23,7 @@ interface ApiData {
   keyMetric: string;
   value: number | string;
 }
-const bcsjdApiSampleData: ApiData[] = [
+const apiSampleData: ApiData[] = [
   { keyMetric: "Progreso General", value: "75%" },
   { keyMetric: "Uso del Presupuesto", value: "60%" },
 ];
@@ -146,7 +146,7 @@ export default function DashboardPage() {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 p-6 bg-card rounded-lg shadow-lg">
         <div>
           <h1 className="text-4xl font-headline font-bold text-primary">¡Bienvenido, {user.displayName || user.email}!</h1>
-          <p className="text-lg text-muted-foreground mt-1">Este es un resumen de tu espacio de trabajo en BCSJD.</p>
+          <p className="text-lg text-muted-foreground mt-1">Este es un resumen de tu espacio de trabajo en Hoop Control.</p>
         </div>
         <Image 
           src="https://placehold.co/150x150.png" 
@@ -217,12 +217,12 @@ export default function DashboardPage() {
         <CardHeader>
           <CardTitle className="text-2xl font-headline flex items-center">
             <BarChart className="mr-3 h-6 w-6 text-accent" />
-            Resumen de la API de BCSJD
+            Resumen de la API de Hoop Control
           </CardTitle>
-          <CardDescription>Métricas clave obtenidas de la API integrada de BCSJD.</CardDescription>
+          <CardDescription>Métricas clave obtenidas de la API integrada.</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4 md:grid-cols-2">
-          {bcsjdApiSampleData.map((item) => (
+          {apiSampleData.map((item) => (
             <div key={item.keyMetric} className="p-4 border rounded-md bg-secondary/30">
               <h3 className="text-sm font-medium text-muted-foreground">{item.keyMetric}</h3>
               <p className="text-2xl font-bold text-primary">{item.value}</p>
