@@ -50,10 +50,12 @@ export default function AnalysisPage() {
             fetchedGames = await getGamesByCoach(user.uid);
         }
         
-        const completedGames = fetchedGames.filter(game => game.status === 'completed');
+        const sortedGames = fetchedGames.sort((a,b) => b.date.getTime() - a.date.getTime());
+        const completedGames = sortedGames.filter(game => game.status === 'completed');
         setGames(completedGames);
 
       } catch (err: any) {
+        console.error("Error loading analysis data:", err);
         setError("Error al cargar los datos de los partidos.");
       } finally {
         setLoading(false);

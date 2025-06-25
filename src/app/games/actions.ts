@@ -76,7 +76,7 @@ export async function getAllGames(): Promise<Game[]> {
     if (!adminDb) return [];
     try {
         const gamesRef = adminDb.collection('games');
-        const snapshot = await gamesRef.orderBy('date', 'desc').get();
+        const snapshot = await gamesRef.get(); // Removed orderBy to prevent index errors
         return snapshot.docs.map(doc => {
             const data = doc.data();
             return {
@@ -89,9 +89,6 @@ export async function getAllGames(): Promise<Game[]> {
         });
     } catch (error: any) {
         console.error("Error fetching all games: ", error);
-        if (error.code === 'failed-precondition') {
-             console.error("Firestore query failed, missing index. Please create an index on 'games' collection by 'date' descending.");
-        }
         return [];
     }
 }
@@ -120,10 +117,7 @@ export async function getGamesByClub(clubId: string): Promise<Game[]> {
         processSnapshot(homeGamesSnap);
         processSnapshot(awayGamesSnap);
 
-        const games = Array.from(gamesMap.values());
-        games.sort((a, b) => b.date.getTime() - a.date.getTime()); // Sort recent first
-
-        return games;
+        return Array.from(gamesMap.values());
     } catch (error: any) {
         console.error("Error fetching games by club:", error);
         return [];
@@ -162,10 +156,7 @@ export async function getGamesByCoach(userId: string): Promise<Game[]> {
         processSnapshot(homeGamesSnap);
         processSnapshot(awayGamesSnap);
 
-        const games = Array.from(gamesMap.values());
-        games.sort((a, b) => b.date.getTime() - a.date.getTime());
-
-        return games;
+        return Array.from(gamesMap.values());
     } catch (error: any) {
         console.error("Error fetching games by coach:", error);
         return [];

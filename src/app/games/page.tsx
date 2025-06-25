@@ -44,16 +44,18 @@ export default function GamesPage() {
         let fetchedGames: Game[] = [];
         if (profile.profileTypeId === 'super_admin') {
             fetchedGames = await getAllGames();
-        } else if (profile.profileTypeId === 'coordinator' || profile.profileTypeId === 'club_admin') {
+        } else if (['coordinator', 'club_admin'].includes(profile.profileTypeId)) {
             fetchedGames = await getGamesByClub(profile.clubId);
         } else if (profile.profileTypeId === 'coach') {
             fetchedGames = await getGamesByCoach(user.uid);
         }
         
-        const activeGames = fetchedGames.filter(game => game.status === 'scheduled' || game.status === 'inprogress');
+        const sortedGames = fetchedGames.sort((a, b) => b.date.getTime() - a.date.getTime());
+        const activeGames = sortedGames.filter(game => game.status === 'scheduled' || game.status === 'inprogress');
         setGames(activeGames);
 
       } catch (err: any) {
+        console.error("Error loading game data:", err);
         setError("Error al cargar los datos de los partidos.");
       } finally {
         setLoading(false);
