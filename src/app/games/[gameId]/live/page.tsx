@@ -54,7 +54,7 @@ const OtherActionButtons = ({ onAction }: { onAction: (action: GameEventAction) 
         <Button className="w-full justify-start" variant="outline" onClick={() => onAction('assist')}>Asistencia</Button>
         <Button className="w-full justify-start" variant="outline" onClick={() => onAction('steal')}>Robo</Button>
         <Button className="w-full justify-start" variant="outline" onClick={() => onAction('block')}>Tapón</Button>
-        <Button className="w-full justify-start" variant="outline" onClick={() => onAction('turnover')}>Pérdida</Button>
+        <Button className="w-full justify-start" variant="destructive" onClick={() => onAction('turnover')}>Pérdida</Button>
         <Button className="w-full justify-start" variant="destructive" onClick={() => onAction('foul')}>Falta Personal</Button>
     </div>
 );
@@ -136,7 +136,7 @@ export default function LiveGamePage() {
            if (localTimer) clearInterval(localTimer);
        };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [game?.isTimerRunning, displayTime]);
+    }, [game?.isTimerRunning]);
 
 
     const handleUpdate = useCallback(async (updates: Partial<Game>) => {
@@ -188,7 +188,14 @@ export default function LiveGamePage() {
     }
     
     const openSubDialog = (player: Player, teamType: 'home' | 'away') => {
-        setSubPlayerInfo({ player, teamType });
+        if (!game) return;
+        const onCourtField = teamType === 'home' ? 'homeTeamOnCourtPlayerIds' : 'awayTeamOnCourtPlayerIds';
+        const onCourtIds = game[onCourtField] || [];
+        if(onCourtIds.length >= 5) {
+            setSubPlayerInfo({ player, teamType });
+        } else {
+            handleSubstitution(player.id, null);
+        }
     };
 
     const formatTime = (totalSeconds: number) => {
@@ -241,7 +248,19 @@ export default function LiveGamePage() {
             <Dialog open={!!actionPlayerInfo} onOpenChange={(isOpen) => !isOpen && setActionPlayerInfo(null)}>
                 <DialogContent className="max-w-3xl">
                     <DialogHeader>
-                        <DialogTitle>Registrar Acción para {actionPlayerInfo?.player.firstName} {actionPlayerInfo?.player.lastName}</DialogTitle>
+                        <div className="flex items-center gap-4">
+                            <div className="h-16 w-16 bg-muted rounded-md flex items-center justify-center shrink-0">
+                                <Users className="h-8 w-8 text-muted-foreground" />
+                            </div>
+                            <div>
+                                <DialogTitle className="text-2xl">
+                                    {actionPlayerInfo?.player.firstName} {actionPlayerInfo?.player.lastName} (#{actionPlayerInfo?.player.jerseyNumber || 'S/N'})
+                                </DialogTitle>
+                                <DialogDescription>
+                                    {actionPlayerInfo?.teamType === 'home' ? game.homeTeamName : game.awayTeamName}
+                                </DialogDescription>
+                            </div>
+                        </div>
                     </DialogHeader>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 py-4">
                         <ShotActionButtons onAction={(action) => handleGameEvent(actionPlayerInfo!.teamType, actionPlayerInfo!.player.id, `${actionPlayerInfo!.player.firstName} ${actionPlayerInfo!.player.lastName}`, action)} />
@@ -261,7 +280,7 @@ export default function LiveGamePage() {
                     <div className="grid grid-cols-1 gap-2 pt-4">
                         {subPlayerInfo && game && (
                             (subPlayerInfo.teamType === 'home' ? homePlayers : awayPlayers)
-                                .filter(p => (game[subPlayerInfo.teamType === 'home' ? 'homeTeamOnCourtPlayerIds' : 'awayTeamOnCourtPlayerIds'] || []).includes(p.id))
+                                .filter(p => (game[subPlayerInfo!.teamType === 'home' ? 'homeTeamOnCourtPlayerIds' : 'awayTeamOnCourtPlayerIds'] || []).includes(p.id))
                                 .map(player => (
                                     <PlayerListItem key={player.id} player={player} onClick={() => handleSubstitution(player.id)} isSelected={false}/>
                                 ))
