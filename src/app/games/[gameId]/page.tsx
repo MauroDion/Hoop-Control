@@ -10,7 +10,7 @@ import { es } from 'date-fns/locale';
 // Actions
 import { getGameById, updateGameRoster } from '@/app/games/actions';
 import { getPlayersByTeamId } from '@/app/players/actions';
-import { getTeamById } from '@/app/teams/actions';
+import { getTeamById, getTeamsByCoach } from '@/app/teams/actions';
 import { getUserProfileById } from '@/app/users/actions';
 
 
@@ -51,7 +51,9 @@ export default function ManageGamePage() {
         setLoadingData(true);
         setError(null);
         try {
-            if (!gameId) throw new Error("Falta el ID del partido en la URL.");
+            if (!gameId) {
+                throw new Error("Falta el ID del partido en la URL.");
+            }
             
             const [profile, gameData] = await Promise.all([ getUserProfileById(userId), getGameById(gameId) ]);
 
@@ -65,7 +67,9 @@ export default function ManageGamePage() {
             const isSuperAdmin = profile.profileTypeId === 'super_admin';
             const isClubAdminForGame = (profile.profileTypeId === 'club_admin' || profile.profileTypeId === 'coordinator') && (profile.clubId === gameData.homeTeamClubId || profile.clubId === gameData.awayTeamClubId);
             
-            if (!isSuperAdmin && !isClubAdminForGame && !isCoachOfHomeTeam && !isCoachOfAwayTeam) {
+            const hasPermission = isSuperAdmin || isClubAdminForGame || isCoachOfHomeTeam || isCoachOfAwayTeam;
+            
+            if (!hasPermission) {
                 throw new Error("No tienes permiso para gestionar este partido.");
             }
             
