@@ -12,10 +12,11 @@ import { getPlayersByTeamId } from '@/app/players/actions';
 import type { Game, GameFormat, Player, GameEventAction } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, AlertTriangle, ChevronLeft, Gamepad2, Minus, Plus, Play, Flag, Pause, TimerReset, FastForward, Timer as TimerIcon, CheckCircle, Ban, Users } from 'lucide-react';
+import { Loader2, AlertTriangle, ChevronLeft, Gamepad2, Minus, Plus, Play, Flag, Pause, TimerReset, FastForward, Timer as TimerIcon, CheckCircle, Ban, Users, Image as ImageIcon } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Separator } from '@/components/ui/separator';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import Image from 'next/image';
 
 const PlayerListItem = ({ player, onClick, isSelected }: { player: Player, onClick: () => void, isSelected: boolean }) => (
     <Button
@@ -152,6 +153,37 @@ export default function LiveGamePage() {
         setActionPlayerInfo(null);
     };
 
+    const handleExecuteSubstitution = async (teamType: 'home' | 'away', playerInId: string, playerOutId: string | null) => {
+        if (!game) return;
+        const result = await substitutePlayer(gameId, teamType, playerInId, playerOutId);
+        if (!result.success) {
+            toast({ variant: 'destructive', title: 'Error de Sustitución', description: result.error });
+        }
+        setSubPlayerInfo(null);
+    };
+
+    const handleBenchPlayerClick = (player: Player, teamType: 'home' | 'away') => {
+        if (!game) return;
+        const onCourtField = teamType === 'home' ? 'homeTeamOnCourtPlayerIds' : 'awayTeamOnCourtPlayerIds';
+        const onCourtIds = game[onCourtField] || [];
+        
+        if (onCourtIds.includes(player.id)) {
+            toast({ variant: 'default', title: 'Jugador en pista', description: 'Este jugador ya está en la pista.' });
+            return;
+        }
+
+        if (onCourtIds.length < 5) {
+            handleExecuteSubstitution(teamType, player.id, null);
+        } else {
+            setSubPlayerInfo({ player, teamType });
+        }
+    };
+    
+    const handleCourtPlayerClickInSubDialog = (playerOut: Player) => {
+        if (!subPlayerInfo) return;
+        handleExecuteSubstitution(subPlayerInfo.teamType, subPlayerInfo.player.id, playerOut.id);
+    };
+
     const handleToggleTimer = useCallback(() => {
         if (!game) return;
         handleUpdate({ isTimerRunning: !game.isTimerRunning, periodTimeRemainingSeconds: displayTime });
@@ -178,26 +210,6 @@ export default function LiveGamePage() {
         });
     }, [game, gameFormat, handleUpdate]);
 
-    const handleSubstitution = async (playerOutId: string) => {
-        if (!game || !subPlayerInfo) return;
-        const result = await substitutePlayer(gameId, subPlayerInfo.teamType, subPlayerInfo.player.id, playerOutId);
-        if (!result.success) {
-            toast({ variant: 'destructive', title: 'Error de Sustitución', description: result.error });
-        }
-        setSubPlayerInfo(null);
-    }
-    
-    const openSubDialog = (player: Player, teamType: 'home' | 'away') => {
-        if (!game) return;
-        const onCourtField = teamType === 'home' ? 'homeTeamOnCourtPlayerIds' : 'awayTeamOnCourtPlayerIds';
-        const onCourtIds = game[onCourtField] || [];
-        if(onCourtIds.length >= 5) {
-            setSubPlayerInfo({ player, teamType });
-        } else {
-            handleSubstitution(player.id, null);
-        }
-    };
-
     const formatTime = (totalSeconds: number) => {
         const minutes = Math.floor(totalSeconds / 60);
         const seconds = totalSeconds % 60;
@@ -211,8 +223,10 @@ export default function LiveGamePage() {
     const TeamPanel = ({ teamType, playersList }: { teamType: 'home' | 'away', playersList: Player[] }) => {
         const teamName = teamType === 'home' ? game.homeTeamName : game.awayTeamName;
         const onCourtIds = new Set(teamType === 'home' ? game.homeTeamOnCourtPlayerIds : game.awayTeamOnCourtPlayerIds);
-        const onCourtPlayers = playersList.filter(p => onCourtIds.has(p.id));
-        const onBenchPlayers = playersList.filter(p => !onCourtIds.has(p.id));
+        const gameRosterIds = new Set(teamType === 'home' ? game.homeTeamPlayerIds : game.awayTeamPlayerIds);
+
+        const onCourtPlayers = playersList.filter(p => gameRosterIds.has(p.id) && onCourtIds.has(p.id));
+        const onBenchPlayers = playersList.filter(p => gameRosterIds.has(p.id) && !onCourtIds.has(p.id));
 
         return (
             <Card className="shadow-lg">
@@ -235,7 +249,7 @@ export default function LiveGamePage() {
                     <h4 className="font-semibold text-center">Banquillo</h4>
                     <div className="grid grid-cols-1 gap-1">
                        {onBenchPlayers.length > 0 ? onBenchPlayers.map(p => (
-                           <PlayerListItem key={p.id} player={p} onClick={() => openSubDialog(p, teamType)} isSelected={subPlayerInfo?.player.id === p.id}/>
+                           <PlayerListItem key={p.id} player={p} onClick={() => handleBenchPlayerClick(p, teamType)} isSelected={subPlayerInfo?.player.id === p.id}/>
                        )) : <p className="text-sm text-muted-foreground text-center italic">Banquillo vacío</p>}
                     </div>
                 </CardContent>
@@ -249,8 +263,8 @@ export default function LiveGamePage() {
                 <DialogContent className="max-w-3xl">
                     <DialogHeader>
                         <div className="flex items-center gap-4">
-                            <div className="h-16 w-16 bg-muted rounded-md flex items-center justify-center shrink-0">
-                                <Users className="h-8 w-8 text-muted-foreground" />
+                            <div className="w-16 h-16 p-2 border rounded-md flex items-center justify-center bg-muted/50 shrink-0">
+                               <ImageIcon className="h-8 w-8 text-muted-foreground" />
                             </div>
                             <div>
                                 <DialogTitle className="text-2xl">
@@ -282,7 +296,7 @@ export default function LiveGamePage() {
                             (subPlayerInfo.teamType === 'home' ? homePlayers : awayPlayers)
                                 .filter(p => (game[subPlayerInfo!.teamType === 'home' ? 'homeTeamOnCourtPlayerIds' : 'awayTeamOnCourtPlayerIds'] || []).includes(p.id))
                                 .map(player => (
-                                    <PlayerListItem key={player.id} player={player} onClick={() => handleSubstitution(player.id)} isSelected={false}/>
+                                    <PlayerListItem key={player.id} player={player} onClick={() => handleCourtPlayerClickInSubDialog(player)} isSelected={false}/>
                                 ))
                         )}
                     </div>
@@ -290,9 +304,9 @@ export default function LiveGamePage() {
             </Dialog>
 
              <Button variant="outline" size="sm" asChild>
-                <Link href={`/games`}>
+                <Link href={`/games/${gameId}`}>
                     <ChevronLeft className="mr-2 h-4 w-4" />
-                    Volver a la Lista de Partidos
+                    Volver a detalles del partido
                 </Link>
             </Button>
             
