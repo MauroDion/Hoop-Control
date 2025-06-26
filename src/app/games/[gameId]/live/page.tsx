@@ -259,12 +259,13 @@ export default function LiveGamePage() {
                         </DialogDescription>
                     </DialogHeader>
                     <div className="grid grid-cols-1 gap-2 pt-4">
-                        {(subPlayerInfo?.teamType === 'home' ? homePlayers : awayPlayers)
-                            .filter(p => (game[subPlayerInfo!.teamType === 'home' ? 'homeTeamOnCourtPlayerIds' : 'awayTeamOnCourtPlayerIds'] || []).includes(p.id))
-                            .map(player => (
-                                <PlayerListItem key={player.id} player={player} onClick={() => handleSubstitution(player.id)} isSelected={false}/>
-                            ))
-                        }
+                        {subPlayerInfo && game && (
+                            (subPlayerInfo.teamType === 'home' ? homePlayers : awayPlayers)
+                                .filter(p => (game[subPlayerInfo.teamType === 'home' ? 'homeTeamOnCourtPlayerIds' : 'awayTeamOnCourtPlayerIds'] || []).includes(p.id))
+                                .map(player => (
+                                    <PlayerListItem key={player.id} player={player} onClick={() => handleSubstitution(player.id)} isSelected={false}/>
+                                ))
+                        )}
                     </div>
                 </DialogContent>
             </Dialog>
