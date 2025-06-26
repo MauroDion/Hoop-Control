@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useEffect, useState, useCallback } from 'react';
@@ -31,15 +30,29 @@ const PlayerStatCard = ({ player, stats, onClick }: { player: Player; stats: Pla
 
     return (
         <Card onClick={onClick} className="p-2 relative aspect-[3/4] flex flex-col items-center justify-center overflow-hidden transition-all duration-300 hover:shadow-xl hover:scale-105 cursor-pointer bg-card">
-            <div className="absolute top-2 left-2 text-xl font-bold text-green-600 bg-white/70 rounded-full h-8 w-8 flex items-center justify-center backdrop-blur-sm">
+            {/* Points */}
+            <div className="absolute top-2 left-2 text-lg font-bold text-green-600 bg-white/80 rounded-full h-8 w-8 flex items-center justify-center backdrop-blur-sm z-10 shadow-md">
                 {stats.points}
             </div>
-            <div className="absolute top-2 right-2 text-xl font-bold text-blue-600 bg-white/70 rounded-full h-8 w-8 flex items-center justify-center backdrop-blur-sm">
+
+            {/* Fouls */}
+            {stats.fouls > 0 && (
+                <div className="absolute top-1.5 left-1/2 -translate-x-1/2 flex items-center justify-center px-2 h-7 bg-destructive border-2 border-white/70 rounded-sm shadow-lg z-20">
+                    <span className="text-yellow-300 text-xl font-extrabold" style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.5)' }}>{stats.fouls}</span>
+                </div>
+            )}
+
+            {/* PIR */}
+            <div className="absolute top-2 right-2 text-lg font-bold text-blue-600 bg-white/80 rounded-full h-8 w-8 flex items-center justify-center backdrop-blur-sm z-10 shadow-md">
                 {stats.pir}
             </div>
-            <div className="text-8xl font-black text-destructive/80" style={{ textShadow: '2px 2px 4px rgba(0,0,0,0.1)' }}>
+            
+            {/* Jersey Number */}
+            <div className="text-8xl font-black text-muted-foreground/20" style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.1)' }}>
                 {player.jerseyNumber || 'S/N'}
             </div>
+
+             {/* Player Info */}
              <div className="absolute bottom-1 text-xs text-center font-semibold w-full px-1 bg-gradient-to-t from-background via-background to-transparent pt-8 pb-1">
                 <p className="truncate">{player.firstName} {player.lastName}</p>
                 <p className="font-mono text-muted-foreground">{formatTime(stats.timePlayedSeconds)} ({stats.periodsPlayed})</p>
@@ -48,7 +61,7 @@ const PlayerStatCard = ({ player, stats, onClick }: { player: Player; stats: Pla
     );
 };
 
-// ... (Resto de los componentes de botones se mantienen igual)
+
 const ShotActionButtons = ({ onAction }: { onAction: (action: GameEventAction) => void }) => (
     <div className="space-y-3">
         <h4 className="font-medium text-center">Registro de Tiros</h4>
@@ -168,7 +181,7 @@ export default function LiveGamePage() {
 
     const handleExecuteSubstitution = async (teamType: 'home' | 'away', playerInId: string, playerOutId: string | null) => {
         if (!game) return;
-        const result = await substitutePlayer(gameId, teamType, playerInId, playerOutId, displayTime);
+        const result = await substitutePlayer(gameId, teamType, playerInId, playerOutId);
         if (!result.success) {
             toast({ variant: 'destructive', title: 'Error de Sustitución', description: result.error });
         }
