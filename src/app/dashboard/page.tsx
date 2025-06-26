@@ -33,7 +33,7 @@ const apiSampleData: ApiData[] = [
 
 
 export default function DashboardPage() {
-  const { user, loading: authLoading, logout } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const router = useRouter();
   const [userProfile, setUserProfile] = useState<UserFirestoreProfile | null>(null);
   const [loadingProfile, setLoadingProfile] = useState(true);
@@ -49,38 +49,54 @@ export default function DashboardPage() {
   }, []);
 
   useEffect(() => {
-    if (authLoading) return;
-
-    if (user) {
-      setLoadingProfile(true);
-      setProfileError(null);
-      getUserProfileById(user.uid)
-        .then(profile => {
-          if (profile) {
-            setUserProfile(profile);
-          } else {
-            setProfileError("Tu perfil no se encontró en la base de datos. Por favor, contacta a un administrador.");
-          }
-        }).catch(err => {
-          setProfileError("Ocurrió un error al cargar tu perfil.");
-        }).finally(() => {
-          setLoadingProfile(false);
-        });
-    } else {
-      logout(false).then(() => {
-        router.push('/login');
-        router.refresh();
-      });
+    if (authLoading) {
+      return; // Wait until Firebase auth state is resolved.
     }
-  }, [user, authLoading, logout, router]);
+    if (!user) {
+      // If auth is resolved and there's no user, redirect to login.
+      // This is a client-side safeguard.
+      router.replace('/login');
+      return;
+    }
+    
+    // If user exists, fetch their profile.
+    setLoadingProfile(true);
+    setProfileError(null);
+    getUserProfileById(user.uid)
+      .then(profile => {
+        if (profile) {
+          setUserProfile(profile);
+        } else {
+          setProfileError("Tu perfil no se encontró en la base de datos. Por favor, contacta a un administrador.");
+          setUserProfile(null);
+        }
+      })
+      .catch(err => {
+        setProfileError("Ocurrió un error al cargar tu perfil.");
+        setUserProfile(null);
+      })
+      .finally(() => {
+        setLoadingProfile(false);
+      });
+  }, [user, authLoading, router]);
 
-  if (loadingProfile || authLoading || !user) {
+  if (authLoading || loadingProfile) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)]">
         <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
         <p>Cargando información del panel...</p>
       </div>
     );
+  }
+  
+  if (!user) {
+    // This case should be rare due to the redirect, but it prevents rendering with null data.
+    return (
+       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)]">
+        <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
+        <p>Redirigiendo...</p>
+      </div>
+    )
   }
 
   const renderClubManagement = () => {

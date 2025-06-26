@@ -38,10 +38,14 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { getBrandingSettings } from '@/app/admin/settings/actions';
+import { signOut as firebaseSignOut } from 'firebase/auth';
+import { auth } from '@/lib/firebase/client';
+import { useToast } from '@/hooks/use-toast';
 
 export default function Header() {
-  const { user, loading, logout } = useAuth();
+  const { user, loading } = useAuth();
   const router = useRouter();
+  const { toast } = useToast();
   const [profile, setProfile] = useState<UserFirestoreProfile | null>(null);
   const [branding, setBranding] = useState<BrandingSettings>({});
 
@@ -59,9 +63,16 @@ export default function Header() {
   }, []);
 
   const handleLogout = async () => {
-    await logout();
-    router.push('/login');
-    router.refresh();
+    try {
+      await fetch('/api/auth/session-logout', { method: 'POST' });
+    } catch (error) {
+       console.error("Logout API call failed, proceeding with client-side cleanup:", error);
+    } finally {
+      await firebaseSignOut(auth);
+      toast({ title: "Sesión Cerrada", description: "Has cerrado sesión correctamente." });
+      router.push('/login');
+      router.refresh();
+    }
   };
 
   const getInitials = (name?: string | null) => {
