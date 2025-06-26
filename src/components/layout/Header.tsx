@@ -31,13 +31,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { getBrandingSettings } from '@/app/admin/settings/actions';
-import { signOut as firebaseSignOut } from 'firebase/auth';
-import { auth } from '@/lib/firebase/client';
-import { useToast } from '@/hooks/use-toast';
 import { UserNav } from './UserNav';
 
 export default function Header() {

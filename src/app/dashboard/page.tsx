@@ -38,37 +38,39 @@ export default function DashboardPage() {
   const [profileError, setProfileError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (authLoading) return;
-
-    if (user) {
-      setLoadingProfile(true);
-      setProfileError(null);
-      getUserProfileById(user.uid)
-        .then(profile => {
-          if (profile) {
-            setUserProfile(profile);
-          } else {
-            setProfileError("Tu perfil no se encontró en la base de datos. Por favor, contacta a un administrador.");
-            setUserProfile(null);
-          }
-        })
-        .catch(err => {
-          setProfileError("Ocurrió un error al cargar tu perfil.");
-          setUserProfile(null);
-        })
-        .finally(() => {
-          setLoadingProfile(false);
-        });
-    } else {
-        router.replace('/login');
+    if (authLoading) {
+      return; 
     }
+    if (!user) {
+      router.replace('/login');
+      return;
+    }
+
+    setLoadingProfile(true);
+    setProfileError(null);
+    getUserProfileById(user.uid)
+      .then(profile => {
+        if (profile) {
+          setUserProfile(profile);
+        } else {
+          setProfileError("Tu perfil no se encontró en la base de datos. Por favor, contacta a un administrador.");
+          setUserProfile(null);
+        }
+      })
+      .catch(err => {
+        setProfileError("Ocurrió un error al cargar tu perfil.");
+        setUserProfile(null);
+      })
+      .finally(() => {
+        setLoadingProfile(false);
+      });
   }, [user, authLoading, router]);
 
-  if (loadingProfile) {
+  if (authLoading || loadingProfile) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)]">
         <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-        <p>Cargando información del panel...</p>
+        <p className="text-lg text-muted-foreground">Cargando información del panel...</p>
       </div>
     );
   }

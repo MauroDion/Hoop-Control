@@ -16,7 +16,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { signOut as firebaseSignOut } from 'firebase/auth';
 import { auth } from '@/lib/firebase/client';
 import { useRouter } from 'next/navigation';
-import { LogOut, UserCircle, Settings } from 'lucide-react';
+import { LogOut, UserCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 export function UserNav() {
