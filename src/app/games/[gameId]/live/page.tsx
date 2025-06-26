@@ -4,15 +4,17 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import Link from 'next/link';
+
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '@/lib/firebase/client';
-import { updateLiveGameState, recordGameEvent, substitutePlayer } from '@/app/games/actions';
+import { updateLiveGameState, recordGameEvent, substitutePlayer, getPlayerStatsForGame } from '@/app/games/actions';
 import { getGameFormatById } from '@/app/game-formats/actions';
 import { getPlayersByTeamId } from '@/app/players/actions';
-import type { Game, GameFormat, Player, GameEventAction } from '@/types';
+import type { Game, GameFormat, Player, GameEventAction, PlayerGameStats } from '@/types';
+
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, AlertTriangle, ChevronLeft, Gamepad2, Minus, Plus, Play, Flag, Pause, TimerReset, FastForward, Timer as TimerIcon, CheckCircle, Ban, Users, Image as ImageIcon } from 'lucide-react';
+import { Loader2, AlertTriangle, ChevronLeft, Gamepad2, Minus, Plus, Play, Flag, Pause, TimerReset, FastForward, Timer as TimerIcon, CheckCircle, Ban, Users, Dribbble } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Separator } from '@/components/ui/separator';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -32,6 +34,25 @@ const PlayerListItem = ({ player, onClick, isSelected }: { player: Player, onCli
         </div>
     </Button>
 );
+
+const PlayerStatCard = ({ player, stats, onClick }: { player: Player; stats: PlayerGameStats; onClick: () => void }) => {
+    return (
+        <Card onClick={onClick} className="p-2 relative aspect-[3/4] flex flex-col items-center justify-center overflow-hidden transition-all duration-300 hover:shadow-xl hover:scale-105 cursor-pointer bg-card">
+            <div className="absolute top-2 left-2 text-xl font-bold text-green-600 bg-white/70 rounded-full h-8 w-8 flex items-center justify-center backdrop-blur-sm">
+                {stats.points}
+            </div>
+            <div className="absolute bottom-2 right-2 text-xl font-bold text-blue-600 bg-white/70 rounded-full h-8 w-8 flex items-center justify-center backdrop-blur-sm">
+                {stats.pir}
+            </div>
+            <div className="text-8xl font-black text-destructive/80" style={{ textShadow: '2px 2px 4px rgba(0,0,0,0.1)' }}>
+                {player.jerseyNumber || 'S/N'}
+            </div>
+            <p className="absolute bottom-2 text-sm text-center font-semibold w-full truncate px-2 bg-gradient-to-t from-background via-background to-transparent pt-4 pb-1">
+                {player.firstName} {player.lastName}
+            </p>
+        </Card>
+    );
+};
 
 const ShotActionButtons = ({ onAction }: { onAction: (action: GameEventAction) => void }) => (
     <div className="space-y-3">
@@ -60,6 +81,7 @@ const OtherActionButtons = ({ onAction }: { onAction: (action: GameEventAction) 
     </div>
 );
 
+
 export default function LiveGamePage() {
     const params = useParams();
     const { toast } = useToast();
@@ -70,6 +92,7 @@ export default function LiveGamePage() {
     const [gameFormat, setGameFormat] = useState<GameFormat | null>(null);
     const [homePlayers, setHomePlayers] = useState<Player[]>([]);
     const [awayPlayers, setAwayPlayers] = useState<Player[]>([]);
+    const [playerStats, setPlayerStats] = useState<PlayerGameStats[]>([]);
 
     const [displayTime, setDisplayTime] = useState(0);
     const [loading, setLoading] = useState(true);
@@ -89,16 +112,17 @@ export default function LiveGamePage() {
         const unsubscribe = onSnapshot(gameRef, async (docSnap) => {
             if (docSnap.exists()) {
                 const data = docSnap.data();
-                const gameData = { id: docSnap.id, ...data, date: (data.date as any).toDate() } as Game;
+                const gameData = { id: docSnap.id, ...data, date: (data.date as any).toDate().toISOString() } as Game;
                 setGame(gameData);
+                
+                getPlayerStatsForGame(gameId).then(setPlayerStats);
                 
                 if (gameData.periodTimeRemainingSeconds !== displayTime) {
                     setDisplayTime(gameData.periodTimeRemainingSeconds ?? 0);
                 }
 
                 if (!gameFormat && gameData.gameFormatId) {
-                    const format = await getGameFormatById(gameData.gameFormatId);
-                    setGameFormat(format);
+                    getGameFormatById(gameData.gameFormatId).then(setGameFormat);
                 }
 
                 if (homePlayers.length === 0 && gameData.homeTeamId) {
@@ -227,6 +251,11 @@ export default function LiveGamePage() {
 
         const onCourtPlayers = playersList.filter(p => gameRosterIds.has(p.id) && onCourtIds.has(p.id));
         const onBenchPlayers = playersList.filter(p => gameRosterIds.has(p.id) && !onCourtIds.has(p.id));
+        
+        const defaultStats: Omit<PlayerGameStats, 'playerId' | 'playerName'> = {
+            points: 0, shots_made_1p: 0, shots_attempted_1p: 0, shots_made_2p: 0, shots_attempted_2p: 0, shots_made_3p: 0, shots_attempted_3p: 0,
+            reb_def: 0, reb_off: 0, assists: 0, steals: 0, blocks: 0, turnovers: 0, fouls: 0, pir: 0,
+        };
 
         return (
             <Card className="shadow-lg">
@@ -239,10 +268,11 @@ export default function LiveGamePage() {
                     
                     <Separator/>
                     <h4 className="font-semibold text-center">Jugadores en Pista</h4>
-                    <div className="grid grid-cols-1 gap-1">
-                        {onCourtPlayers.length > 0 ? onCourtPlayers.map(p => (
-                            <PlayerListItem key={p.id} player={p} onClick={() => setActionPlayerInfo({ player: p, teamType })} isSelected={actionPlayerInfo?.player.id === p.id}/>
-                        )) : <p className="text-sm text-muted-foreground text-center italic">Sin jugadores en pista</p>}
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+                        {onCourtPlayers.length > 0 ? onCourtPlayers.map(p => {
+                             const stats = playerStats.find(s => s.playerId === p.id) || { ...defaultStats, playerId: p.id, playerName: ''};
+                             return <PlayerStatCard key={p.id} player={p} stats={stats} onClick={() => setActionPlayerInfo({ player: p, teamType })}/>
+                        }) : <p className="text-sm text-muted-foreground text-center italic col-span-full">Sin jugadores en pista</p>}
                     </div>
 
                     <Separator/>
@@ -261,10 +291,10 @@ export default function LiveGamePage() {
         <div className="space-y-6">
             <Dialog open={!!actionPlayerInfo} onOpenChange={(isOpen) => !isOpen && setActionPlayerInfo(null)}>
                 <DialogContent className="max-w-3xl">
-                    <DialogHeader>
+                     <DialogHeader>
                         <div className="flex items-center gap-4">
                             <div className="w-16 h-16 p-2 border rounded-md flex items-center justify-center bg-muted/50 shrink-0">
-                               <ImageIcon className="h-8 w-8 text-muted-foreground" />
+                               <Dribbble className="h-8 w-8 text-muted-foreground" />
                             </div>
                             <div>
                                 <DialogTitle className="text-2xl">
@@ -344,8 +374,6 @@ export default function LiveGamePage() {
                                 {game.isTimerRunning ? <Pause className="mr-2"/> : <Play className="mr-2"/>}
                                 {game.isTimerRunning ? 'Pausar' : 'Iniciar'}
                             </Button>
-                             <Button onClick={() => handleUpdate({ periodTimeRemainingSeconds: displayTime - 60})} variant="ghost" size="icon" disabled={game.status !== 'inprogress' || game.isTimerRunning}><Minus/></Button>
-                             <Button onClick={() => handleUpdate({ periodTimeRemainingSeconds: displayTime + 60})} variant="ghost" size="icon" disabled={game.status !== 'inprogress' || game.isTimerRunning}><Plus/></Button>
                              <Button onClick={handleNextPeriod} disabled={game.status !== 'inprogress' || game.isTimerRunning || (game.currentPeriod || 0) >= (gameFormat?.numPeriods || 4)} variant="outline" size="lg">
                                 <FastForward className="mr-2"/> Siguiente Per.
                             </Button>
