@@ -136,7 +136,7 @@ export default function LiveGamePage() {
         });
         setSelectedPlayer(null);
     };
-
+    
     const handleSubstitution = async (playerOut: Player) => {
         if (!game || !playerToSubIn) return;
         const teamId = homePlayers.some(p => p.id === playerToSubIn.id) ? 'home' : 'away';
@@ -177,6 +177,32 @@ export default function LiveGamePage() {
             awayBench: awayPlayers.filter(p => !safeGame.awayTeamOnCourtPlayerIds?.includes(p.id)),
         }
     }, [homePlayers, awayPlayers, game]);
+    
+     const playersToSubOut = useMemo(() => {
+        if (!playerToSubIn) return [];
+        return homePlayers.some(p => p.id === playerToSubIn.id) ? homeOnCourt : awayOnCourt;
+    }, [playerToSubIn, homePlayers, homeOnCourt, awayOnCourt]);
+
+    const handleNextPeriod = () => {
+        if (!game || !gameFormat) return;
+        const currentPeriod = game.currentPeriod || 1;
+        const maxPeriods = gameFormat.numPeriods || 4;
+        if (currentPeriod < maxPeriods) {
+            handleUpdate({
+                currentPeriod: currentPeriod + 1,
+                isTimerRunning: false,
+                periodTimeRemainingSeconds: (gameFormat.periodDurationMinutes || 10) * 60,
+            });
+        }
+    };
+
+    const handleResetTimer = () => {
+        if (!game || !gameFormat) return;
+        handleUpdate({
+            isTimerRunning: false,
+            periodTimeRemainingSeconds: (gameFormat.periodDurationMinutes || 10) * 60,
+        });
+    };
 
     const formatTime = (totalSeconds: number) => `${String(Math.floor(totalSeconds / 60)).padStart(2, '0')}:${String(totalSeconds % 60).padStart(2, '0')}`;
     
@@ -232,9 +258,16 @@ export default function LiveGamePage() {
         <div className="space-y-6">
             <Dialog open={isSubDialogOpen} onOpenChange={setIsSubDialogOpen}>
                 <DialogContent>
-                    <DialogHeader><DialogTitle>Realizar Sustitución</DialogTitle><DialogDescription>Selecciona el jugador que saldrá de la pista para que entre {playerToSubIn?.firstName}.</DialogDescription></DialogHeader>
+                    <DialogHeader>
+                        <DialogTitle>Realizar Sustitución</DialogTitle>
+                        <DialogDescription>Selecciona el jugador que saldrá de la pista para que entre {playerToSubIn?.firstName}.</DialogDescription>
+                    </DialogHeader>
                     <div className="grid grid-cols-3 gap-2 py-4">
-                        {(playerToSubIn && (homePlayers.some(p => p.id === playerToSubIn.id) ? homeOnCourt : awayOnCourt)).map(p => <Button key={p.id} variant="outline" onClick={() => handleSubstitution(p)}>{p.firstName} #{p.jerseyNumber}</Button>)}
+                        {playersToSubOut.map(p => (
+                            <Button key={p.id} variant="outline" onClick={() => handleSubstitution(p)}>
+                                {p.firstName} #{p.jerseyNumber}
+                            </Button>
+                        ))}
                     </div>
                 </DialogContent>
             </Dialog>
@@ -246,10 +279,7 @@ export default function LiveGamePage() {
                     <h1 className="font-bold text-xl">Partido en Vivo</h1>
                     <p className="text-sm text-muted-foreground">{format(new Date(game.date), "PPP", { locale: es })}</p>
                 </div>
-                <Button variant="outline" size="icon" onClick={() => openSubDialog(selectedPlayer ? homePlayers.find(p=>p.id===selectedPlayer.id) || awayPlayers.find(p=>p.id===selectedPlayer.id)! : null)} disabled={!selectedPlayer}>
-                    <Repeat className="h-4 w-4"/>
-                    <span className="sr-only">Sustituir</span>
-                </Button>
+                <div></div>
             </div>
             
              <Card>
