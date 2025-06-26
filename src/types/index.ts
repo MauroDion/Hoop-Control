@@ -220,7 +220,10 @@ export type GameEventAction =
   | 'steal'
   | 'block'
   | 'turnover'
-  | 'foul';
+  | 'foul'
+  | 'substitution_in' | 'substitution_out'
+  | 'period_start' | 'period_end'
+  | 'timer_start' | 'timer_pause';
 
 export interface GameEvent {
     id: string;
@@ -230,8 +233,8 @@ export interface GameEvent {
     playerName: string;
     action: GameEventAction;
     period: number;
-    gameTimeSeconds: number;
-    createdAt: string; // ISO string
+    gameTimeSeconds: number; // Time remaining in period when event happened
+    createdAt: string; // ISO string for server timestamp
 }
 
 export interface Game {
@@ -242,6 +245,8 @@ export interface Game {
     awayTeamId: string;
     awayTeamClubId: string;
     awayTeamName: string;
+    homeTeamLogoUrl?: string | null;
+    awayTeamLogoUrl?: string | null;
     date: string;
     location: string;
     status: 'scheduled' | 'inprogress' | 'completed' | 'cancelled';
@@ -284,6 +289,8 @@ export interface GameFormData {
 export interface PlayerGameStats {
   playerId: string;
   playerName: string;
+  timePlayedSeconds: number;
+  periodsPlayed: number;
   points: number;
   shots_made_1p: number; shots_attempted_1p: number;
   shots_made_2p: number; shots_attempted_2p: number;
@@ -300,7 +307,7 @@ export interface PlayerGameStats {
 
 export interface BrandingSettings {
   appName?: string;
-  logoHeaderUrl?: string;
-  logoLoginUrl?: string;
-  logoHeroUrl?: string;
+  logoHeaderUrl?: string | null;
+  logoLoginUrl?: string | null;
+  logoHeroUrl?: string | null;
 }
