@@ -41,7 +41,6 @@ import { getBrandingSettings } from '@/app/admin/settings/actions';
 import { signOut as firebaseSignOut } from 'firebase/auth';
 import { auth } from '@/lib/firebase/client';
 import { useToast } from '@/hooks/use-toast';
-import { BasketballIcon } from './BasketballIcon';
 
 export default function Header() {
   const { user, loading } = useAuth();
@@ -89,8 +88,16 @@ export default function Header() {
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 shadow-sm">
       <div className="container flex h-20 items-center">
         <Link href="/" className="mr-8 flex items-center space-x-2">
-          <BasketballIcon className="h-9 w-9" />
-          <span className="font-headline text-2xl font-bold text-primary">{branding.appName || 'Hoop Control'}</span>
+          {branding.logoHeaderUrl ? (
+            <div className="relative h-12 w-32">
+              <Image src={branding.logoHeaderUrl} alt={branding.appName || "Logo"} fill style={{ objectFit: 'contain' }}/>
+            </div>
+          ) : (
+             <>
+              <Dribbble className="h-9 w-9 text-primary" />
+              <span className="font-headline text-2xl font-bold text-primary">{branding.appName || 'Hoop Control'}</span>
+             </>
+          )}
         </Link>
         
         <nav className="hidden md:flex items-center space-x-6 text-sm font-medium">
