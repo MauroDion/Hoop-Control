@@ -211,6 +211,29 @@ export interface TeamStats {
 
 export type StatCategory = 'shots' | 'fouls' | 'timeouts' | 'steals';
 
+export type GameEventAction = 
+  | 'shot_made_1p' | 'shot_miss_1p'
+  | 'shot_made_2p' | 'shot_miss_2p'
+  | 'shot_made_3p' | 'shot_miss_3p'
+  | 'rebound_offensive' | 'rebound_defensive'
+  | 'assist'
+  | 'steal'
+  | 'block'
+  | 'turnover'
+  | 'foul';
+
+export interface GameEvent {
+    id: string;
+    gameId: string;
+    teamId: 'home' | 'away';
+    playerId: string;
+    playerName: string;
+    action: GameEventAction;
+    period: number;
+    gameTimeSeconds: number;
+    createdAt: string; // ISO string
+}
+
 export interface Game {
     id: string;
     homeTeamId: string;
@@ -256,29 +279,6 @@ export interface GameFormData {
     seasonId: string;
     competitionCategoryId: string;
     gameFormatId?: string | null;
-}
-
-export type GameEventAction = 
-  | 'shot_made_1p' | 'shot_miss_1p'
-  | 'shot_made_2p' | 'shot_miss_2p'
-  | 'shot_made_3p' | 'shot_miss_3p'
-  | 'rebound_offensive' | 'rebound_defensive'
-  | 'assist'
-  | 'steal'
-  | 'block'
-  | 'turnover'
-  | 'foul';
-
-export interface GameEvent {
-    id: string;
-    gameId: string;
-    teamId: 'home' | 'away';
-    playerId: string;
-    playerName: string;
-    action: GameEventAction;
-    period: number;
-    gameTimeSeconds: number;
-    createdAt: string; // ISO string
 }
 
 export interface BrandingSettings {

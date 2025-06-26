@@ -1,4 +1,3 @@
-// This page will be a client component to use useAuth for userId
 "use client";
 
 import React, { useEffect, useState } from 'react';
@@ -9,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { CalendarDays, Tag, Info, Edit, Trash2, ChevronLeft, AlertTriangle, Loader2 } from "lucide-react";
 import { useAuth } from '@/hooks/useAuth';
-import { useRouter } from 'next/navigation'; // Use next/navigation for App Router
+import { useRouter } from 'next/navigation';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { useToast } from '@/hooks/use-toast';
@@ -38,7 +37,6 @@ export default function TaskDetailPage({ params }: { params: { id: string } }) {
     if (authLoading) return;
 
     if (!user) {
-      // Redirect to login or show error, this should ideally be caught by middleware too
       router.push("/login?redirect=/tasks/" + params.id);
       return;
     }

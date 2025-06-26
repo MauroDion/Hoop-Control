@@ -38,8 +38,8 @@ export default function DashboardPage() {
   const [profileError, setProfileError] = useState<string | null>(null);
 
   useEffect(() => {
-    // This effect runs when the auth state is confirmed.
-    // authLoading is already handled by the AuthProvider's global loader.
+    if (authLoading) return;
+
     if (user) {
       setLoadingProfile(true);
       setProfileError(null);
@@ -59,14 +59,12 @@ export default function DashboardPage() {
         .finally(() => {
           setLoadingProfile(false);
         });
-    } else if (!authLoading && !user) {
-        // If auth is resolved and there is still no user, it's a definitive sign out.
+    } else {
         router.replace('/login');
     }
   }, [user, authLoading, router]);
 
-  // Main loading state for the page content, shown after the global auth loading is done.
-  if (authLoading || loadingProfile) {
+  if (loadingProfile) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)]">
         <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
@@ -75,10 +73,7 @@ export default function DashboardPage() {
     );
   }
   
-  // A definitive redirect if something went wrong and we still have no user
-  if (!user) {
-      return null;
-  }
+  if (!user) return null;
 
   const renderClubManagement = () => {
     if (profileError) {

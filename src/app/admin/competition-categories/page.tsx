@@ -14,7 +14,7 @@ import { Loader2, AlertTriangle, Tag, PlusCircle, Trash2, Edit } from 'lucide-re
 import { CompetitionCategoryForm } from '@/components/competition-categories/CompetitionCategoryForm';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
 
@@ -168,7 +168,7 @@ export default function ManageCategoriesPage() {
                         {gameFormats.find(f => f.id === cat.gameFormatId)?.name || 'N/A'}
                       </TableCell>
                       <TableCell>{cat.level || 'N/A'}</TableCell>
-                      <TableCell>{cat.createdAt ? format(cat.createdAt, 'PPP', { locale: es }) : 'N/A'}</TableCell>
+                      <TableCell>{cat.createdAt ? format(new Date(cat.createdAt), 'PPP', { locale: es }) : 'N/A'}</TableCell>
                       <TableCell className="text-right space-x-2">
                         <Button variant="outline" size="sm" onClick={() => handleEdit(cat)}>
                             <Edit className="mr-2 h-4 w-4" /> Editar

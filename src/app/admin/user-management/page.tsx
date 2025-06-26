@@ -42,7 +42,6 @@ export default function UserManagementPage() {
   const [error, setError] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
-    // No establecer 'loading' aquí si ya estamos cargando desde el efecto principal
     try {
       const [fetchedProfiles, fetchedClubs, fetchedProfileTypes] = await Promise.all([
         getAllUserProfiles(),
@@ -91,7 +90,7 @@ export default function UserManagementPage() {
     const result = await updateUserProfileStatus(uid, newStatus);
     if (result.success) {
       toast({ title: "Estado Actualizado", description: `El estado del usuario ${displayName || uid} cambió a ${newStatus}.` });
-      loadData(); // Recargar todos los datos para mantener consistencia
+      loadData();
     } else {
       toast({ variant: "destructive", title: "Fallo al Actualizar", description: result.error });
     }
@@ -189,7 +188,7 @@ export default function UserManagementPage() {
                       <TableCell>{profile.email}</TableCell>
                       <TableCell>{profile.clubName}</TableCell>
                       <TableCell>{profile.profileTypeLabel}</TableCell>
-                      <TableCell>{profile.createdAt ? format(profile.createdAt, 'PPpp', { locale: es }) : 'Fecha inválida'}</TableCell>
+                      <TableCell>{profile.createdAt ? format(new Date(profile.createdAt), 'PPpp', { locale: es }) : 'Fecha inválida'}</TableCell>
                       <TableCell>
                         <Badge variant={getStatusBadgeVariant(profile.status)} className="capitalize">
                           {profile.status.replace(/_/g, ' ')}
