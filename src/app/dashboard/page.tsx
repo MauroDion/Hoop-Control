@@ -10,6 +10,9 @@ import { useEffect, useState } from 'react';
 import { getUserProfileById } from '@/app/users/actions';
 import type { UserFirestoreProfile } from '@/types';
 import { useRouter } from 'next/navigation';
+import { signOut as firebaseSignOut } from 'firebase/auth';
+import { auth } from '@/lib/firebase/client';
+import { useToast } from '@/hooks/use-toast';
 
 // Dummy data - replace with actual data fetching
 const summaryData = {
@@ -30,53 +33,86 @@ const apiSampleData: ApiData[] = [
 ];
 
 
+function StaleSessionError() {
+  const router = useRouter();
+  const { toast } = useToast();
+  
+  const handleForceLogout = async () => {
+    try {
+      await fetch('/api/auth/session-logout', { method: 'POST' });
+    } catch (error) {
+       console.error("Logout API call failed, proceeding with client-side cleanup:", error);
+    } finally {
+      await firebaseSignOut(auth);
+      toast({ title: "Sesión limpiada", description: "Por favor, inicia sesión de nuevo." });
+      router.push('/login');
+      router.refresh();
+    }
+  };
+
+  return (
+    <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)] text-center p-6">
+        <AlertTriangle className="h-16 w-16 text-destructive mb-4" />
+        <h1 className="text-3xl font-headline font-semibold text-destructive mb-2">Error de Sesión</h1>
+        <p className="text-muted-foreground mb-6 max-w-md">
+            Parece que tu sesión ha expirado o es inválida, pero el navegador aún la recuerda. Por favor, fuerza el cierre de sesión para continuar.
+        </p>
+        <Button onClick={handleForceLogout} variant="destructive">
+            Forzar Cierre de Sesión
+        </Button>
+    </div>
+  )
+}
+
 export default function DashboardPage() {
   const { user, loading: authLoading } = useAuth();
-  const router = useRouter();
   const [userProfile, setUserProfile] = useState<UserFirestoreProfile | null>(null);
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [profileError, setProfileError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (authLoading) {
-      return; 
-    }
-    if (!user) {
-      router.replace('/login');
-      return;
-    }
+    // This effect runs after the global AuthProvider has finished loading.
+    if (authLoading) return;
 
-    setLoadingProfile(true);
-    setProfileError(null);
-    getUserProfileById(user.uid)
-      .then(profile => {
-        if (profile) {
-          setUserProfile(profile);
-        } else {
-          setProfileError("Tu perfil no se encontró en la base de datos. Por favor, contacta a un administrador.");
-          setUserProfile(null);
-        }
-      })
-      .catch(err => {
-        setProfileError("Ocurrió un error al cargar tu perfil.");
-        setUserProfile(null);
-      })
-      .finally(() => {
-        setLoadingProfile(false);
-      });
-  }, [user, authLoading, router]);
+    if (user) {
+      // If a user is authenticated on the client, fetch their detailed profile.
+      setLoadingProfile(true);
+      setProfileError(null);
+      getUserProfileById(user.uid)
+        .then(profile => {
+          if (profile) {
+            setUserProfile(profile);
+          } else {
+            setProfileError("Tu perfil no se encontró en la base de datos. Contacta a un administrador.");
+          }
+        })
+        .catch(err => {
+          setProfileError("Ocurrió un error al cargar tu perfil.");
+        })
+        .finally(() => {
+          setLoadingProfile(false);
+        });
+    }
+  }, [user, authLoading]);
 
-  // The AuthProvider already shows a full-page loader, so we just need to handle the profile loading state.
+  // If AuthProvider is still loading, it shows a full-screen loader, so this component doesn't render.
+  // This condition handles the case where the middleware allowed access (due to a cookie),
+  // but the client-side Firebase auth state is null. This indicates a stale/invalid session.
+  if (!authLoading && !user) {
+    return <StaleSessionError />;
+  }
+  
+  // This loader is for fetching the user's profile data, after auth is confirmed.
   if (loadingProfile) {
-     return (
+    return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)]">
         <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
         <p className="text-lg text-muted-foreground">Cargando información del panel...</p>
       </div>
     );
   }
-  
-  // user is guaranteed to exist here due to the effect hook redirect
+
+  // Fallback in case user becomes null unexpectedly after loading states resolve.
   if (!user) return null;
 
   const renderClubManagement = () => {
