@@ -108,6 +108,12 @@ export default function LiveGamePage() {
     
     const [actionPlayerInfo, setActionPlayerInfo] = useState<{player: Player, teamType: 'home' | 'away'} | null>(null);
     const [subPlayerInfo, setSubPlayerInfo] = useState<{player: Player, teamType: 'home' | 'away'} | null>(null);
+    
+    const defaultStats: Omit<PlayerGameStats, 'playerId'> = {
+        playerName: '', timePlayedSeconds: 0, periodsPlayed: 0,
+        points: 0, shots_made_1p: 0, shots_attempted_1p: 0, shots_made_2p: 0, shots_attempted_2p: 0, shots_made_3p: 0, shots_attempted_3p: 0,
+        reb_def: 0, reb_off: 0, assists: 0, steals: 0, blocks: 0, turnovers: 0, fouls: 0, pir: 0,
+    };
 
     useEffect(() => {
         if (!gameId) {
@@ -165,6 +171,12 @@ export default function LiveGamePage() {
        };
     }, [game?.isTimerRunning, displayTime]);
 
+
+    useEffect(() => {
+        if (game?.periodTimeRemainingSeconds !== undefined) {
+            setDisplayTime(game.periodTimeRemainingSeconds);
+        }
+    }, [game?.periodTimeRemainingSeconds]);
 
     const handleUpdate = useCallback(async (updates: Partial<Game>) => {
         const result = await updateLiveGameState(gameId, updates);
@@ -254,12 +266,6 @@ export default function LiveGamePage() {
         const onCourtPlayers = playersList.filter(p => gameRosterIds.has(p.id) && onCourtIds.has(p.id));
         const onBenchPlayers = playersList.filter(p => gameRosterIds.has(p.id) && !onCourtIds.has(p.id));
         
-        const defaultStats: Omit<PlayerGameStats, 'playerId'> = {
-            playerName: '', timePlayedSeconds: 0, periodsPlayed: 0,
-            points: 0, shots_made_1p: 0, shots_attempted_1p: 0, shots_made_2p: 0, shots_attempted_2p: 0, shots_made_3p: 0, shots_attempted_3p: 0,
-            reb_def: 0, reb_off: 0, assists: 0, steals: 0, blocks: 0, turnovers: 0, fouls: 0, pir: 0,
-        };
-
         return (
             <Card className="shadow-lg">
                 <CardHeader>
@@ -273,7 +279,7 @@ export default function LiveGamePage() {
                     <h4 className="font-semibold text-center">Jugadores en Pista</h4>
                     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
                         {onCourtPlayers.length > 0 ? onCourtPlayers.map(p => {
-                             const stats = playerStats.find(s => s.playerId === p.id) || { ...defaultStats, playerId: p.id };
+                             const stats = playerStats.find(s => s.playerId === p.id) || { ...defaultStats, playerId: p.id, playerName: `${p.firstName} ${p.lastName}` };
                              return <PlayerStatCard key={p.id} player={p} stats={stats} onClick={() => setActionPlayerInfo({ player: p, teamType })}/>
                         }) : <p className="text-sm text-muted-foreground text-center italic col-span-full">Sin jugadores en pista</p>}
                     </div>
@@ -282,7 +288,7 @@ export default function LiveGamePage() {
                     <h4 className="font-semibold text-center">Banquillo</h4>
                     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
                        {onBenchPlayers.length > 0 ? onBenchPlayers.map(p => {
-                           const stats = playerStats.find(s => s.playerId === p.id) || { ...defaultStats, playerId: p.id };
+                           const stats = playerStats.find(s => s.playerId === p.id) || { ...defaultStats, playerId: p.id, playerName: `${p.firstName} ${p.lastName}` };
                            return <PlayerStatCard key={p.id} player={p} stats={stats} onClick={() => handleBenchPlayerClick(p, teamType)}/>
                        }) : <p className="text-sm text-muted-foreground text-center italic col-span-full">Banquillo vacío</p>}
                     </div>
@@ -318,22 +324,20 @@ export default function LiveGamePage() {
             </Dialog>
 
              <Dialog open={!!subPlayerInfo} onOpenChange={(isOpen) => !isOpen && setSubPlayerInfo(null)}>
-                <DialogContent>
+                <DialogContent className="max-w-4xl">
                     <DialogHeader>
                         <DialogTitle>Realizar Sustitución</DialogTitle>
                         <DialogDescription>
-                            Selecciona el jugador que sale de la pista para que entre {subPlayerInfo?.player.firstName}.
+                            Selecciona el jugador en pista que saldrá por {subPlayerInfo?.player.firstName}.
                         </DialogDescription>
                     </DialogHeader>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-4">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 pt-4">
                         {subPlayerInfo && game && (subPlayerInfo.teamType === 'home' ? homePlayers : awayPlayers)
                                 .filter(p => (game[subPlayerInfo!.teamType === 'home' ? 'homeTeamOnCourtPlayerIds' : 'awayTeamOnCourtPlayerIds'] || []).includes(p.id))
-                                .map(player => (
-                                    <Button key={player.id} onClick={() => handleCourtPlayerClickInSubDialog(player)} variant="outline" className="h-auto p-2 flex flex-col gap-1">
-                                        <div className="font-bold text-lg">{player.jerseyNumber || 'S/N'}</div>
-                                        <div className="text-xs">{player.firstName} {player.lastName}</div>
-                                    </Button>
-                                ))
+                                .map(player => {
+                                    const stats = playerStats.find(s => s.playerId === player.id) || { ...defaultStats, playerId: player.id, playerName: `${player.firstName} ${player.lastName}` };
+                                    return <PlayerStatCard key={player.id} player={player} stats={stats} onClick={() => handleCourtPlayerClickInSubDialog(player)} />
+                                })
                         }
                     </div>
                 </DialogContent>
