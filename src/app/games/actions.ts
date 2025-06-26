@@ -210,7 +210,6 @@ export async function updateLiveGameState(
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         };
 
-        // Initialize players on court when game starts
         if (updates.status === 'inprogress' && gameData.status === 'scheduled') {
             if (!gameData.homeTeamOnCourtPlayerIds || gameData.homeTeamOnCourtPlayerIds.length === 0) {
                 updateData.homeTeamOnCourtPlayerIds = (gameData.homeTeamPlayerIds || []).slice(0, 5);
@@ -304,31 +303,45 @@ export async function substitutePlayer(
     gameId: string, 
     teamId: 'home' | 'away', 
     playerInId: string, 
-    playerOutId: string
+    playerOutId: string | null
 ): Promise<{ success: boolean; error?: string }> {
-    if (!adminDb) return { success: false, error: 'Database not initialized.' };
+    if (!adminDb) return { success: false, error: 'La base de datos no está inicializada.' };
 
     const gameRef = adminDb.collection('games').doc(gameId);
     
     try {
         await adminDb.runTransaction(async (transaction) => {
             const gameDoc = await transaction.get(gameRef);
-            if (!gameDoc.exists) throw new Error("Game not found.");
+            if (!gameDoc.exists) throw new Error("Partido no encontrado.");
 
             const gameData = gameDoc.data() as Game;
             const onCourtField = teamId === 'home' ? 'homeTeamOnCourtPlayerIds' : 'awayTeamOnCourtPlayerIds';
             
-            let onCourtIds = gameData[onCourtField] || [];
+            let onCourtIds: string[] = gameData[onCourtField] || [];
             
-            // Remove playerOutId and add playerInId
-            onCourtIds = onCourtIds.filter(id => id !== playerOutId);
-            onCourtIds.push(playerInId);
+            if (playerOutId) {
+                // Standard substitution: swap playerOut with playerIn
+                const index = onCourtIds.indexOf(playerOutId);
+                if (index > -1) {
+                    onCourtIds[index] = playerInId;
+                } else {
+                    throw new Error("El jugador a sustituir no está en la pista.");
+                }
+            } else {
+                // Adding a player to a non-full court
+                if (onCourtIds.length >= 5) {
+                    throw new Error("No puede haber más de 5 jugadores en pista.");
+                }
+                if (!onCourtIds.includes(playerInId)) {
+                    onCourtIds.push(playerInId);
+                }
+            }
 
             transaction.update(gameRef, { [onCourtField]: onCourtIds });
         });
         return { success: true };
     } catch (error: any) {
-        console.error("Error substituting player:", error);
+        console.error("Error al sustituir jugador:", error);
         return { success: false, error: error.message };
     }
 }

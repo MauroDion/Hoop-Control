@@ -2,19 +2,17 @@
 
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useParams } from 'next/navigation';
-import { useAuth } from '@/hooks/useAuth';
 import Link from 'next/link';
-
 import { doc, onSnapshot, collection, query, orderBy, limit } from 'firebase/firestore';
 import { db } from '@/lib/firebase/client';
+import { useAuth } from '@/hooks/useAuth';
 import { updateLiveGameState, recordGameEvent, substitutePlayer } from '@/app/games/actions';
 import { getGameFormatById } from '@/app/game-formats/actions';
 import { getPlayersByTeamId } from '@/app/players/actions';
 import type { Game, GameFormat, Player, GameEvent, GameEventAction } from '@/types';
-
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Loader2, AlertTriangle, ChevronLeft, Play, Flag, Pause, TimerReset, FastForward, Timer as TimerIcon, Repeat } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
@@ -41,7 +39,7 @@ export default function LiveGamePage() {
     const [selectedPlayer, setSelectedPlayer] = useState<{ id: string, teamId: 'home' | 'away', name: string } | null>(null);
     
     const [isSubDialogOpen, setIsSubDialogOpen] = useState(false);
-    const [playerToSubOut, setPlayerToSubOut] = useState<Player | null>(null);
+    const [playerToSubIn, setPlayerToSubIn] = useState<Player | null>(null);
     
     const [displayTime, setDisplayTime] = useState(0);
     const [loading, setLoading] = useState(true);
@@ -139,30 +137,44 @@ export default function LiveGamePage() {
         setSelectedPlayer(null);
     };
 
-    const handleSubstitution = async (playerIn: Player) => {
-        if (!game || !playerToSubOut) return;
-        const teamId = homePlayers.some(p => p.id === playerToSubOut.id) ? 'home' : 'away';
-        const result = await substitutePlayer(gameId, teamId, playerIn.id, playerToSubOut.id);
+    const handleSubstitution = async (playerOut: Player) => {
+        if (!game || !playerToSubIn) return;
+        const teamId = homePlayers.some(p => p.id === playerToSubIn.id) ? 'home' : 'away';
+        const result = await substitutePlayer(gameId, teamId, playerToSubIn.id, playerOut.id);
         if (result.success) {
-            toast({ title: 'Sustitución Realizada', description: `${playerIn.firstName} entra por ${playerToSubOut.firstName}.` });
+            toast({ title: 'Sustitución Realizada', description: `${playerToSubIn.firstName} entra por ${playerOut.firstName}.` });
         } else {
              toast({ variant: 'destructive', title: 'Error en la Sustitución', description: result.error });
         }
         setIsSubDialogOpen(false);
-        setPlayerToSubOut(null);
+        setPlayerToSubIn(null);
     }
 
     const openSubDialog = (player: Player) => {
-        setPlayerToSubOut(player);
-        setIsSubDialogOpen(true);
+        const teamId = homePlayers.some(p => p.id === player.id) ? 'home' : 'away';
+        const onCourtPlayers = teamId === 'home' ? homeOnCourt : awayOnCourt;
+
+        if (onCourtPlayers.length >= 5) {
+            setPlayerToSubIn(player);
+            setIsSubDialogOpen(true);
+        } else {
+            substitutePlayer(gameId, teamId, player.id, null).then(result => {
+                if (result.success) {
+                    toast({ title: 'Jugador en Pista', description: `${player.firstName} ha entrado al partido.` });
+                } else {
+                    toast({ variant: 'destructive', title: 'Error al añadir jugador', description: result.error });
+                }
+            });
+        }
     };
 
     const { homeOnCourt, homeBench, awayOnCourt, awayBench } = useMemo(() => {
+        const safeGame = game || {};
         return {
-            homeOnCourt: homePlayers.filter(p => game?.homeTeamOnCourtPlayerIds?.includes(p.id)),
-            homeBench: homePlayers.filter(p => !game?.homeTeamOnCourtPlayerIds?.includes(p.id)),
-            awayOnCourt: awayPlayers.filter(p => game?.awayTeamOnCourtPlayerIds?.includes(p.id)),
-            awayBench: awayPlayers.filter(p => !game?.awayTeamOnCourtPlayerIds?.includes(p.id)),
+            homeOnCourt: homePlayers.filter(p => safeGame.homeTeamOnCourtPlayerIds?.includes(p.id)),
+            homeBench: homePlayers.filter(p => !safeGame.homeTeamOnCourtPlayerIds?.includes(p.id)),
+            awayOnCourt: awayPlayers.filter(p => safeGame.awayTeamOnCourtPlayerIds?.includes(p.id)),
+            awayBench: awayPlayers.filter(p => !safeGame.awayTeamOnCourtPlayerIds?.includes(p.id)),
         }
     }, [homePlayers, awayPlayers, game]);
 
@@ -220,9 +232,9 @@ export default function LiveGamePage() {
         <div className="space-y-6">
             <Dialog open={isSubDialogOpen} onOpenChange={setIsSubDialogOpen}>
                 <DialogContent>
-                    <DialogHeader><DialogTitle>Realizar Sustitución</DialogTitle><DialogDescription>Selecciona el jugador que entrará en lugar de {playerToSubOut?.firstName}.</DialogDescription></DialogHeader>
+                    <DialogHeader><DialogTitle>Realizar Sustitución</DialogTitle><DialogDescription>Selecciona el jugador que saldrá de la pista para que entre {playerToSubIn?.firstName}.</DialogDescription></DialogHeader>
                     <div className="grid grid-cols-3 gap-2 py-4">
-                        {(homePlayers.some(p => p.id === playerToSubOut?.id) ? homeBench : awayBench).map(p => <Button key={p.id} variant="outline" onClick={() => handleSubstitution(p)}>{p.firstName} #{p.jerseyNumber}</Button>)}
+                        {(playerToSubIn && (homePlayers.some(p => p.id === playerToSubIn.id) ? homeOnCourt : awayOnCourt)).map(p => <Button key={p.id} variant="outline" onClick={() => handleSubstitution(p)}>{p.firstName} #{p.jerseyNumber}</Button>)}
                     </div>
                 </DialogContent>
             </Dialog>
