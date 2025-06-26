@@ -5,18 +5,18 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import Link from 'next/link';
-
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '@/lib/firebase/client';
-import { updateLiveGameState, recordShot, incrementGameStat } from '@/app/games/actions';
+import { updateLiveGameState, recordGameEvent, substitutePlayer } from '@/app/games/actions';
 import { getGameFormatById } from '@/app/game-formats/actions';
-import type { Game, GameFormat, TeamStats } from '@/types';
-
+import { getPlayersByTeamId } from '@/app/players/actions';
+import type { Game, GameFormat, TeamStats, Player, GameEventAction } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, AlertTriangle, ChevronLeft, Gamepad2, Minus, Plus, Play, Flag, Pause, TimerReset, FastForward, Timer as TimerIcon, CheckCircle, Ban } from 'lucide-react';
+import { Loader2, AlertTriangle, ChevronLeft, Gamepad2, Minus, Plus, Play, Flag, Pause, TimerReset, FastForward, Timer as TimerIcon, CheckCircle, Ban, Users, Repeat } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Separator } from '@/components/ui/separator';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 
 const StatButton = ({ children, ...props }: React.ComponentProps<typeof Button>) => (
     <Button variant="outline" size="sm" {...props}>{children}</Button>
@@ -24,6 +24,21 @@ const StatButton = ({ children, ...props }: React.ComponentProps<typeof Button>)
 
 const ShotButton = ({ children, ...props }: React.ComponentProps<typeof Button>) => (
     <Button className="w-full" {...props}>{children}</Button>
+);
+
+const PlayerListItem = ({ player, onClick, isSelected }: { player: Player, onClick: () => void, isSelected: boolean }) => (
+    <Button
+        variant={isSelected ? "default" : "ghost"}
+        className="w-full justify-start h-auto p-2"
+        onClick={onClick}
+    >
+        <div className="flex items-center gap-2">
+            <div className="bg-primary/20 text-primary font-bold rounded-full h-8 w-8 flex items-center justify-center text-sm">
+                {player.jerseyNumber || 'S/N'}
+            </div>
+            <span className="truncate">{player.firstName} {player.lastName}</span>
+        </div>
+    </Button>
 );
 
 export default function LiveGamePage() {
@@ -34,32 +49,16 @@ export default function LiveGamePage() {
 
     const [game, setGame] = useState<Game | null>(null);
     const [gameFormat, setGameFormat] = useState<GameFormat | null>(null);
+    const [homePlayers, setHomePlayers] = useState<Player[]>([]);
+    const [awayPlayers, setAwayPlayers] = useState<Player[]>([]);
+
     const [displayTime, setDisplayTime] = useState(0);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [localTimer, setLocalTimer] = useState<NodeJS.Timeout | null>(null);
 
-    const handleUpdate = useCallback(async (updates: Partial<Game>) => {
-        const result = await updateLiveGameState(gameId, updates);
-        if (!result.success) {
-            toast({ variant: 'destructive', title: 'Error al Actualizar', description: result.error });
-        }
-    }, [gameId, toast]);
-
-    const handleToggleTimer = useCallback(() => {
-        if (!game) return;
-        const newIsTimerRunning = !game.isTimerRunning;
-        
-        // When stopping, we save the current displayed time.
-        // When starting, the next onSnapshot will handle the time.
-        const updates: Partial<Game> = { isTimerRunning: newIsTimerRunning };
-        if (!newIsTimerRunning) {
-             updates.periodTimeRemainingSeconds = displayTime;
-        }
-
-        handleUpdate(updates);
-    }, [game, displayTime, handleUpdate]);
-
+    const [playerToSubIn, setPlayerToSubIn] = useState<Player | null>(null);
+    const [isSubDialogOpen, setIsSubDialogOpen] = useState(false);
 
     useEffect(() => {
         if (!gameId) {
@@ -71,16 +70,23 @@ export default function LiveGamePage() {
         const unsubscribe = onSnapshot(gameRef, async (docSnap) => {
             if (docSnap.exists()) {
                 const data = docSnap.data();
-                const gameData = { id: docSnap.id, ...data, date: data.date.toDate() } as Game;
+                const gameData = { id: docSnap.id, ...data, date: (data.date as any).toDate() } as Game;
                 setGame(gameData);
                 
-                // Set the display time from Firestore, this is our source of truth.
                 setDisplayTime(gameData.periodTimeRemainingSeconds ?? 0);
 
                 if (!gameFormat && gameData.gameFormatId) {
                     const format = await getGameFormatById(gameData.gameFormatId);
                     setGameFormat(format);
                 }
+
+                if (homePlayers.length === 0 && gameData.homeTeamId) {
+                    getPlayersByTeamId(gameData.homeTeamId).then(setHomePlayers);
+                }
+                 if (awayPlayers.length === 0 && gameData.awayTeamId) {
+                    getPlayersByTeamId(gameData.awayTeamId).then(setAwayPlayers);
+                }
+
             } else {
                 setError("El partido no existe o ha sido eliminado.");
             }
@@ -92,9 +98,8 @@ export default function LiveGamePage() {
         });
 
         return () => unsubscribe();
-    }, [gameId, gameFormat]);
+    }, [gameId, gameFormat, homePlayers.length, awayPlayers.length]);
     
-    // Effect for local countdown timer
     useEffect(() => {
        if (localTimer) {
            clearInterval(localTimer);
@@ -109,46 +114,41 @@ export default function LiveGamePage() {
        return () => {
            if (localTimer) clearInterval(localTimer);
        };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [game?.isTimerRunning]);
+    }, [game?.isTimerRunning, displayTime]);
 
-
-    
-    const handleRecordShot = async (team: 'home' | 'away', points: 1 | 2 | 3, type: 'made' | 'miss') => {
-        if (!game || game.status !== 'inprogress') return;
-        const result = await recordShot(gameId, team, points, type);
+    const handleUpdate = useCallback(async (updates: Partial<Game>) => {
+        const result = await updateLiveGameState(gameId, updates);
         if (!result.success) {
-             toast({ variant: 'destructive', title: 'Error al registrar tiro', description: result.error });
+            toast({ variant: 'destructive', title: 'Error al Actualizar', description: result.error });
         }
+    }, [gameId, toast]);
+
+    const handleToggleTimer = useCallback(() => {
+        if (!game) return;
+        handleUpdate({ isTimerRunning: !game.isTimerRunning, periodTimeRemainingSeconds: displayTime });
+    }, [game, displayTime, handleUpdate]);
+
+    const handleGameEvent = async (teamId: 'home' | 'away', playerId: string, playerName: string, action: GameEventAction) => {
+        if (!game || game.status !== 'inprogress') return;
+        await recordGameEvent(gameId, { teamId, playerId, playerName, action, period: game.currentPeriod || 1, gameTimeSeconds: displayTime });
     };
 
-    const handleIncrementStat = async (team: 'home' | 'away', stat: 'fouls' | 'timeouts' | 'steals', value: number) => {
-         if (!game || game.status !== 'inprogress') return;
-         const result = await incrementGameStat(gameId, team, stat, value);
-         if (!result.success) {
-             toast({ variant: 'destructive', title: `Error al registrar ${stat}`, description: result.error });
-        }
-    };
+    const handleSubstitution = async (playerOutId: string) => {
+        if (!game || !playerToSubIn) return;
+        setIsSubDialogOpen(false);
 
-    const handleNextPeriod = () => {
-        if (!game || !gameFormat) return;
-        const currentPeriod = game.currentPeriod || 1;
-        const maxPeriods = gameFormat.numPeriods || 4;
-        if (currentPeriod < maxPeriods) {
-            handleUpdate({
-                currentPeriod: currentPeriod + 1,
-                isTimerRunning: false,
-                periodTimeRemainingSeconds: (gameFormat.periodDurationMinutes || 10) * 60,
-            });
+        const teamId = homePlayers.some(p => p.id === playerToSubIn.id) ? 'home' : 'away';
+        
+        const result = await substitutePlayer(gameId, teamId, playerToSubIn.id, playerOutId);
+        if (!result.success) {
+            toast({ variant: 'destructive', title: 'Error de Sustitución', description: result.error });
         }
-    };
-
-    const handleResetTimer = () => {
-        if (!game || !gameFormat) return;
-        handleUpdate({
-            isTimerRunning: false,
-            periodTimeRemainingSeconds: (gameFormat.periodDurationMinutes || 10) * 60,
-        });
+        setPlayerToSubIn(null);
+    }
+    
+    const openSubDialog = (player: Player) => {
+        setPlayerToSubIn(player);
+        setIsSubDialogOpen(true);
     };
 
     const formatTime = (totalSeconds: number) => {
@@ -157,34 +157,16 @@ export default function LiveGamePage() {
         return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
     };
     
-    if (loading || authLoading) {
-        return (
-            <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)]">
-                <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-                <p className="text-lg text-muted-foreground">Cargando datos del partido en vivo...</p>
-            </div>
-        );
-    }
-    
-    if (error) {
-         return (
-            <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)] text-center p-6">
-                <AlertTriangle className="h-12 w-12 text-destructive mb-4" />
-                <h1 className="text-2xl font-headline font-semibold text-destructive">Error</h1>
-                <p className="text-muted-foreground mb-4">{error}</p>
-                <Button asChild variant="outline">
-                    <Link href={`/games/${gameId}`}>Volver a detalles del partido</Link>
-                </Button>
-            </div>
-        );
-    }
-    
+    if (loading || authLoading) return <div className="flex justify-center items-center h-screen"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>;
+    if (error) return <div className="text-center p-6"><AlertTriangle className="mx-auto h-12 w-12 text-destructive mb-4" /><h1 className="text-2xl text-destructive">Error</h1><p>{error}</p></div>;
     if (!game) return null;
 
-    const TeamPanel = ({ teamType }: { teamType: 'home' | 'away' }) => {
+    const TeamPanel = ({ teamType, playersList }: { teamType: 'home' | 'away', playersList: Player[] }) => {
         const teamName = teamType === 'home' ? game.homeTeamName : game.awayTeamName;
-        const teamStats = (teamType === 'home' ? game.homeTeamStats : game.awayTeamStats) || {} as TeamStats;
-        const score = teamType === 'home' ? game.homeTeamScore : game.awayTeamScore;
+        const onCourtIds = new Set(teamType === 'home' ? game.homeTeamOnCourtPlayerIds : game.awayTeamOnCourtPlayerIds);
+        
+        const onCourtPlayers = playersList.filter(p => onCourtIds.has(p.id));
+        const onBenchPlayers = playersList.filter(p => !onCourtIds.has(p.id));
 
         return (
             <Card className="shadow-lg">
@@ -192,68 +174,50 @@ export default function LiveGamePage() {
                     <CardTitle className="truncate">{teamName}</CardTitle>
                     <CardDescription>Equipo {teamType === 'home' ? 'Local' : 'Visitante'}</CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-6">
-                    <div className="text-8xl font-bold text-primary text-center">{score ?? 0}</div>
+                <CardContent className="space-y-4">
+                    <div className="text-8xl font-bold text-primary text-center">{teamType === 'home' ? game.homeTeamScore : game.awayTeamScore}</div>
                     
-                    <Separator />
-                    
-                    <div className="space-y-3">
-                        <h4 className="font-medium text-center">Registro de Tiros</h4>
-                        <div className="grid grid-cols-2 gap-2">
-                           <ShotButton onClick={() => handleRecordShot(teamType, 1, 'made')} variant="secondary" className="bg-green-100 text-green-800 hover:bg-green-200">
-                               <CheckCircle className="mr-2 h-5 w-5"/> +1 Pto
-                           </ShotButton>
-                           <ShotButton variant="destructive" onClick={() => handleRecordShot(teamType, 1, 'miss')}>
-                               <Ban className="mr-2 h-5 w-5"/> Fallo 1 Pto
-                           </ShotButton>
-                           <ShotButton onClick={() => handleRecordShot(teamType, 2, 'made')} variant="secondary" className="bg-green-100 text-green-800 hover:bg-green-200">
-                               <CheckCircle className="mr-2 h-5 w-5"/> +2 Ptos
-                           </ShotButton>
-                           <ShotButton variant="destructive" onClick={() => handleRecordShot(teamType, 2, 'miss')}>
-                                <Ban className="mr-2 h-5 w-5"/> Fallo 2 Ptos
-                           </ShotButton>
-                           <ShotButton onClick={() => handleRecordShot(teamType, 3, 'made')} variant="secondary" className="bg-green-100 text-green-800 hover:bg-green-200">
-                                <CheckCircle className="mr-2 h-5 w-5"/> +3 Ptos
-                           </ShotButton>
-                           <ShotButton variant="destructive" onClick={() => handleRecordShot(teamType, 3, 'miss')}>
-                                <Ban className="mr-2 h-5 w-5"/> Fallo 3 Ptos
-                           </ShotButton>
-                        </div>
+                    <Separator/>
+                    <h4 className="font-semibold text-center">Jugadores en Pista</h4>
+                    <div className="grid grid-cols-1 gap-1">
+                        {onCourtPlayers.length > 0 ? onCourtPlayers.map(p => (
+                            <PlayerListItem key={p.id} player={p} onClick={() => {}} isSelected={false}/>
+                        )) : <p className="text-sm text-muted-foreground text-center italic">Sin jugadores en pista</p>}
                     </div>
-                    
-                    <Separator />
 
-                    <div className="space-y-3">
-                         <h4 className="font-medium text-center">Otras Estadísticas</h4>
-                         <div className="flex justify-between items-center">
-                            <span className="font-semibold">Faltas: {teamStats.fouls ?? 0}</span>
-                            <div className="space-x-1">
-                                <StatButton size="icon" onClick={() => handleIncrementStat(teamType, 'fouls', 1)}><Plus/></StatButton>
-                                <StatButton size="icon" onClick={() => handleIncrementStat(teamType, 'fouls', -1)}><Minus/></StatButton>
-                            </div>
-                         </div>
-                         <div className="flex justify-between items-center">
-                            <span className="font-semibold">T. Muertos: {teamStats.timeouts ?? 0}</span>
-                             <div className="space-x-1">
-                                <StatButton size="icon" onClick={() => handleIncrementStat(teamType, 'timeouts', 1)}><Plus/></StatButton>
-                                <StatButton size="icon" onClick={() => handleIncrementStat(teamType, 'timeouts', -1)}><Minus/></StatButton>
-                            </div>
-                         </div>
-                          <div className="flex justify-between items-center">
-                            <span className="font-semibold">Robos: {teamStats.steals ?? 0}</span>
-                             <div className="space-x-1">
-                                <StatButton size="icon" onClick={() => handleIncrementStat(teamType, 'steals', 1)}><Plus/></StatButton>
-                                <StatButton size="icon" onClick={() => handleIncrementStat(teamType, 'steals', -1)}><Minus/></StatButton>
-                            </div>
-                         </div>
+                    <Separator/>
+                    <h4 className="font-semibold text-center">Banquillo</h4>
+                    <div className="grid grid-cols-1 gap-1">
+                       {onBenchPlayers.length > 0 ? onBenchPlayers.map(p => (
+                           <PlayerListItem key={p.id} player={p} onClick={() => openSubDialog(p)} isSelected={playerToSubIn?.id === p.id}/>
+                       )) : <p className="text-sm text-muted-foreground text-center italic">Banquillo vacío</p>}
                     </div>
                 </CardContent>
             </Card>
-        )
-    }
+        );
+    };
 
     return (
-        <div className="space-y-8">
+        <div className="space-y-6">
+            <Dialog open={isSubDialogOpen} onOpenChange={setIsSubDialogOpen}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Realizar Sustitución</DialogTitle>
+                        <DialogDescription>
+                            Selecciona el jugador que sale de la pista para que entre {playerToSubIn?.firstName}.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="grid grid-cols-1 gap-2 pt-4">
+                        {(homePlayers.some(p => p.id === playerToSubIn?.id) ? homePlayers : awayPlayers)
+                            .filter(p => (game[homePlayers.some(hp => hp.id === p.id) ? 'homeTeamOnCourtPlayerIds' : 'awayTeamOnCourtPlayerIds'] || []).includes(p.id))
+                            .map(player => (
+                                <PlayerListItem key={player.id} player={player} onClick={() => handleSubstitution(player.id)} isSelected={false}/>
+                            ))
+                        }
+                    </div>
+                </DialogContent>
+            </Dialog>
+
              <Button variant="outline" size="sm" asChild>
                 <Link href={`/games`}>
                     <ChevronLeft className="mr-2 h-4 w-4" />
@@ -295,6 +259,8 @@ export default function LiveGamePage() {
                                 {game.isTimerRunning ? <Pause className="mr-2"/> : <Play className="mr-2"/>}
                                 {game.isTimerRunning ? 'Pausar' : 'Iniciar'}
                             </Button>
+                             <Button onClick={() => handleUpdate({ periodTimeRemainingSeconds: displayTime - 60})} variant="ghost" size="icon" disabled={game.status !== 'inprogress' || game.isTimerRunning}><Minus/></Button>
+                             <Button onClick={() => handleUpdate({ periodTimeRemainingSeconds: displayTime + 60})} variant="ghost" size="icon" disabled={game.status !== 'inprogress' || game.isTimerRunning}><Plus/></Button>
                              <Button onClick={handleNextPeriod} disabled={game.status !== 'inprogress' || game.isTimerRunning || (game.currentPeriod || 0) >= (gameFormat?.numPeriods || 4)} variant="outline" size="lg">
                                 <FastForward className="mr-2"/> Siguiente Per.
                             </Button>
@@ -305,8 +271,8 @@ export default function LiveGamePage() {
             )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <TeamPanel teamType="home" />
-                <TeamPanel teamType="away" />
+                <TeamPanel teamType="home" playersList={homePlayers} />
+                <TeamPanel teamType="away" playersList={awayPlayers} />
             </div>
         </div>
     )
