@@ -16,7 +16,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { signOut as firebaseSignOut } from 'firebase/auth';
 import { auth } from '@/lib/firebase/client';
 import { useRouter } from 'next/navigation';
-import { LogOut, UserCircle } from 'lucide-react';
+import { LogOut, UserCircle, Settings } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 export function UserNav() {
@@ -77,6 +77,11 @@ export function UserNav() {
               <UserCircle className="mr-2 h-4 w-4" />
               Perfil
             </Link>
+          </DropdownMenuItem>
+          <DropdownMenuItem disabled className="flex items-center cursor-not-allowed">
+            <Settings className="mr-2 h-4 w-4" />
+            Configuración
+            <span className="ml-auto text-xs text-muted-foreground">(Pronto)</span>
           </DropdownMenuItem>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />

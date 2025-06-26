@@ -42,6 +42,7 @@ export default function DashboardPage() {
       return; 
     }
     if (!user) {
+      // The middleware should handle this, but as a fallback, redirect.
       router.replace('/login');
       return;
     }
@@ -66,8 +67,9 @@ export default function DashboardPage() {
       });
   }, [user, authLoading, router]);
 
-  if (authLoading || loadingProfile) {
-    return (
+  // The AuthProvider already shows a full-page loader, so we just need to handle the profile loading state.
+  if (loadingProfile) {
+     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)]">
         <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
         <p className="text-lg text-muted-foreground">Cargando información del panel...</p>
@@ -75,6 +77,7 @@ export default function DashboardPage() {
     );
   }
   
+  // user is guaranteed to exist here due to the effect hook redirect
   if (!user) return null;
 
   const renderClubManagement = () => {
