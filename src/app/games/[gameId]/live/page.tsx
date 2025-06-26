@@ -1,16 +1,17 @@
-
 "use client";
 
 import React, { useEffect, useState, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import Link from 'next/link';
+
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '@/lib/firebase/client';
 import { updateLiveGameState, recordGameEvent, substitutePlayer } from '@/app/games/actions';
 import { getGameFormatById } from '@/app/game-formats/actions';
 import { getPlayersByTeamId } from '@/app/players/actions';
 import type { Game, GameFormat, TeamStats, Player, GameEventAction } from '@/types';
+
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Loader2, AlertTriangle, ChevronLeft, Gamepad2, Minus, Plus, Play, Flag, Pause, TimerReset, FastForward, Timer as TimerIcon, CheckCircle, Ban, Users, Repeat } from 'lucide-react';
@@ -127,6 +128,27 @@ export default function LiveGamePage() {
         if (!game) return;
         handleUpdate({ isTimerRunning: !game.isTimerRunning, periodTimeRemainingSeconds: displayTime });
     }, [game, displayTime, handleUpdate]);
+    
+    const handleNextPeriod = useCallback(() => {
+        if (!game || !gameFormat) return;
+        const currentPeriod = game.currentPeriod || 1;
+        const maxPeriods = gameFormat.numPeriods || 4;
+        if (currentPeriod < maxPeriods) {
+            handleUpdate({
+                currentPeriod: currentPeriod + 1,
+                isTimerRunning: false,
+                periodTimeRemainingSeconds: (gameFormat.periodDurationMinutes || 10) * 60,
+            });
+        }
+    }, [game, gameFormat, handleUpdate]);
+
+    const handleResetTimer = useCallback(() => {
+        if (!game || !gameFormat) return;
+        handleUpdate({
+            isTimerRunning: false,
+            periodTimeRemainingSeconds: (gameFormat.periodDurationMinutes || 10) * 60,
+        });
+    }, [game, gameFormat, handleUpdate]);
 
     const handleGameEvent = async (teamId: 'home' | 'away', playerId: string, playerName: string, action: GameEventAction) => {
         if (!game || game.status !== 'inprogress') return;
