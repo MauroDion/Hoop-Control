@@ -281,6 +281,23 @@ export interface GameFormData {
     gameFormatId?: string | null;
 }
 
+export interface PlayerGameStats {
+  playerId: string;
+  playerName: string;
+  points: number;
+  shots_made_1p: number; shots_attempted_1p: number;
+  shots_made_2p: number; shots_attempted_2p: number;
+  shots_made_3p: number; shots_attempted_3p: number;
+  reb_def: number;
+  reb_off: number;
+  assists: number;
+  steals: number;
+  blocks: number;
+  turnovers: number;
+  fouls: number;
+  pir: number; // Performance Index Rating
+}
+
 export interface BrandingSettings {
   appName?: string;
   logoHeaderUrl?: string;

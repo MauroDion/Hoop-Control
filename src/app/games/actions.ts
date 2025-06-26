@@ -2,7 +2,7 @@
 import { adminDb } from '@/lib/firebase/admin';
 import admin from 'firebase-admin';
 import { revalidatePath } from 'next/cache';
-import type { Game, GameFormData, Team, TeamStats, StatCategory, GameEvent, GameEventAction } from '@/types';
+import type { Game, GameFormData, Team, TeamStats, StatCategory, GameEvent, GameEventAction, PlayerGameStats } from '@/types';
 import { getTeamsByCoach as getCoachTeams } from '@/app/teams/actions';
 
 export async function createGame(formData: GameFormData, userId: string): Promise<{ success: boolean; error?: string; id?: string }> {
@@ -162,6 +162,105 @@ export async function getGameEvents(gameId: string): Promise<GameEvent[]> {
     return [];
   }
 }
+
+export async function getPlayerStatsForGame(gameId: string): Promise<PlayerGameStats[]> {
+    if (!adminDb) return [];
+    const eventsRef = adminDb.collection('games').doc(gameId).collection('events');
+    const eventsSnap = await eventsRef.get();
+    const events = eventsSnap.docs.map(doc => doc.data() as GameEvent);
+
+    const playerStats: { [key: string]: Omit<PlayerGameStats, 'playerId'> } = {};
+
+    const initializeStats = (playerId: string) => {
+        if (!playerStats[playerId]) {
+            playerStats[playerId] = {
+                playerName: '',
+                points: 0,
+                shots_made_1p: 0, shots_attempted_1p: 0,
+                shots_made_2p: 0, shots_attempted_2p: 0,
+                shots_made_3p: 0, shots_attempted_3p: 0,
+                reb_def: 0, reb_off: 0,
+                assists: 0, steals: 0, blocks: 0, turnovers: 0, fouls: 0,
+                pir: 0,
+            };
+        }
+    };
+
+    for (const event of events) {
+        initializeStats(event.playerId);
+        if (!playerStats[event.playerId].playerName) {
+            playerStats[event.playerId].playerName = event.playerName;
+        }
+
+        switch (event.action) {
+            case 'shot_made_1p':
+                playerStats[event.playerId].points += 1;
+                playerStats[event.playerId].shots_made_1p += 1;
+                playerStats[event.playerId].shots_attempted_1p += 1;
+                break;
+            case 'shot_miss_1p':
+                playerStats[event.playerId].shots_attempted_1p += 1;
+                break;
+            case 'shot_made_2p':
+                playerStats[event.playerId].points += 2;
+                playerStats[event.playerId].shots_made_2p += 1;
+                playerStats[event.playerId].shots_attempted_2p += 1;
+                break;
+            case 'shot_miss_2p':
+                playerStats[event.playerId].shots_attempted_2p += 1;
+                break;
+            case 'shot_made_3p':
+                playerStats[event.playerId].points += 3;
+                playerStats[event.playerId].shots_made_3p += 1;
+                playerStats[event.playerId].shots_attempted_3p += 1;
+                break;
+            case 'shot_miss_3p':
+                playerStats[event.playerId].shots_attempted_3p += 1;
+                break;
+            case 'rebound_defensive':
+                playerStats[event.playerId].reb_def += 1;
+                break;
+            case 'rebound_offensive':
+                playerStats[event.playerId].reb_off += 1;
+                break;
+            case 'assist':
+                playerStats[event.playerId].assists += 1;
+                break;
+            case 'steal':
+                playerStats[event.playerId].steals += 1;
+                break;
+            case 'block':
+                playerStats[event.playerId].blocks += 1;
+                break;
+            case 'turnover':
+                playerStats[event.playerId].turnovers += 1;
+                break;
+            case 'foul':
+                playerStats[event.playerId].fouls += 1;
+                break;
+        }
+    }
+    
+    // Calculate PIR for each player
+    Object.values(playerStats).forEach(stats => {
+        const totalRebounds = stats.reb_def + stats.reb_off;
+        const fieldGoalsMade = stats.shots_made_2p + stats.shots_made_3p;
+        const fieldGoalsAttempted = stats.shots_attempted_2p + stats.shots_attempted_3p;
+        const freeThrowsMade = stats.shots_made_1p;
+        const freeThrowsAttempted = stats.shots_attempted_1p;
+
+        const missedFieldGoals = fieldGoalsAttempted - fieldGoalsMade;
+        const missedFreeThrows = freeThrowsAttempted - freeThrowsMade;
+
+        stats.pir = (stats.points + totalRebounds + stats.assists + stats.steals + stats.blocks) - (missedFieldGoals + missedFreeThrows + stats.turnovers + stats.fouls);
+    });
+
+    return Object.entries(playerStats).map(([playerId, stats]) => ({
+        playerId,
+        ...stats,
+    }));
+}
+
 
 export async function updateGameRoster(
     gameId: string,
