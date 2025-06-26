@@ -83,9 +83,9 @@ export async function getAllGames(): Promise<Game[]> {
             return {
                 id: doc.id,
                 ...data,
-                date: data.date.toDate().toISOString(),
-                createdAt: data.createdAt ? data.createdAt.toDate().toISOString() : undefined,
-                updatedAt: data.updatedAt ? data.updatedAt.toDate().toISOString() : undefined,
+                date: (data.date as admin.firestore.Timestamp).toDate().toISOString(),
+                createdAt: data.createdAt ? (data.createdAt as admin.firestore.Timestamp).toDate().toISOString() : undefined,
+                updatedAt: data.updatedAt ? (data.updatedAt as admin.firestore.Timestamp).toDate().toISOString() : undefined,
             } as Game;
         });
         return games;
@@ -135,9 +135,9 @@ export async function getGameById(gameId: string): Promise<Game | null> {
         return {
             id: docSnap.id,
             ...data,
-            date: data.date.toDate().toISOString(),
-            createdAt: data.createdAt?.toDate().toISOString(),
-            updatedAt: data.updatedAt?.toDate().toISOString(),
+            date: (data.date as admin.firestore.Timestamp).toDate().toISOString(),
+            createdAt: data.createdAt ? (data.createdAt as admin.firestore.Timestamp).toDate().toISOString() : undefined,
+            updatedAt: data.updatedAt ? (data.updatedAt as admin.firestore.Timestamp).toDate().toISOString() : undefined,
         } as Game;
     } catch (error: any) {
         return null;
@@ -154,7 +154,7 @@ export async function getGameEvents(gameId: string): Promise<GameEvent[]> {
       return {
         id: doc.id,
         ...data,
-        createdAt: data.createdAt.toDate().toISOString(),
+        createdAt: (data.createdAt as admin.firestore.Timestamp).toDate().toISOString(),
       } as GameEvent;
     });
   } catch (error) {

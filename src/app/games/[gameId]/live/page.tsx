@@ -4,37 +4,27 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import Link from 'next/link';
-
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '@/lib/firebase/client';
 import { updateLiveGameState, recordGameEvent, substitutePlayer } from '@/app/games/actions';
 import { getGameFormatById } from '@/app/game-formats/actions';
 import { getPlayersByTeamId } from '@/app/players/actions';
-import type { Game, GameFormat, TeamStats, Player, GameEventAction } from '@/types';
-
+import type { Game, GameFormat, Player, GameEventAction } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, AlertTriangle, ChevronLeft, Gamepad2, Minus, Plus, Play, Flag, Pause, TimerReset, FastForward, Timer as TimerIcon, CheckCircle, Ban, Users, Repeat } from 'lucide-react';
+import { Loader2, AlertTriangle, ChevronLeft, Gamepad2, Minus, Plus, Play, Flag, Pause, TimerReset, FastForward, Timer as TimerIcon, CheckCircle, Ban, Users } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Separator } from '@/components/ui/separator';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-
-const StatButton = ({ children, ...props }: React.ComponentProps<typeof Button>) => (
-    <Button variant="outline" size="sm" {...props}>{children}</Button>
-);
-
-const ShotButton = ({ children, ...props }: React.ComponentProps<typeof Button>) => (
-    <Button className="w-full" {...props}>{children}</Button>
-);
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 const PlayerListItem = ({ player, onClick, isSelected }: { player: Player, onClick: () => void, isSelected: boolean }) => (
     <Button
         variant={isSelected ? "default" : "ghost"}
-        className="w-full justify-start h-auto p-2"
+        className="w-full justify-start h-auto p-2 mb-1"
         onClick={onClick}
     >
         <div className="flex items-center gap-2">
-            <div className="bg-primary/20 text-primary font-bold rounded-full h-8 w-8 flex items-center justify-center text-sm">
+            <div className="bg-primary/20 text-primary font-bold rounded-full h-8 w-8 flex items-center justify-center text-sm shrink-0">
                 {player.jerseyNumber || 'S/N'}
             </div>
             <span className="truncate">{player.firstName} {player.lastName}</span>
@@ -42,11 +32,38 @@ const PlayerListItem = ({ player, onClick, isSelected }: { player: Player, onCli
     </Button>
 );
 
+const ShotActionButtons = ({ onAction }: { onAction: (action: GameEventAction) => void }) => (
+    <div className="space-y-3">
+        <h4 className="font-medium text-center">Registro de Tiros</h4>
+        <div className="grid grid-cols-2 gap-2">
+            <Button className="bg-green-600 hover:bg-green-700" onClick={() => onAction('shot_made_1p')}><CheckCircle className="mr-2 h-4 w-4"/>+1 Pto</Button>
+            <Button variant="destructive" onClick={() => onAction('shot_miss_1p')}><Ban className="mr-2 h-4 w-4"/>Fallo 1 Pto</Button>
+            <Button className="bg-green-600 hover:bg-green-700" onClick={() => onAction('shot_made_2p')}><CheckCircle className="mr-2 h-4 w-4"/>+2 Ptos</Button>
+            <Button variant="destructive" onClick={() => onAction('shot_miss_2p')}><Ban className="mr-2 h-4 w-4"/>Fallo 2 Ptos</Button>
+            <Button className="bg-green-600 hover:bg-green-700" onClick={() => onAction('shot_made_3p')}><CheckCircle className="mr-2 h-4 w-4"/>+3 Ptos</Button>
+            <Button variant="destructive" onClick={() => onAction('shot_miss_3p')}><Ban className="mr-2 h-4 w-4"/>Fallo 3 Ptos</Button>
+        </div>
+    </div>
+);
+
+const OtherActionButtons = ({ onAction }: { onAction: (action: GameEventAction) => void }) => (
+    <div className="space-y-2">
+        <h4 className="font-medium text-center">Otras Jugadas</h4>
+        <Button className="w-full justify-start" variant="outline" onClick={() => onAction('rebound_defensive')}>Rebote Defensivo</Button>
+        <Button className="w-full justify-start" variant="outline" onClick={() => onAction('rebound_offensive')}>Rebote Ofensivo</Button>
+        <Button className="w-full justify-start" variant="outline" onClick={() => onAction('assist')}>Asistencia</Button>
+        <Button className="w-full justify-start" variant="outline" onClick={() => onAction('steal')}>Robo</Button>
+        <Button className="w-full justify-start" variant="outline" onClick={() => onAction('block')}>Tapón</Button>
+        <Button className="w-full justify-start" variant="outline" onClick={() => onAction('turnover')}>Pérdida</Button>
+        <Button className="w-full justify-start" variant="destructive" onClick={() => onAction('foul')}>Falta Personal</Button>
+    </div>
+);
+
 export default function LiveGamePage() {
     const params = useParams();
     const { toast } = useToast();
     const gameId = typeof params.gameId === 'string' ? params.gameId : '';
-    const { user, loading: authLoading } = useAuth();
+    const { authLoading } = useAuth();
 
     const [game, setGame] = useState<Game | null>(null);
     const [gameFormat, setGameFormat] = useState<GameFormat | null>(null);
@@ -57,9 +74,9 @@ export default function LiveGamePage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [localTimer, setLocalTimer] = useState<NodeJS.Timeout | null>(null);
-
-    const [playerToSubIn, setPlayerToSubIn] = useState<Player | null>(null);
-    const [isSubDialogOpen, setIsSubDialogOpen] = useState(false);
+    
+    const [actionPlayerInfo, setActionPlayerInfo] = useState<{player: Player, teamType: 'home' | 'away'} | null>(null);
+    const [subPlayerInfo, setSubPlayerInfo] = useState<{player: Player, teamType: 'home' | 'away'} | null>(null);
 
     useEffect(() => {
         if (!gameId) {
@@ -74,7 +91,9 @@ export default function LiveGamePage() {
                 const gameData = { id: docSnap.id, ...data, date: (data.date as any).toDate() } as Game;
                 setGame(gameData);
                 
-                setDisplayTime(gameData.periodTimeRemainingSeconds ?? 0);
+                if (gameData.periodTimeRemainingSeconds !== displayTime) {
+                    setDisplayTime(gameData.periodTimeRemainingSeconds ?? 0);
+                }
 
                 if (!gameFormat && gameData.gameFormatId) {
                     const format = await getGameFormatById(gameData.gameFormatId);
@@ -99,7 +118,8 @@ export default function LiveGamePage() {
         });
 
         return () => unsubscribe();
-    }, [gameId, gameFormat, homePlayers.length, awayPlayers.length]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [gameId]);
     
     useEffect(() => {
        if (localTimer) {
@@ -115,7 +135,9 @@ export default function LiveGamePage() {
        return () => {
            if (localTimer) clearInterval(localTimer);
        };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [game?.isTimerRunning, displayTime]);
+
 
     const handleUpdate = useCallback(async (updates: Partial<Game>) => {
         const result = await updateLiveGameState(gameId, updates);
@@ -123,6 +145,12 @@ export default function LiveGamePage() {
             toast({ variant: 'destructive', title: 'Error al Actualizar', description: result.error });
         }
     }, [gameId, toast]);
+    
+    const handleGameEvent = async (teamId: 'home' | 'away', playerId: string, playerName: string, action: GameEventAction) => {
+        if (!game || game.status !== 'inprogress') return;
+        await recordGameEvent(gameId, { teamId, playerId, playerName, action, period: game.currentPeriod || 1, gameTimeSeconds: displayTime });
+        setActionPlayerInfo(null);
+    };
 
     const handleToggleTimer = useCallback(() => {
         if (!game) return;
@@ -150,27 +178,17 @@ export default function LiveGamePage() {
         });
     }, [game, gameFormat, handleUpdate]);
 
-    const handleGameEvent = async (teamId: 'home' | 'away', playerId: string, playerName: string, action: GameEventAction) => {
-        if (!game || game.status !== 'inprogress') return;
-        await recordGameEvent(gameId, { teamId, playerId, playerName, action, period: game.currentPeriod || 1, gameTimeSeconds: displayTime });
-    };
-
     const handleSubstitution = async (playerOutId: string) => {
-        if (!game || !playerToSubIn) return;
-        setIsSubDialogOpen(false);
-
-        const teamId = homePlayers.some(p => p.id === playerToSubIn.id) ? 'home' : 'away';
-        
-        const result = await substitutePlayer(gameId, teamId, playerToSubIn.id, playerOutId);
+        if (!game || !subPlayerInfo) return;
+        const result = await substitutePlayer(gameId, subPlayerInfo.teamType, subPlayerInfo.player.id, playerOutId);
         if (!result.success) {
             toast({ variant: 'destructive', title: 'Error de Sustitución', description: result.error });
         }
-        setPlayerToSubIn(null);
+        setSubPlayerInfo(null);
     }
     
-    const openSubDialog = (player: Player) => {
-        setPlayerToSubIn(player);
-        setIsSubDialogOpen(true);
+    const openSubDialog = (player: Player, teamType: 'home' | 'away') => {
+        setSubPlayerInfo({ player, teamType });
     };
 
     const formatTime = (totalSeconds: number) => {
@@ -186,7 +204,6 @@ export default function LiveGamePage() {
     const TeamPanel = ({ teamType, playersList }: { teamType: 'home' | 'away', playersList: Player[] }) => {
         const teamName = teamType === 'home' ? game.homeTeamName : game.awayTeamName;
         const onCourtIds = new Set(teamType === 'home' ? game.homeTeamOnCourtPlayerIds : game.awayTeamOnCourtPlayerIds);
-        
         const onCourtPlayers = playersList.filter(p => onCourtIds.has(p.id));
         const onBenchPlayers = playersList.filter(p => !onCourtIds.has(p.id));
 
@@ -203,7 +220,7 @@ export default function LiveGamePage() {
                     <h4 className="font-semibold text-center">Jugadores en Pista</h4>
                     <div className="grid grid-cols-1 gap-1">
                         {onCourtPlayers.length > 0 ? onCourtPlayers.map(p => (
-                            <PlayerListItem key={p.id} player={p} onClick={() => {}} isSelected={false}/>
+                            <PlayerListItem key={p.id} player={p} onClick={() => setActionPlayerInfo({ player: p, teamType })} isSelected={actionPlayerInfo?.player.id === p.id}/>
                         )) : <p className="text-sm text-muted-foreground text-center italic">Sin jugadores en pista</p>}
                     </div>
 
@@ -211,7 +228,7 @@ export default function LiveGamePage() {
                     <h4 className="font-semibold text-center">Banquillo</h4>
                     <div className="grid grid-cols-1 gap-1">
                        {onBenchPlayers.length > 0 ? onBenchPlayers.map(p => (
-                           <PlayerListItem key={p.id} player={p} onClick={() => openSubDialog(p)} isSelected={playerToSubIn?.id === p.id}/>
+                           <PlayerListItem key={p.id} player={p} onClick={() => openSubDialog(p, teamType)} isSelected={subPlayerInfo?.player.id === p.id}/>
                        )) : <p className="text-sm text-muted-foreground text-center italic">Banquillo vacío</p>}
                     </div>
                 </CardContent>
@@ -221,17 +238,29 @@ export default function LiveGamePage() {
 
     return (
         <div className="space-y-6">
-            <Dialog open={isSubDialogOpen} onOpenChange={setIsSubDialogOpen}>
+            <Dialog open={!!actionPlayerInfo} onOpenChange={(isOpen) => !isOpen && setActionPlayerInfo(null)}>
+                <DialogContent className="max-w-3xl">
+                    <DialogHeader>
+                        <DialogTitle>Registrar Acción para {actionPlayerInfo?.player.firstName} {actionPlayerInfo?.player.lastName}</DialogTitle>
+                    </DialogHeader>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 py-4">
+                        <ShotActionButtons onAction={(action) => handleGameEvent(actionPlayerInfo!.teamType, actionPlayerInfo!.player.id, `${actionPlayerInfo!.player.firstName} ${actionPlayerInfo!.player.lastName}`, action)} />
+                        <OtherActionButtons onAction={(action) => handleGameEvent(actionPlayerInfo!.teamType, actionPlayerInfo!.player.id, `${actionPlayerInfo!.player.firstName} ${actionPlayerInfo!.player.lastName}`, action)} />
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+             <Dialog open={!!subPlayerInfo} onOpenChange={(isOpen) => !isOpen && setSubPlayerInfo(null)}>
                 <DialogContent>
                     <DialogHeader>
                         <DialogTitle>Realizar Sustitución</DialogTitle>
                         <DialogDescription>
-                            Selecciona el jugador que sale de la pista para que entre {playerToSubIn?.firstName}.
+                            Selecciona el jugador que sale de la pista para que entre {subPlayerInfo?.player.firstName}.
                         </DialogDescription>
                     </DialogHeader>
                     <div className="grid grid-cols-1 gap-2 pt-4">
-                        {(homePlayers.some(p => p.id === playerToSubIn?.id) ? homePlayers : awayPlayers)
-                            .filter(p => (game[homePlayers.some(hp => hp.id === p.id) ? 'homeTeamOnCourtPlayerIds' : 'awayTeamOnCourtPlayerIds'] || []).includes(p.id))
+                        {(subPlayerInfo?.teamType === 'home' ? homePlayers : awayPlayers)
+                            .filter(p => (game[subPlayerInfo!.teamType === 'home' ? 'homeTeamOnCourtPlayerIds' : 'awayTeamOnCourtPlayerIds'] || []).includes(p.id))
                             .map(player => (
                                 <PlayerListItem key={player.id} player={player} onClick={() => handleSubstitution(player.id)} isSelected={false}/>
                             ))
