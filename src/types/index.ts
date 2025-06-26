@@ -207,6 +207,8 @@ export interface TeamStats {
     steals: number;
     blocks: number;
     turnovers: number;
+    blocksAgainst: number;
+    foulsReceived: number;
 }
 
 export type StatCategory = 'shots' | 'fouls' | 'timeouts' | 'steals';
@@ -221,6 +223,8 @@ export type GameEventAction =
   | 'block'
   | 'turnover'
   | 'foul'
+  | 'block_against'
+  | 'foul_received'
   | 'substitution_in' | 'substitution_out'
   | 'period_start' | 'period_end'
   | 'timer_start' | 'timer_pause';
@@ -302,6 +306,8 @@ export interface PlayerGameStats {
   blocks: number;
   turnovers: number;
   fouls: number;
+  blocks_against: number;
+  fouls_received: number;
   pir: number; // Performance Index Rating
 }
 

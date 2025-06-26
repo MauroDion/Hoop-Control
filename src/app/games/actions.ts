@@ -30,6 +30,8 @@ export async function createGame(formData: GameFormData, userId: string): Promis
             fouls: 0, timeouts: 0, 
             reboundsOffensive: 0, reboundsDefensive: 0,
             assists: 0, steals: 0, blocks: 0, turnovers: 0,
+            blocksAgainst: 0,
+            foulsReceived: 0,
         };
 
         const newGameData = {
@@ -174,13 +176,10 @@ export async function getPlayerStatsForGame(gameId: string): Promise<PlayerGameS
     const initializeStats = (playerId: string) => {
         if (!playerStats[playerId]) {
             playerStats[playerId] = {
-                playerName: '',
-                points: 0,
-                shots_made_1p: 0, shots_attempted_1p: 0,
-                shots_made_2p: 0, shots_attempted_2p: 0,
-                shots_made_3p: 0, shots_attempted_3p: 0,
-                reb_def: 0, reb_off: 0,
-                assists: 0, steals: 0, blocks: 0, turnovers: 0, fouls: 0,
+                playerName: '', timePlayedSeconds: 0, periodsPlayed: 0,
+                points: 0, shots_made_1p: 0, shots_attempted_1p: 0, shots_made_2p: 0, shots_attempted_2p: 0, shots_made_3p: 0, shots_attempted_3p: 0,
+                reb_def: 0, reb_off: 0, assists: 0, steals: 0, blocks: 0, turnovers: 0, fouls: 0,
+                blocks_against: 0, fouls_received: 0,
                 pir: 0,
             };
         }
@@ -238,10 +237,15 @@ export async function getPlayerStatsForGame(gameId: string): Promise<PlayerGameS
             case 'foul':
                 playerStats[event.playerId].fouls += 1;
                 break;
+            case 'block_against':
+                playerStats[event.playerId].blocks_against += 1;
+                break;
+            case 'foul_received':
+                playerStats[event.playerId].fouls_received += 1;
+                break;
         }
     }
     
-    // Calculate PIR for each player
     Object.values(playerStats).forEach(stats => {
         const totalRebounds = stats.reb_def + stats.reb_off;
         const fieldGoalsMade = stats.shots_made_2p + stats.shots_made_3p;
@@ -251,8 +255,9 @@ export async function getPlayerStatsForGame(gameId: string): Promise<PlayerGameS
 
         const missedFieldGoals = fieldGoalsAttempted - fieldGoalsMade;
         const missedFreeThrows = freeThrowsAttempted - freeThrowsMade;
-
-        stats.pir = (stats.points + totalRebounds + stats.assists + stats.steals + stats.blocks) - (missedFieldGoals + missedFreeThrows + stats.turnovers + stats.fouls);
+        
+        const pir = (stats.points + totalRebounds + stats.assists + stats.steals + stats.blocks + stats.fouls_received) - (missedFieldGoals + missedFreeThrows + stats.turnovers + stats.fouls + stats.blocks_against);
+        stats.pir = isNaN(pir) ? 0 : pir;
     });
 
     return Object.entries(playerStats).map(([playerId, stats]) => ({
@@ -380,6 +385,8 @@ export async function recordGameEvent(
           'foul': 'fouls',
           'rebound_offensive': 'reboundsOffensive',
           'rebound_defensive': 'reboundsDefensive',
+          'block_against': 'blocksAgainst',
+          'foul_received': 'foulsReceived',
       };
 
       if (otherStatsMapping[action]) {

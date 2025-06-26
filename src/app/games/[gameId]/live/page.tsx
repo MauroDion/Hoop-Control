@@ -37,7 +37,7 @@ const PlayerStatCard = ({ player, stats, onClick }: { player: Player; stats: Pla
 
             {/* Fouls */}
             {stats.fouls > 0 && (
-                <div className="absolute top-1/2 -translate-y-1/2 right-2 flex items-center justify-center px-2 h-7 bg-destructive border-2 border-white/70 rounded-sm shadow-lg z-20">
+                 <div className="absolute top-1/2 -translate-y-1/2 right-2 flex items-center justify-center px-2 h-7 bg-destructive border-2 border-white/70 rounded-sm shadow-lg z-20">
                     <span className="text-yellow-300 text-xl font-extrabold" style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.5)' }}>{stats.fouls}</span>
                 </div>
             )}
@@ -48,14 +48,14 @@ const PlayerStatCard = ({ player, stats, onClick }: { player: Player; stats: Pla
             </div>
             
             {/* Jersey Number */}
-            <div className="text-8xl font-black text-muted-foreground/20" style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.1)' }}>
+            <div className="text-8xl font-black text-destructive" style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.1)' }}>
                 {player.jerseyNumber || 'S/N'}
             </div>
 
              {/* Player Info */}
              <div className="absolute bottom-1 text-xs text-center font-semibold w-full px-1 bg-gradient-to-t from-background via-background to-transparent pt-8 pb-1">
                 <p className="truncate">{player.firstName} {player.lastName}</p>
-                <p className="font-mono text-muted-foreground">{formatTime(stats.timePlayedSeconds)} ({stats.periodsPlayed})</p>
+                <p className="font-mono text-muted-foreground">{formatTime(stats.timePlayedSeconds || 0)} ({stats.periodsPlayed || 0})</p>
             </div>
         </Card>
     );
@@ -79,13 +79,17 @@ const ShotActionButtons = ({ onAction }: { onAction: (action: GameEventAction) =
 const OtherActionButtons = ({ onAction }: { onAction: (action: GameEventAction) => void }) => (
     <div className="space-y-2">
         <h4 className="font-medium text-center">Otras Jugadas</h4>
-        <Button className="w-full justify-start" variant="outline" onClick={() => onAction('rebound_defensive')}>Rebote Defensivo</Button>
-        <Button className="w-full justify-start" variant="outline" onClick={() => onAction('rebound_offensive')}>Rebote Ofensivo</Button>
-        <Button className="w-full justify-start" variant="outline" onClick={() => onAction('assist')}>Asistencia</Button>
-        <Button className="w-full justify-start" variant="outline" onClick={() => onAction('steal')}>Robo</Button>
-        <Button className="w-full justify-start" variant="outline" onClick={() => onAction('block')}>Tapón</Button>
-        <Button className="w-full justify-start" variant="destructive" onClick={() => onAction('turnover')}>Pérdida</Button>
-        <Button className="w-full justify-start" variant="destructive" onClick={() => onAction('foul')}>Falta Personal</Button>
+        <div className="grid grid-cols-2 gap-2">
+            <Button className="justify-start" variant="outline" onClick={() => onAction('rebound_defensive')}>Rebote Defensivo</Button>
+            <Button className="justify-start" variant="outline" onClick={() => onAction('rebound_offensive')}>Rebote Ofensivo</Button>
+            <Button className="justify-start" variant="outline" onClick={() => onAction('assist')}>Asistencia</Button>
+            <Button className="justify-start" variant="outline" onClick={() => onAction('steal')}>Robo</Button>
+            <Button className="justify-start" variant="outline" onClick={() => onAction('block')}>Tapón a Favor</Button>
+            <Button className="justify-start" variant="outline" onClick={() => onAction('block_against')}>Tapón Sufrido</Button>
+            <Button className="justify-start" variant="destructive" onClick={() => onAction('turnover')}>Pérdida</Button>
+            <Button className="justify-start" variant="destructive" onClick={() => onAction('foul')}>Falta Personal</Button>
+            <Button className="justify-start" variant="destructive" onClick={() => onAction('foul_received')}>Falta Recibida</Button>
+        </div>
     </div>
 );
 
@@ -112,7 +116,8 @@ export default function LiveGamePage() {
     const defaultStats: Omit<PlayerGameStats, 'playerId'> = {
         playerName: '', timePlayedSeconds: 0, periodsPlayed: 0,
         points: 0, shots_made_1p: 0, shots_attempted_1p: 0, shots_made_2p: 0, shots_attempted_2p: 0, shots_made_3p: 0, shots_attempted_3p: 0,
-        reb_def: 0, reb_off: 0, assists: 0, steals: 0, blocks: 0, turnovers: 0, fouls: 0, pir: 0,
+        reb_def: 0, reb_off: 0, assists: 0, steals: 0, blocks: 0, turnovers: 0, fouls: 0,
+        blocks_against: 0, fouls_received: 0, pir: 0,
     };
 
     useEffect(() => {
@@ -344,9 +349,9 @@ export default function LiveGamePage() {
             </Dialog>
 
              <Button variant="outline" size="sm" asChild>
-                <Link href={`/games/${gameId}`}>
+                <Link href={`/games`}>
                     <ChevronLeft className="mr-2 h-4 w-4" />
-                    Volver a detalles del partido
+                    Volver a la Lista de Partidos
                 </Link>
             </Button>
             
