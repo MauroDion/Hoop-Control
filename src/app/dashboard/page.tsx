@@ -2,15 +2,13 @@
 
 import { useAuth } from '@/hooks/useAuth';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { BarChart, Building, CheckSquare, Users, AlertTriangle, Loader2, Clock } from 'lucide-react';
+import { BarChart, Building, CheckSquare, Users, AlertTriangle, Loader2 } from 'lucide-react';
+import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { getUserProfileById } from '@/app/users/actions';
 import type { UserFirestoreProfile } from '@/types';
-import { format } from 'date-fns';
-import { es } from 'date-fns/locale';
-import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 
 // Dummy data - replace with actual data fetching
@@ -38,48 +36,36 @@ export default function DashboardPage() {
   const [userProfile, setUserProfile] = useState<UserFirestoreProfile | null>(null);
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [profileError, setProfileError] = useState<string | null>(null);
-  const [currentTime, setCurrentTime] = useState<string | null>(null);
-  
-   useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentTime(format(new Date(), 'HH:mm:ss', { locale: es }));
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, []);
 
   useEffect(() => {
-    if (authLoading) {
-      return; // Wait until Firebase auth state is resolved.
-    }
-    if (!user) {
-      // If auth is resolved and there's no user, redirect to login.
-      // This is a client-side safeguard.
-      router.replace('/login');
-      return;
-    }
-    
-    // If user exists, fetch their profile.
-    setLoadingProfile(true);
-    setProfileError(null);
-    getUserProfileById(user.uid)
-      .then(profile => {
-        if (profile) {
-          setUserProfile(profile);
-        } else {
-          setProfileError("Tu perfil no se encontró en la base de datos. Por favor, contacta a un administrador.");
+    // This effect runs when the auth state is confirmed.
+    // authLoading is already handled by the AuthProvider's global loader.
+    if (user) {
+      setLoadingProfile(true);
+      setProfileError(null);
+      getUserProfileById(user.uid)
+        .then(profile => {
+          if (profile) {
+            setUserProfile(profile);
+          } else {
+            setProfileError("Tu perfil no se encontró en la base de datos. Por favor, contacta a un administrador.");
+            setUserProfile(null);
+          }
+        })
+        .catch(err => {
+          setProfileError("Ocurrió un error al cargar tu perfil.");
           setUserProfile(null);
-        }
-      })
-      .catch(err => {
-        setProfileError("Ocurrió un error al cargar tu perfil.");
-        setUserProfile(null);
-      })
-      .finally(() => {
-        setLoadingProfile(false);
-      });
+        })
+        .finally(() => {
+          setLoadingProfile(false);
+        });
+    } else if (!authLoading && !user) {
+        // If auth is resolved and there is still no user, it's a definitive sign out.
+        router.replace('/login');
+    }
   }, [user, authLoading, router]);
 
+  // Main loading state for the page content, shown after the global auth loading is done.
   if (authLoading || loadingProfile) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)]">
@@ -89,14 +75,9 @@ export default function DashboardPage() {
     );
   }
   
+  // A definitive redirect if something went wrong and we still have no user
   if (!user) {
-    // This case should be rare due to the redirect, but it prevents rendering with null data.
-    return (
-       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)]">
-        <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-        <p>Redirigiendo...</p>
-      </div>
-    )
+      return null;
   }
 
   const renderClubManagement = () => {
@@ -153,7 +134,7 @@ export default function DashboardPage() {
     <div className="space-y-8">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 p-6 bg-card rounded-lg shadow-lg">
         <div>
-          <h1 className="text-4xl font-headline font-bold text-primary">¡Bienvenido, {user?.displayName || user?.email}!</h1>
+          <h1 className="text-4xl font-headline font-bold text-primary">¡Bienvenido, {user.displayName || user.email}!</h1>
           <p className="text-lg text-muted-foreground mt-1">Este es un resumen de tu espacio de trabajo en Hoop Control.</p>
         </div>
          <Image 
@@ -187,15 +168,24 @@ export default function DashboardPage() {
             <p className="text-xs text-muted-foreground">+15 esta semana</p>
           </CardContent>
         </Card>
-        <Card className="shadow-md hover:shadow-lg transition-shadow lg:col-span-2">
+         <Card className="shadow-md hover:shadow-lg transition-shadow">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Hora Actual (España)</CardTitle>
-            <Clock className="h-5 w-5 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Miembros del Equipo</CardTitle>
+            <Users className="h-5 w-5 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-5xl font-bold text-center font-mono py-2">
-              {currentTime || "Calculando..."}
-            </div>
+            <div className="text-3xl font-bold text-primary">{summaryData.teamMembers}</div>
+            <p className="text-xs text-muted-foreground">Todos activos</p>
+          </CardContent>
+        </Card>
+        <Card className="shadow-md hover:shadow-lg transition-shadow">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Alertas Críticas (Ejemplo)</CardTitle>
+            <AlertTriangle className="h-5 w-5 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold">{summaryData.alerts}</div>
+            <p className="text-xs text-muted-foreground">Esto es una tarjeta de ejemplo</p>
           </CardContent>
         </Card>
       </div>
