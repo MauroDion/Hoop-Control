@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useEffect, useState, useCallback } from 'react';
@@ -41,7 +42,7 @@ const PlayerStatCard = ({ player, stats, onClick }: { player: Player; stats: Pla
             <div className="absolute top-2 left-2 text-xl font-bold text-green-600 bg-white/70 rounded-full h-8 w-8 flex items-center justify-center backdrop-blur-sm">
                 {stats.points}
             </div>
-            <div className="absolute bottom-2 right-2 text-xl font-bold text-blue-600 bg-white/70 rounded-full h-8 w-8 flex items-center justify-center backdrop-blur-sm">
+            <div className="absolute top-2 right-2 text-xl font-bold text-blue-600 bg-white/70 rounded-full h-8 w-8 flex items-center justify-center backdrop-blur-sm">
                 {stats.pir}
             </div>
             <div className="text-8xl font-black text-destructive/80" style={{ textShadow: '2px 2px 4px rgba(0,0,0,0.1)' }}>
@@ -390,3 +391,4 @@ export default function LiveGamePage() {
         </div>
     )
 }
+
