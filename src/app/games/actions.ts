@@ -106,6 +106,7 @@ export async function getGamesByClub(clubId: string): Promise<Game[]> {
     }
 }
 
+
 export async function getGamesByCoach(userId: string): Promise<Game[]> {
     if (!adminDb) return [];
     try {
@@ -197,12 +198,30 @@ export async function updateLiveGameState(
   try {
     const gameRef = adminDb.collection('games').doc(gameId);
     
-    const updateData: { [key: string]: any } = { 
-        ...updates,
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-    };
+    await adminDb.runTransaction(async (transaction) => {
+        const gameDoc = await transaction.get(gameRef);
+        if (!gameDoc.exists) {
+            throw new Error("El partido no existe.");
+        }
+        const gameData = gameDoc.data() as Game;
 
-    await gameRef.update(updateData);
+        const updateData: { [key: string]: any } = { 
+            ...updates,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        };
+
+        // Initialize players on court when game starts
+        if (updates.status === 'inprogress' && gameData.status === 'scheduled') {
+            if (!gameData.homeTeamOnCourtPlayerIds || gameData.homeTeamOnCourtPlayerIds.length === 0) {
+                updateData.homeTeamOnCourtPlayerIds = (gameData.homeTeamPlayerIds || []).slice(0, 5);
+            }
+             if (!gameData.awayTeamOnCourtPlayerIds || gameData.awayTeamOnCourtPlayerIds.length === 0) {
+                updateData.awayTeamOnCourtPlayerIds = (gameData.awayTeamPlayerIds || []).slice(0, 5);
+            }
+        }
+
+        transaction.update(gameRef, updateData);
+    });
     
     return { success: true };
   } catch (error: any) {
@@ -279,4 +298,37 @@ export async function recordGameEvent(
     console.error("Error recording game event:", error);
     return { success: false, error: error.message };
   }
+}
+
+export async function substitutePlayer(
+    gameId: string, 
+    teamId: 'home' | 'away', 
+    playerInId: string, 
+    playerOutId: string
+): Promise<{ success: boolean; error?: string }> {
+    if (!adminDb) return { success: false, error: 'Database not initialized.' };
+
+    const gameRef = adminDb.collection('games').doc(gameId);
+    
+    try {
+        await adminDb.runTransaction(async (transaction) => {
+            const gameDoc = await transaction.get(gameRef);
+            if (!gameDoc.exists) throw new Error("Game not found.");
+
+            const gameData = gameDoc.data() as Game;
+            const onCourtField = teamId === 'home' ? 'homeTeamOnCourtPlayerIds' : 'awayTeamOnCourtPlayerIds';
+            
+            let onCourtIds = gameData[onCourtField] || [];
+            
+            // Remove playerOutId and add playerInId
+            onCourtIds = onCourtIds.filter(id => id !== playerOutId);
+            onCourtIds.push(playerInId);
+
+            transaction.update(gameRef, { [onCourtField]: onCourtIds });
+        });
+        return { success: true };
+    } catch (error: any) {
+        console.error("Error substituting player:", error);
+        return { success: false, error: error.message };
+    }
 }

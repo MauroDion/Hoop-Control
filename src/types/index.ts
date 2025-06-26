@@ -227,6 +227,8 @@ export interface Game {
     gameFormatId?: string | null;
     homeTeamPlayerIds?: string[];
     awayTeamPlayerIds?: string[];
+    homeTeamOnCourtPlayerIds?: string[];
+    awayTeamOnCourtPlayerIds?: string[];
     homeTeamScore?: number;
     awayTeamScore?: number;
     homeTeamStats?: TeamStats;

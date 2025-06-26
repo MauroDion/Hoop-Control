@@ -1,22 +1,22 @@
 "use client";
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useParams } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import Link from 'next/link';
 
 import { doc, onSnapshot, collection, query, orderBy, limit } from 'firebase/firestore';
 import { db } from '@/lib/firebase/client';
-import { updateLiveGameState, recordGameEvent } from '@/app/games/actions';
+import { updateLiveGameState, recordGameEvent, substitutePlayer } from '@/app/games/actions';
 import { getGameFormatById } from '@/app/game-formats/actions';
 import { getPlayersByTeamId } from '@/app/players/actions';
 import type { Game, GameFormat, Player, GameEvent, GameEventAction } from '@/types';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, AlertTriangle, ChevronLeft, Play, Flag, Pause, TimerReset, FastForward, Timer as TimerIcon } from 'lucide-react';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Loader2, AlertTriangle, ChevronLeft, Play, Flag, Pause, TimerReset, FastForward, Timer as TimerIcon, Repeat } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -40,30 +40,19 @@ export default function LiveGamePage() {
     const [events, setEvents] = useState<GameEvent[]>([]);
     const [selectedPlayer, setSelectedPlayer] = useState<{ id: string, teamId: 'home' | 'away', name: string } | null>(null);
     
+    const [isSubDialogOpen, setIsSubDialogOpen] = useState(false);
+    const [playerToSubOut, setPlayerToSubOut] = useState<Player | null>(null);
+    
     const [displayTime, setDisplayTime] = useState(0);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [isClient, setIsClient] = useState(false);
 
-    useEffect(() => {
-        setIsClient(true);
-    }, []);
+    useEffect(() => setIsClient(true), []);
 
     const fetchPlayers = useCallback(async (gameData: Game) => {
-        if (gameData.homeTeamId) {
-            const allHomePlayers = await getPlayersByTeamId(gameData.homeTeamId);
-            const homeRoster = (gameData.homeTeamPlayerIds && gameData.homeTeamPlayerIds.length > 0)
-                ? allHomePlayers.filter(p => gameData.homeTeamPlayerIds!.includes(p.id))
-                : allHomePlayers;
-            setHomePlayers(homeRoster);
-        }
-         if (gameData.awayTeamId) {
-            const allAwayPlayers = await getPlayersByTeamId(gameData.awayTeamId);
-            const awayRoster = (gameData.awayTeamPlayerIds && gameData.awayTeamPlayerIds.length > 0)
-                ? allAwayPlayers.filter(p => gameData.awayTeamPlayerIds!.includes(p.id))
-                : allAwayPlayers;
-            setAwayPlayers(awayRoster);
-        }
+        if (gameData.homeTeamId) setHomePlayers(await getPlayersByTeamId(gameData.homeTeamId));
+        if (gameData.awayTeamId) setAwayPlayers(await getPlayersByTeamId(gameData.awayTeamId));
     }, []);
 
     useEffect(() => {
@@ -77,7 +66,6 @@ export default function LiveGamePage() {
         const unsubscribeGame = onSnapshot(gameRef, async (docSnap) => {
             if (docSnap.exists()) {
                 const data = docSnap.data();
-                // Ensure all date objects are converted to strings to prevent hydration errors.
                 const gameData = { 
                     id: docSnap.id, 
                     ...data, 
@@ -103,11 +91,7 @@ export default function LiveGamePage() {
 
         const eventsQuery = query(collection(db, 'games', gameId, 'events'), orderBy('createdAt', 'desc'), limit(10));
         const unsubscribeEvents = onSnapshot(eventsQuery, (snapshot) => {
-            const fetchedEvents = snapshot.docs.map(doc => {
-                 const eventData = doc.data();
-                 return { ...eventData, id: doc.id, createdAt: eventData.createdAt?.toDate().toISOString() } as GameEvent
-            });
-            setEvents(fetchedEvents);
+            setEvents(snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id, createdAt: doc.data().createdAt?.toDate().toISOString() } as GameEvent)));
         });
 
         return () => {
@@ -131,24 +115,19 @@ export default function LiveGamePage() {
 
     const handleUpdate = useCallback(async (updates: Partial<Game>) => {
         const result = await updateLiveGameState(gameId, updates);
-        if (!result.success) {
-            toast({ variant: 'destructive', title: 'Error al Actualizar', description: result.error });
-        }
+        if (!result.success) toast({ variant: 'destructive', title: 'Error al Actualizar', description: result.error });
     }, [gameId, toast]);
     
     const handleToggleTimer = () => {
         if (!game) return;
         const newIsTimerRunning = !game.isTimerRunning;
         const updates: Partial<Game> = { isTimerRunning: newIsTimerRunning };
-        if (!newIsTimerRunning) {
-             updates.periodTimeRemainingSeconds = displayTime;
-        }
+        if (!newIsTimerRunning) updates.periodTimeRemainingSeconds = displayTime;
         handleUpdate(updates);
     };
 
     const handleRecordAction = async (action: GameEventAction) => {
         if (!game || !selectedPlayer) return;
-        
         await recordGameEvent(gameId, {
             teamId: selectedPlayer.teamId,
             playerId: selectedPlayer.id,
@@ -157,179 +136,147 @@ export default function LiveGamePage() {
             period: game.currentPeriod || 1,
             gameTimeSeconds: displayTime,
         });
-        
-        setSelectedPlayer(null); // Deselect player after action
+        setSelectedPlayer(null);
     };
 
-    const handleNextPeriod = () => {
-        if (!game || !gameFormat) return;
-        const currentPeriod = game.currentPeriod || 1;
-        const maxPeriods = gameFormat.numPeriods || 4;
-        if (currentPeriod < maxPeriods) {
-            handleUpdate({
-                currentPeriod: currentPeriod + 1,
-                isTimerRunning: false,
-                periodTimeRemainingSeconds: (gameFormat.periodDurationMinutes || 10) * 60,
-            });
+    const handleSubstitution = async (playerIn: Player) => {
+        if (!game || !playerToSubOut) return;
+        const teamId = homePlayers.some(p => p.id === playerToSubOut.id) ? 'home' : 'away';
+        const result = await substitutePlayer(gameId, teamId, playerIn.id, playerToSubOut.id);
+        if (result.success) {
+            toast({ title: 'Sustitución Realizada', description: `${playerIn.firstName} entra por ${playerToSubOut.firstName}.` });
+        } else {
+             toast({ variant: 'destructive', title: 'Error en la Sustitución', description: result.error });
         }
-    };
-    
-    const handleResetTimer = () => {
-        if (!game || !gameFormat) return;
-        handleUpdate({
-            isTimerRunning: false,
-            periodTimeRemainingSeconds: (gameFormat.periodDurationMinutes || 10) * 60,
-        });
+        setIsSubDialogOpen(false);
+        setPlayerToSubOut(null);
+    }
+
+    const openSubDialog = (player: Player) => {
+        setPlayerToSubOut(player);
+        setIsSubDialogOpen(true);
     };
 
-    const formatTime = (totalSeconds: number) => {
-        const minutes = Math.floor(totalSeconds / 60);
-        const seconds = totalSeconds % 60;
-        return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
-    };
+    const { homeOnCourt, homeBench, awayOnCourt, awayBench } = useMemo(() => {
+        return {
+            homeOnCourt: homePlayers.filter(p => game?.homeTeamOnCourtPlayerIds?.includes(p.id)),
+            homeBench: homePlayers.filter(p => !game?.homeTeamOnCourtPlayerIds?.includes(p.id)),
+            awayOnCourt: awayPlayers.filter(p => game?.awayTeamOnCourtPlayerIds?.includes(p.id)),
+            awayBench: awayPlayers.filter(p => !game?.awayTeamOnCourtPlayerIds?.includes(p.id)),
+        }
+    }, [homePlayers, awayPlayers, game]);
+
+    const formatTime = (totalSeconds: number) => `${String(Math.floor(totalSeconds / 60)).padStart(2, '0')}:${String(totalSeconds % 60).padStart(2, '0')}`;
     
     if (loading || authLoading) return <Loader2 className="h-12 w-12 animate-spin text-primary mx-auto my-20" />;
     if (error) return <AlertTriangle className="h-12 w-12 text-destructive mx-auto my-20" />;
     if (!game) return null;
 
-    const TeamRosterPanel = ({ players, teamType }: { players: Player[], teamType: 'home' | 'away'}) => {
-        const teamName = teamType === 'home' ? game.homeTeamName : game.awayTeamName;
-        const score = teamType === 'home' ? game.homeTeamScore : game.awayTeamScore;
-
-        return (
-            <Card className="shadow-lg">
-                <CardHeader className="text-center">
-                    <CardTitle className="truncate text-xl">{teamName}</CardTitle>
-                    <CardDescription>Equipo {teamType === 'home' ? 'Local' : 'Visitante'}</CardDescription>
-                    <div className="text-6xl font-bold text-primary pt-2">{score ?? 0}</div>
-                </CardHeader>
-                <CardContent className="space-y-2">
-                    <h4 className="font-medium text-center text-sm text-muted-foreground">Seleccionar Jugador</h4>
+    const TeamPanel = ({ teamType, onCourt, bench }: { teamType: 'home' | 'away', onCourt: Player[], bench: Player[]}) => (
+        <Card className="flex flex-col">
+            <CardHeader className="text-center">
+                <CardTitle className="truncate text-xl">{teamType === 'home' ? game.homeTeamName : game.awayTeamName}</CardTitle>
+                <div className="text-6xl font-bold text-primary pt-2">{teamType === 'home' ? game.homeTeamScore : game.awayTeamScore}</div>
+            </CardHeader>
+            <CardContent className="flex-grow flex flex-col gap-4">
+                 <div>
+                    <h4 className="font-semibold text-center mb-2">En Pista</h4>
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                        {players.map(player => (
-                            <Button 
-                                key={player.id} 
-                                variant={selectedPlayer?.id === player.id ? 'default' : 'outline'}
-                                className="h-auto flex flex-col p-2"
-                                onClick={() => setSelectedPlayer({id: player.id, teamId: teamType, name: `${player.firstName} ${player.lastName}`})}
-                            >
-                                <span className="font-bold text-lg">{player.jerseyNumber || 'S/N'}</span>
-                                <span className="text-xs truncate w-full">{player.firstName} {player.lastName}</span>
-                            </Button>
-                        ))}
-                        {players.length === 0 && <p className="text-xs text-muted-foreground col-span-full text-center">No hay jugadores en la convocatoria.</p>}
+                        {onCourt.map(p => <Button key={p.id} variant={selectedPlayer?.id === p.id ? 'default' : 'outline'} className="h-auto flex flex-col p-2" onClick={() => setSelectedPlayer({id: p.id, teamId: teamType, name: `${p.firstName} ${p.lastName}`})}>
+                                <span className="font-bold text-lg">{p.jerseyNumber || 'S/N'}</span>
+                                <span className="text-xs truncate w-full">{p.firstName}</span>
+                            </Button>)}
                     </div>
-                </CardContent>
-            </Card>
-        )
-    }
-    
+                </div>
+                 <div>
+                    <h4 className="font-semibold text-center mb-2">Banquillo</h4>
+                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                        {bench.map(p => <Button key={p.id} variant="secondary" className="h-auto flex flex-col p-2" onClick={() => openSubDialog(p)}><span className="font-bold text-lg">{p.jerseyNumber || 'S/N'}</span><span className="text-xs truncate w-full">{p.firstName}</span></Button>)}
+                    </div>
+                 </div>
+            </CardContent>
+        </Card>
+    );
+
     const renderActionButtons = () => (
          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-            <ActionButton onClick={() => handleRecordAction('shot_made_1p')}>+1</ActionButton>
-            <ActionButton onClick={() => handleRecordAction('shot_miss_1p')}>Casi 1</ActionButton>
-            <ActionButton onClick={() => handleRecordAction('shot_made_2p')}>+2</ActionButton>
-            <ActionButton onClick={() => handleRecordAction('shot_miss_2p')}>Casi 2</ActionButton>
-            <ActionButton onClick={() => handleRecordAction('shot_made_3p')}>+3</ActionButton>
-            <ActionButton onClick={() => handleRecordAction('shot_miss_3p')}>Casi 3</ActionButton>
-            <ActionButton onClick={() => handleRecordAction('rebound_offensive')}>Rebote Ofensivo</ActionButton>
-            <ActionButton onClick={() => handleRecordAction('rebound_defensive')}>Rebote Defensivo</ActionButton>
+            <ActionButton onClick={() => handleRecordAction('shot_made_1p')}>+1 Pto.</ActionButton>
+            <ActionButton onClick={() => handleRecordAction('shot_miss_1p')}>Fallo 1 Pto.</ActionButton>
+            <ActionButton onClick={() => handleRecordAction('shot_made_2p')}>+2 Ptos.</ActionButton>
+            <ActionButton onClick={() => handleRecordAction('shot_miss_2p')}>Fallo 2 Ptos.</ActionButton>
+            <ActionButton onClick={() => handleRecordAction('shot_made_3p')}>+3 Ptos.</ActionButton>
+            <ActionButton onClick={() => handleRecordAction('shot_miss_3p')}>Fallo 3 Ptos.</ActionButton>
+            <ActionButton onClick={() => handleRecordAction('rebound_offensive')}>Reb. Of.</ActionButton>
+            <ActionButton onClick={() => handleRecordAction('rebound_defensive')}>Reb. Def.</ActionButton>
             <ActionButton onClick={() => handleRecordAction('assist')}>Asistencia</ActionButton>
             <ActionButton onClick={() => handleRecordAction('steal')}>Robo</ActionButton>
             <ActionButton onClick={() => handleRecordAction('block')}>Tapón</ActionButton>
             <ActionButton onClick={() => handleRecordAction('turnover')}>Pérdida</ActionButton>
-            <ActionButton onClick={() => handleRecordAction('foul')}>Falta Personal</ActionButton>
+            <ActionButton onClick={() => handleRecordAction('foul')}>Falta</ActionButton>
         </div>
     );
 
     return (
         <div className="space-y-6">
-             <Button variant="outline" size="sm" asChild>
-                <Link href={`/games`}>
-                    <ChevronLeft className="mr-2 h-4 w-4" />
-                    Volver a la Lista de Partidos
-                </Link>
-            </Button>
+            <Dialog open={isSubDialogOpen} onOpenChange={setIsSubDialogOpen}>
+                <DialogContent>
+                    <DialogHeader><DialogTitle>Realizar Sustitución</DialogTitle><DialogDescription>Selecciona el jugador que entrará en lugar de {playerToSubOut?.firstName}.</DialogDescription></DialogHeader>
+                    <div className="grid grid-cols-3 gap-2 py-4">
+                        {(homePlayers.some(p => p.id === playerToSubOut?.id) ? homeBench : awayBench).map(p => <Button key={p.id} variant="outline" onClick={() => handleSubstitution(p)}>{p.firstName} #{p.jerseyNumber}</Button>)}
+                    </div>
+                </DialogContent>
+            </Dialog>
+            <div className="flex justify-between items-center">
+                 <Button variant="outline" size="sm" asChild>
+                    <Link href={`/games`}><ChevronLeft className="mr-2 h-4 w-4" />Volver</Link>
+                </Button>
+                <div className="text-center">
+                    <h1 className="font-bold text-xl">Partido en Vivo</h1>
+                    <p className="text-sm text-muted-foreground">{format(new Date(game.date), "PPP", { locale: es })}</p>
+                </div>
+                <Button variant="outline" size="icon" onClick={() => openSubDialog(selectedPlayer ? homePlayers.find(p=>p.id===selectedPlayer.id) || awayPlayers.find(p=>p.id===selectedPlayer.id)! : null)} disabled={!selectedPlayer}>
+                    <Repeat className="h-4 w-4"/>
+                    <span className="sr-only">Sustituir</span>
+                </Button>
+            </div>
             
-            <Card>
-                <CardHeader className="text-center pb-2">
-                    <CardTitle className="flex justify-center items-center gap-4 text-xl md:text-2xl">
-                        <span>{game.homeTeamName}</span>
-                        <span className="text-4xl md:text-6xl font-bold text-primary">{game.homeTeamScore ?? 0}</span>
-                        <span>-</span>
-                        <span className="text-4xl md:text-6xl font-bold text-primary">{game.awayTeamScore ?? 0}</span>
-                        <span>{game.awayTeamName}</span>
-                    </CardTitle>
-                     <CardDescription>
-                        Período {game.currentPeriod || 1} / {gameFormat?.numPeriods || 'N/A'}
-                    </CardDescription>
-                </CardHeader>
-                <CardContent className="flex flex-col items-center gap-4">
+             <Card>
+                <CardContent className="flex flex-col items-center gap-4 p-4">
                      <div className="text-6xl font-mono text-center tracking-tighter py-2 px-4 bg-secondary text-secondary-foreground rounded-lg">
                         {isClient ? formatTime(displayTime) : '00:00'}
                     </div>
-                     <div className="flex justify-center flex-wrap gap-2">
-                        {game.status === 'scheduled' && (
-                            <Button size="lg" className="w-full md:w-auto bg-green-600 hover:bg-green-700" onClick={() => handleUpdate({ status: 'inprogress', periodTimeRemainingSeconds: (gameFormat?.periodDurationMinutes || 10) * 60 })}>
-                                <Play className="mr-2 h-5 w-5"/> Empezar Partido
-                            </Button>
-                        )}
-                        {game.status === 'inprogress' && (
-                            <>
-                                <Button onClick={handleToggleTimer} size="lg">
-                                    {game.isTimerRunning ? <Pause className="mr-2"/> : <Play className="mr-2"/>}
-                                    {game.isTimerRunning ? 'Pausar' : 'Iniciar'}
-                                </Button>
-                                <Button onClick={handleNextPeriod} disabled={game.isTimerRunning || (game.currentPeriod || 0) >= (gameFormat?.numPeriods || 4)} variant="outline" size="lg">
-                                    <FastForward className="mr-2"/> Siguiente Per.
-                                </Button>
-                                <Button onClick={handleResetTimer} variant="secondary" size="icon" aria-label="Reiniciar cronómetro"><TimerReset/></Button>
-                                <Button size="lg" variant="destructive" className="w-full mt-2 md:mt-0 md:w-auto" onClick={() => handleUpdate({ status: 'completed', isTimerRunning: false })}>
-                                    <Flag className="mr-2 h-5 w-5"/> Finalizar Partido
-                                </Button>
-                            </>
-                        )}
+                    <div className="flex justify-center flex-wrap gap-2">
+                        {game.status === 'scheduled' && <Button size="lg" className="w-full md:w-auto bg-green-600 hover:bg-green-700" onClick={() => handleUpdate({ status: 'inprogress', periodTimeRemainingSeconds: (gameFormat?.periodDurationMinutes || 10) * 60 })}><Play className="mr-2"/> Empezar Partido</Button>}
+                        {game.status === 'inprogress' && (<>
+                                <Button onClick={handleToggleTimer} size="lg">{game.isTimerRunning ? <><Pause className="mr-2"/>Pausar</> : <><Play className="mr-2"/>Iniciar</>}</Button>
+                                <Button onClick={handleNextPeriod} disabled={game.isTimerRunning || (game.currentPeriod || 0) >= (gameFormat?.numPeriods || 4)} variant="outline" size="lg"><FastForward className="mr-2"/> Siguiente Per.</Button>
+                                <Button onClick={handleResetTimer} variant="secondary" size="icon" aria-label="Reiniciar"><TimerReset/></Button>
+                                <Button size="lg" variant="destructive" className="w-full mt-2 md:mt-0 md:w-auto" onClick={() => handleUpdate({ status: 'completed', isTimerRunning: false })}><Flag className="mr-2"/> Finalizar</Button>
+                        </>)}
                         {game.status === 'completed' && <p className="text-center font-bold text-lg text-green-700">Partido Finalizado</p>}
                     </div>
                 </CardContent>
             </Card>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-                <TeamRosterPanel players={homePlayers} teamType="home" />
-                
+                <TeamPanel teamType="home" onCourt={homeOnCourt} bench={homeBench} />
                 <Card className="lg:sticky lg:top-24">
-                     <CardHeader>
-                        <CardTitle className="text-center">Registrar Acción</CardTitle>
-                        <CardDescription className="text-center">
-                            {selectedPlayer ? `Para: ${selectedPlayer.name}` : 'Selecciona un jugador'}
-                        </CardDescription>
-                     </CardHeader>
-                     <CardContent className={cn(!selectedPlayer && 'opacity-50 pointer-events-none')}>
-                        {renderActionButtons()}
-                    </CardContent>
+                     <CardHeader><CardTitle className="text-center">Registrar Acción</CardTitle><CardDescription className="text-center truncate h-5">{selectedPlayer ? `Para: ${selectedPlayer.name}` : 'Selecciona un jugador'}</CardDescription></CardHeader>
+                     <CardContent className={cn(!selectedPlayer && 'opacity-50 pointer-events-none')}>{renderActionButtons()}</CardContent>
                 </Card>
-
-                <TeamRosterPanel players={awayPlayers} teamType="away" />
+                <TeamPanel teamType="away" onCourt={awayOnCourt} bench={awayBench} />
             </div>
-
-            <Card>
-                 <CardHeader><CardTitle>Registro de Eventos Recientes</CardTitle></CardHeader>
+             <Card>
+                 <CardHeader><CardTitle>Eventos Recientes</CardTitle></CardHeader>
                  <CardContent>
-                    <ul className="space-y-2 max-h-60 overflow-y-auto">
-                    {events.map(event => (
-                        <li key={event.id} className="text-sm p-2 bg-muted/50 rounded-md">
-                           <span className="font-bold">
-                             {event.teamId === 'home' ? game.homeTeamName : game.awayTeamName}
-                           </span> ({event.playerName}): {event.action.replace(/_/g, ' ')}
-                           <span className="text-muted-foreground text-xs ml-2">
-                               ({event.createdAt ? format(new Date(event.createdAt), 'HH:mm:ss', {locale: es}) : ''})
-                           </span>
-                        </li>
-                    ))}
+                    <ul className="space-y-2 max-h-48 overflow-y-auto text-sm">
+                    {events.map(event => (<li key={event.id} className="p-2 bg-muted/50 rounded-md">
+                           <span className="font-bold">{event.teamId === 'home' ? game.homeTeamName : game.awayTeamName}</span> ({event.playerName}): {event.action.replace(/_/g, ' ')}
+                           <span className="text-muted-foreground text-xs ml-2">({event.createdAt ? format(new Date(event.createdAt), 'HH:mm:ss') : ''})</span>
+                        </li>))}
                     </ul>
                  </CardContent>
             </Card>
-
         </div>
     );
 }
