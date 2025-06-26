@@ -42,7 +42,6 @@ export default function DashboardPage() {
       return; 
     }
     if (!user) {
-      // The middleware should handle this, but as a fallback, redirect.
       router.replace('/login');
       return;
     }

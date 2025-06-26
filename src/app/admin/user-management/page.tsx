@@ -42,6 +42,7 @@ export default function UserManagementPage() {
   const [error, setError] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
+    // No establecer 'loading' aquí si ya estamos cargando desde el efecto principal
     try {
       const [fetchedProfiles, fetchedClubs, fetchedProfileTypes] = await Promise.all([
         getAllUserProfiles(),
@@ -90,7 +91,7 @@ export default function UserManagementPage() {
     const result = await updateUserProfileStatus(uid, newStatus);
     if (result.success) {
       toast({ title: "Estado Actualizado", description: `El estado del usuario ${displayName || uid} cambió a ${newStatus}.` });
-      loadData();
+      loadData(); // Recargar todos los datos para mantener consistencia
     } else {
       toast({ variant: "destructive", title: "Fallo al Actualizar", description: result.error });
     }

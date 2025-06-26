@@ -1,8 +1,8 @@
 'use server';
 
-import admin, { adminAuth, adminDb, adminInitError } from '@/lib/firebase/admin';
+import { adminAuth, adminDb, adminInitError } from '@/lib/firebase/admin';
 import type { UserFirestoreProfile, ProfileType, UserProfileStatus } from '@/types';
-import { revalidatePath } from 'next/cache';
+import admin from 'firebase-admin';
 
 export async function finalizeNewUserProfile(
   idToken: string,
@@ -16,13 +16,12 @@ export async function finalizeNewUserProfile(
   try {
     const decodedToken = await adminAuth.verifyIdToken(idToken);
     const uid = decodedToken.uid;
-
     await adminAuth.updateUser(uid, { displayName: data.displayName });
     
     const userProfileRef = adminDb.collection('user_profiles').doc(uid);
-    const profileToSave: any = {
+    const profileToSave: Omit<UserFirestoreProfile, 'createdAt' | 'updatedAt' | 'id'> & { createdAt: any, updatedAt: any } = {
         uid: uid,
-        email: decodedToken.email,
+        email: decodedToken.email || null,
         displayName: data.displayName,
         photoURL: decodedToken.picture || null,
         profileTypeId: data.profileType,
@@ -58,8 +57,8 @@ export async function getUserProfileById(uid: string): Promise<UserFirestoreProf
       return { 
         uid: docSnap.id, 
         ...data,
-        createdAt: data.createdAt.toDate().toISOString(),
-        updatedAt: data.updatedAt.toDate().toISOString(),
+        createdAt: (data.createdAt.toDate() as Date).toISOString(),
+        updatedAt: (data.updatedAt.toDate() as Date).toISOString(),
        } as UserFirestoreProfile;
     } else {
       console.warn(`UserActions: No profile found for UID: ${uid} using Admin SDK.`);
@@ -68,82 +67,5 @@ export async function getUserProfileById(uid: string): Promise<UserFirestoreProf
   } catch (error: any) {
     console.error(`UserActions: Error fetching user profile for UID ${uid} with Admin SDK:`, error.message, error.stack);
     return null;
-  }
-}
-
-export async function getAllUserProfiles(): Promise<UserFirestoreProfile[]> {
-  if (!adminDb) return [];
-  try {
-    const usersCollectionRef = adminDb.collection('user_profiles');
-    const q = usersCollectionRef.orderBy('createdAt', 'desc');
-    const querySnapshot = await q.get();
-
-    if (querySnapshot.empty) return [];
-    
-    return querySnapshot.docs.map(doc => {
-      const data = doc.data();
-      return {
-        uid: doc.id,
-        ...data,
-        createdAt: data.createdAt.toDate().toISOString(),
-        updatedAt: data.updatedAt.toDate().toISOString(),
-      } as UserFirestoreProfile;
-    });
-  } catch (error: any) {
-    console.error('AdminUserManagementActions: Error fetching all user profiles with Admin SDK:', error.message, error.stack);
-    return [];
-  }
-}
-
-export async function updateUserProfileStatus(
-  uid: string,
-  status: UserProfileStatus
-): Promise<{ success: boolean; error?: string }> {
-  if (!uid || !status) return { success: false, error: 'UID and new status are required.' };
-  if (!adminDb) return { success: false, error: 'Server configuration error.' };
-
-  try {
-    const userProfileRef = adminDb.collection('user_profiles').doc(uid);
-    await userProfileRef.update({
-      status: status,
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-    });
-    revalidatePath('/admin/user-management');
-    return { success: true };
-  } catch (error: any) {
-    console.error(`AdminUserManagementActions: Error updating status for UID ${uid}:`, error.message, error.stack);
-    return { success: false, error: error.message || 'Failed to update user status.' };
-  }
-}
-
-
-export async function getUsersByProfileTypeAndClub(
-  profileType: ProfileType,
-  clubId: string
-): Promise<UserFirestoreProfile[]> {
-  if (!adminDb) return [];
-  try {
-    const usersRef = adminDb.collection('user_profiles');
-    const q = usersRef.where('clubId', '==', clubId).where('profileTypeId', '==', profileType).where('status', '==', 'approved');
-    const querySnapshot = await q.get();
-
-    if (querySnapshot.empty) return [];
-    
-    const users = querySnapshot.docs.map(doc => {
-      const data = doc.data();
-      return {
-        uid: doc.id,
-        ...data,
-        createdAt: data.createdAt.toDate().toISOString(),
-        updatedAt: data.updatedAt.toDate().toISOString(),
-      } as UserFirestoreProfile;
-    });
-
-    users.sort((a, b) => (a.displayName || '').localeCompare(b.displayName || ''));
-    return users;
-
-  } catch (error: any) {
-    console.error(`Error fetching users by profile type '${profileType}' for club '${clubId}':`, error.message);
-    return [];
   }
 }
