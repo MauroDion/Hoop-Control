@@ -31,7 +31,7 @@ const PlayerStatCard = ({ player, stats, onClick }: { player: Player; stats: Pla
     return (
         <Card onClick={onClick} className="p-2 relative aspect-[3/4] flex flex-col items-center justify-center overflow-hidden transition-all duration-300 hover:shadow-xl hover:scale-105 cursor-pointer bg-card">
             {/* Points */}
-            <div className="absolute top-2 left-2 text-lg font-bold text-green-600 bg-white/80 rounded-full h-8 w-8 flex items-center justify-center backdrop-blur-sm z-10 shadow-md">
+            <div className="absolute top-2 left-2 text-xl font-bold text-green-600 bg-white/80 rounded-full h-10 w-10 flex items-center justify-center backdrop-blur-sm z-10 shadow-md">
                 {stats.points}
             </div>
 
@@ -43,7 +43,7 @@ const PlayerStatCard = ({ player, stats, onClick }: { player: Player; stats: Pla
             )}
 
             {/* PIR */}
-            <div className="absolute top-2 right-2 text-lg font-bold text-blue-600 bg-white/80 rounded-full h-8 w-8 flex items-center justify-center backdrop-blur-sm z-10 shadow-md">
+            <div className="absolute top-2 right-2 text-xl font-bold text-blue-600 bg-white/80 rounded-full h-10 w-10 flex items-center justify-center backdrop-blur-sm z-10 shadow-md">
                 {stats.pir}
             </div>
             
