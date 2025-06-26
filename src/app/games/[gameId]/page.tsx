@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useEffect, useState, useCallback } from 'react';
@@ -11,8 +10,9 @@ import { es } from 'date-fns/locale';
 // Actions
 import { getGameById, updateGameRoster } from '@/app/games/actions';
 import { getPlayersByTeamId } from '@/app/players/actions';
-import { getTeamsByCoach, getTeamById } from '@/app/teams/actions';
+import { getTeamById } from '@/app/teams/actions';
 import { getUserProfileById } from '@/app/users/actions';
+
 
 // Types
 import type { Game, Player, Team } from '@/types';
@@ -24,6 +24,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Loader2, AlertTriangle, ChevronLeft, Users, Save, ShieldCheck, Gamepad2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+
 
 export default function ManageGamePage() {
     const params = useParams();
@@ -151,6 +152,10 @@ export default function ManageGamePage() {
 
     if (!game) return null;
 
+    const homeRosterCount = selectedHomePlayers.size;
+    const awayRosterCount = selectedAwayPlayers.size;
+    const canStartGame = homeRosterCount >= 5 && awayRosterCount >= 5;
+
     const RosterCard = ({teamType, teamName, players, selectedPlayers, onSelect, onSave, isSaving}: any) => (
         <Card className="shadow-xl">
             <CardHeader>
@@ -184,7 +189,7 @@ export default function ManageGamePage() {
                         </div>
                         <Button onClick={() => onSave(teamType)} disabled={isSaving}>
                             {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-                            {isSaving ? 'Guardando...' : 'Guardar Convocatoria'}
+                            {isSaving ? 'Guardando...' : `Guardar Convocatoria (${selectedPlayers.size})`}
                         </Button>
                     </div>
                 )}
@@ -213,15 +218,18 @@ export default function ManageGamePage() {
             </Card>
 
             {['scheduled', 'inprogress'].includes(game.status) && (
-                 <Card className="shadow-xl bg-green-50 border-green-200">
+                 <Card className={`shadow-xl ${canStartGame ? 'bg-green-50 border-green-200' : 'bg-yellow-50 border-yellow-200'}`}>
                     <CardHeader>
-                        <CardTitle className="flex items-center text-green-800"><Gamepad2 className="mr-3 h-6 w-6"/>Panel de Partido en Vivo</CardTitle>
-                        <CardDescription className="text-green-700">
-                            {game.status === 'scheduled' ? 'La convocatoria está lista. Es hora de empezar el partido.' : 'El partido está en progreso. Ve al panel para continuar.'}
+                        <CardTitle className={`flex items-center ${canStartGame ? 'text-green-800' : 'text-yellow-800'}`}><Gamepad2 className="mr-3 h-6 w-6"/>Panel de Partido en Vivo</CardTitle>
+                        <CardDescription className={canStartGame ? "text-green-700" : "text-yellow-700"}>
+                            {canStartGame 
+                                ? (game.status === 'scheduled' ? 'La convocatoria está lista. ¡Es hora de empezar el partido!' : 'El partido está en progreso. Ve al panel para continuar.')
+                                : `Se necesitan al menos 5 jugadores en la convocatoria de cada equipo para empezar. Local: ${homeRosterCount}, Visitante: ${awayRosterCount}.`
+                            }
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
-                        <Button asChild size="lg" className="bg-green-600 hover:bg-green-700 w-full">
+                        <Button asChild size="lg" className="bg-green-600 hover:bg-green-700 w-full" disabled={!canStartGame && game.status === 'scheduled'}>
                             <Link href={`/games/${game.id}/live`}>
                                 {game.status === 'scheduled' ? 'Empezar Partido y Registrar Puntuación' : 'Ir al Partido en Vivo'}
                             </Link>
@@ -252,4 +260,3 @@ export default function ManageGamePage() {
         </div>
     );
 }
-

@@ -195,28 +195,28 @@ export async function updateLiveGameState(
 ): Promise<{ success: boolean; error?: string }> {
   if (!adminDb) return { success: false, error: "La base de datos no está inicializada." };
   
+  const gameRef = adminDb.collection('games').doc(gameId);
   try {
-    const gameRef = adminDb.collection('games').doc(gameId);
-    
     await adminDb.runTransaction(async (transaction) => {
         const gameDoc = await transaction.get(gameRef);
-        if (!gameDoc.exists) {
-            throw new Error("El partido no existe.");
-        }
+        if (!gameDoc.exists) throw new Error("El partido no existe.");
+        
         const gameData = gameDoc.data() as Game;
-
         const updateData: { [key: string]: any } = { 
             ...updates,
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         };
 
         if (updates.status === 'inprogress' && gameData.status === 'scheduled') {
-            if (!gameData.homeTeamOnCourtPlayerIds || gameData.homeTeamOnCourtPlayerIds.length === 0) {
-                updateData.homeTeamOnCourtPlayerIds = (gameData.homeTeamPlayerIds || []).slice(0, 5);
+            const homeRoster = gameData.homeTeamPlayerIds || [];
+            const awayRoster = gameData.awayTeamPlayerIds || [];
+
+            if (homeRoster.length < 5 || awayRoster.length < 5) {
+                throw new Error(`No se puede iniciar el partido. Se requieren al menos 5 jugadores por equipo. Local: ${homeRoster.length}, Visitante: ${awayRoster.length}.`);
             }
-             if (!gameData.awayTeamOnCourtPlayerIds || gameData.awayTeamOnCourtPlayerIds.length === 0) {
-                updateData.awayTeamOnCourtPlayerIds = (gameData.awayTeamPlayerIds || []).slice(0, 5);
-            }
+            
+            updateData.homeTeamOnCourtPlayerIds = homeRoster.slice(0, 5);
+            updateData.awayTeamOnCourtPlayerIds = awayRoster.slice(0, 5);
         }
 
         transaction.update(gameRef, updateData);

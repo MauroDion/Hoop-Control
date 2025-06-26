@@ -59,11 +59,11 @@ export function TasksList({ tasks }: TasksListProps) {
   const filteredTasks = useMemo(() => {
     return tasks.filter(task => {
       const matchesSearch = task.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                            task.description?.toLowerCase().includes(searchTerm.toLowerCase());
+                            (task.description || '').toLowerCase().includes(searchTerm.toLowerCase());
       const matchesStatus = statusFilter === "all" || task.status === statusFilter;
       const matchesPriority = priorityFilter === "all" || task.priority === priorityFilter;
       return matchesSearch && matchesStatus && matchesPriority;
-    }).sort((a, b) => (new Date(a.createdAt).getTime()) - (new Date(b.createdAt).getTime())); // Sort by creation date
+    }).sort((a, b) => (new Date(b.createdAt).getTime()) - (new Date(a.createdAt).getTime())); // Sort by creation date DESC
   }, [tasks, searchTerm, statusFilter, priorityFilter]);
 
   const handleDelete = async (taskId: string, taskTitle: string) => {
