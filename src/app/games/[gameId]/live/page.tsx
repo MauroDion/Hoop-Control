@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useEffect, useState, useCallback } from 'react';
@@ -20,21 +19,6 @@ import { useToast } from '@/hooks/use-toast';
 import { Separator } from '@/components/ui/separator';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import Image from 'next/image';
-
-const PlayerListItem = ({ player, onClick, isSelected }: { player: Player, onClick: () => void, isSelected: boolean }) => (
-    <Button
-        variant={isSelected ? "default" : "ghost"}
-        className="w-full justify-start h-auto p-2 mb-1"
-        onClick={onClick}
-    >
-        <div className="flex items-center gap-2">
-            <div className="bg-primary/20 text-primary font-bold rounded-full h-8 w-8 flex items-center justify-center text-sm shrink-0">
-                {player.jerseyNumber || 'S/N'}
-            </div>
-            <span className="truncate">{player.firstName} {player.lastName}</span>
-        </div>
-    </Button>
-);
 
 const PlayerStatCard = ({ player, stats, onClick }: { player: Player; stats: PlayerGameStats; onClick: () => void }) => {
     return (
@@ -278,10 +262,11 @@ export default function LiveGamePage() {
 
                     <Separator/>
                     <h4 className="font-semibold text-center">Banquillo</h4>
-                    <div className="grid grid-cols-1 gap-1">
-                       {onBenchPlayers.length > 0 ? onBenchPlayers.map(p => (
-                           <PlayerListItem key={p.id} player={p} onClick={() => handleBenchPlayerClick(p, teamType)} isSelected={subPlayerInfo?.player.id === p.id}/>
-                       )) : <p className="text-sm text-muted-foreground text-center italic">Banquillo vacío</p>}
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+                       {onBenchPlayers.length > 0 ? onBenchPlayers.map(p => {
+                           const stats = playerStats.find(s => s.playerId === p.id) || { ...defaultStats, playerId: p.id, playerName: ''};
+                           return <PlayerStatCard key={p.id} player={p} stats={stats} onClick={() => handleBenchPlayerClick(p, teamType)}/>
+                       }) : <p className="text-sm text-muted-foreground text-center italic col-span-full">Banquillo vacío</p>}
                     </div>
                 </CardContent>
             </Card>
@@ -295,7 +280,7 @@ export default function LiveGamePage() {
                      <DialogHeader>
                         <div className="flex items-center gap-4">
                             <div className="w-16 h-16 p-2 border rounded-md flex items-center justify-center bg-muted/50 shrink-0">
-                               <Dribbble className="h-8 w-8 text-muted-foreground" />
+                               <Image src={actionPlayerInfo?.teamType === 'home' ? (game.homeTeamLogoUrl || 'https://placehold.co/100x100.png') : (game.awayTeamLogoUrl || 'https://placehold.co/100x100.png')} alt="Team Logo" width={64} height={64} className="object-contain"/>
                             </div>
                             <div>
                                 <DialogTitle className="text-2xl">
@@ -322,12 +307,15 @@ export default function LiveGamePage() {
                             Selecciona el jugador que sale de la pista para que entre {subPlayerInfo?.player.firstName}.
                         </DialogDescription>
                     </DialogHeader>
-                    <div className="grid grid-cols-1 gap-2 pt-4">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-4">
                         {subPlayerInfo && game && (
                             (subPlayerInfo.teamType === 'home' ? homePlayers : awayPlayers)
                                 .filter(p => (game[subPlayerInfo!.teamType === 'home' ? 'homeTeamOnCourtPlayerIds' : 'awayTeamOnCourtPlayerIds'] || []).includes(p.id))
                                 .map(player => (
-                                    <PlayerListItem key={player.id} player={player} onClick={() => handleCourtPlayerClickInSubDialog(player)} isSelected={false}/>
+                                    <Button key={player.id} onClick={() => handleCourtPlayerClickInSubDialog(player)} variant="outline" className="h-auto p-2 flex flex-col gap-1">
+                                        <div className="font-bold text-lg">{player.jerseyNumber || 'S/N'}</div>
+                                        <div className="text-xs">{player.firstName} {player.lastName}</div>
+                                    </Button>
                                 ))
                         )}
                     </div>
@@ -391,4 +379,3 @@ export default function LiveGamePage() {
         </div>
     )
 }
-
