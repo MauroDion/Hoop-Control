@@ -1,3 +1,4 @@
+
 'use server';
 import { adminDb } from '@/lib/firebase/admin';
 import admin from 'firebase-admin';
@@ -318,7 +319,7 @@ export async function getPlayerStatsForGame(gameId: string): Promise<PlayerGameS
 
     // --- Pass 1: Calculate Time Played ---
     let onCourt = new Set<string>();
-    let lastTimestamp = new Date(gameData.createdAt).getTime();
+    let lastTimestamp = new Date(gameData.createdAt as string).getTime();
     let isClockRunning = false;
     let currentPeriod = 1;
 
@@ -572,6 +573,3 @@ export async function substitutePlayer(
         return { success: false, error: error.message };
     }
 }
-```
-
-This should finally resolve the time tracking and period counting issues. It's a single file change, but a very important one. I am confident this time.
