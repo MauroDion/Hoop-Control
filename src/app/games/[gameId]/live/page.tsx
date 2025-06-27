@@ -85,10 +85,10 @@ const OtherActionButtons = ({ onAction }: { onAction: (action: GameEventAction) 
             <Button className="justify-start" variant="outline" onClick={() => onAction('assist')}>Asistencia</Button>
             <Button className="justify-start" variant="outline" onClick={() => onAction('steal')}>Robo</Button>
             <Button className="justify-start" variant="outline" onClick={() => onAction('block')}>Tapón a Favor</Button>
-            <Button className="justify-start" variant="outline" onClick={() => onAction('block_against')}>Tapón Sufrido</Button>
+            <Button className="justify-start" variant="destructive" onClick={() => onAction('block_against')}>Tapón Sufrido</Button>
             <Button className="justify-start" variant="destructive" onClick={() => onAction('turnover')}>Pérdida</Button>
             <Button className="justify-start" variant="destructive" onClick={() => onAction('foul')}>Falta Personal</Button>
-            <Button className="justify-start" variant="destructive" onClick={() => onAction('foul_received')}>Falta Recibida</Button>
+            <Button className="justify-start bg-green-600 hover:bg-green-700 text-primary-foreground" onClick={() => onAction('foul_received')}>Falta Recibida</Button>
         </div>
     </div>
 );
