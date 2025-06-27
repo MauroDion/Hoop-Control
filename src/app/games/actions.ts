@@ -5,6 +5,15 @@ import { revalidatePath } from 'next/cache';
 import type { Game, GameFormData, Team, TeamStats, Player, PlayerGameStats, GameEvent, GameEventAction } from '@/types';
 import { getTeamsByCoach as getCoachTeams } from '@/app/teams/actions';
 
+async function getPlayersFromIds(playerIds: string[]): Promise<Player[]> {
+    if (!adminDb || !playerIds || playerIds.length === 0) return [];
+    const playerRefs = playerIds.map(id => adminDb.collection('players').doc(id));
+    const playerDocs = await adminDb.getAll(...playerRefs);
+    return playerDocs
+        .filter(doc => doc.exists)
+        .map(doc => ({ id: doc.id, ...doc.data() } as Player));
+}
+
 // Action to create a new game
 export async function createGame(formData: GameFormData, userId: string): Promise<{ success: boolean; error?: string; id?: string }> {
     if (!userId) return { success: false, error: "User not authenticated." };
@@ -186,8 +195,7 @@ export async function getPlayerStatsForGame(gameId: string): Promise<PlayerGameS
 
     const allPlayerIds = [...new Set([...(gameData.homeTeamPlayerIds || []), ...(gameData.awayTeamPlayerIds || [])])];
     if (allPlayerIds.length > 0) {
-        const playerDocs = await adminDb.collection('players').where(admin.firestore.FieldPath.documentId(), 'in', allPlayerIds).get();
-        const playerMap = new Map(playerDocs.docs.map(doc => [doc.id, { id: doc.id, ...doc.data() } as Player]));
+        const playerMap = new Map((await getPlayersFromIds(allPlayerIds)).map(p => [p.id, p]));
 
         allPlayerIds.forEach(playerId => {
             const player = playerMap.get(playerId);
@@ -206,34 +214,26 @@ export async function getPlayerStatsForGame(gameId: string): Promise<PlayerGameS
     let isClockRunning = false;
     let currentPeriod = 1;
     const playerPeriods = new Map<string, Set<number>>();
-
-    // Set initial on-court players if game has started
-    if (gameData.status !== 'scheduled') {
-        (gameData.homeTeamOnCourtPlayerIds || []).forEach(id => onCourt.add(id));
-        (gameData.awayTeamOnCourtPlayerIds || []).forEach(id => onCourt.add(id));
-    }
     
     for (const event of events) {
         const eventTime = event.createdAt.getTime();
-        const timeDeltaSeconds = isClockRunning ? (eventTime - lastEventTime) / 1000 : 0;
-
-        if (timeDeltaSeconds > 0) {
-            onCourt.forEach(playerId => {
-                if (stats[playerId]) {
-                    stats[playerId].timePlayedSeconds += timeDeltaSeconds;
-                    if (!playerPeriods.has(playerId)) playerPeriods.set(playerId, new Set());
-                    playerPeriods.get(playerId)?.add(currentPeriod);
-                }
-            });
+        
+        if (isClockRunning) {
+            const timeDeltaSeconds = (eventTime - lastEventTime) / 1000;
+            if (timeDeltaSeconds > 0) {
+                onCourt.forEach(playerId => {
+                    if (stats[playerId]) {
+                        stats[playerId].timePlayedSeconds += timeDeltaSeconds;
+                        if (!playerPeriods.has(playerId)) playerPeriods.set(playerId, new Set());
+                        playerPeriods.get(playerId)!.add(currentPeriod);
+                    }
+                });
+            }
         }
         lastEventTime = eventTime;
 
         switch (event.action) {
-            case 'period_start': 
-                currentPeriod = event.period;
-                onCourt = new Set([...(gameData.homeTeamOnCourtPlayerIds || []), ...(gameData.awayTeamOnCourtPlayerIds || [])]);
-                isClockRunning = false;
-                break;
+            case 'period_start': currentPeriod = event.period; isClockRunning = false; break;
             case 'timer_start': isClockRunning = true; break;
             case 'timer_pause': case 'period_end': isClockRunning = false; break;
             case 'substitution_in': onCourt.add(event.playerId); break;
@@ -318,31 +318,50 @@ export async function updateLiveGameState(
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         };
 
-        const createEvent = (action: GameEventAction, playerId = 'SYSTEM', playerName = 'System') => {
-            const event: Omit<GameEvent, 'id' | 'createdAt'> = { gameId, teamId: 'home', playerId, playerName, action, period: gameData.currentPeriod || 1, gameTimeSeconds: gameData.periodTimeRemainingSeconds || 0, };
+        const createEvent = (action: GameEventAction, teamId: 'home' | 'away' | 'system', playerId: string, playerName: string) => {
+            const period = updates.currentPeriod && updates.currentPeriod > (gameData.currentPeriod || 1) ? updates.currentPeriod : (gameData.currentPeriod || 1);
+            const event: Omit<GameEvent, 'id' | 'createdAt'> = {
+                gameId,
+                teamId: teamId === 'system' ? 'home' : teamId,
+                playerId,
+                playerName,
+                action,
+                period,
+                gameTimeSeconds: updates.periodTimeRemainingSeconds ?? gameData.periodTimeRemainingSeconds ?? 0,
+            };
             transaction.set(eventsRef.doc(), { ...event, createdAt: admin.firestore.FieldValue.serverTimestamp() });
         };
-
+        
         if (updates.status === 'inprogress' && gameData.status === 'scheduled') {
             const homeRoster = gameData.homeTeamPlayerIds || [];
             const awayRoster = gameData.awayTeamPlayerIds || [];
             if (homeRoster.length < 5 || awayRoster.length < 5) throw new Error(`No se puede iniciar el partido. Se requieren al menos 5 jugadores por equipo. Local: ${homeRoster.length}, Visitante: ${awayRoster.length}.`);
             
-            updateData.homeTeamOnCourtPlayerIds = homeRoster.slice(0, 5);
-            updateData.awayTeamOnCourtPlayerIds = awayRoster.slice(0, 5);
-            createEvent('period_start');
+            const startingHome = homeRoster.slice(0, 5);
+            const startingAway = awayRoster.slice(0, 5);
+            updateData.homeTeamOnCourtPlayerIds = startingHome;
+            updateData.awayTeamOnCourtPlayerIds = startingAway;
+
+            const [homePlayers, awayPlayers] = await Promise.all([
+                getPlayersFromIds(startingHome),
+                getPlayersFromIds(startingAway)
+            ]);
+
+            createEvent('period_start', 'system', 'SYSTEM', 'System');
+            homePlayers.forEach(p => createEvent('substitution_in', 'home', p.id, `${p.firstName} ${p.lastName}`));
+            awayPlayers.forEach(p => createEvent('substitution_in', 'away', p.id, `${p.firstName} ${p.lastName}`));
         }
 
         if (updates.status === 'completed' && gameData.status === 'inprogress') {
-            createEvent('period_end');
+            createEvent('period_end', 'system', 'SYSTEM', 'System');
         }
 
-        if (updates.isTimerRunning === true && gameData.isTimerRunning === false) createEvent('timer_start');
-        if (updates.isTimerRunning === false && gameData.isTimerRunning === true) createEvent('timer_pause');
+        if (updates.isTimerRunning === true && gameData.isTimerRunning === false) createEvent('timer_start', 'system', 'SYSTEM', 'System');
+        if (updates.isTimerRunning === false && gameData.isTimerRunning === true) createEvent('timer_pause', 'system', 'SYSTEM', 'System');
 
         if (updates.currentPeriod && updates.currentPeriod > (gameData.currentPeriod || 1)) {
-            createEvent('period_end');
-            createEvent('period_start');
+            createEvent('period_end', 'system', 'SYSTEM', 'System');
+            createEvent('period_start', 'system', 'SYSTEM', 'System');
         }
 
         transaction.update(gameRef, updateData);
@@ -419,7 +438,7 @@ export async function substitutePlayer(
             if (playerOut) {
                 const index = onCourtIds.indexOf(playerOut.id);
                 if (index > -1) {
-                    onCourtIds[index] = playerIn.id;
+                    onCourtIds.splice(index, 1, playerIn.id);
                     const outEvent: Omit<GameEvent, 'id' | 'createdAt'> = { gameId, teamId, playerId: playerOut.id, playerName: playerOut.name, action: 'substitution_out', period, gameTimeSeconds };
                     transaction.set(eventsRef.doc(), { ...outEvent, createdAt: admin.firestore.FieldValue.serverTimestamp() });
                 } else {
