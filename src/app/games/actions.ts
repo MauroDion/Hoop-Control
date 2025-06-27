@@ -317,7 +317,6 @@ export async function getPlayerStatsForGame(gameId: string): Promise<PlayerGameS
         };
     });
 
-    // --- Pass 1: Calculate Time Played ---
     let onCourt = new Set<string>();
     let lastTimestamp = new Date(gameData.createdAt as string).getTime();
     let isClockRunning = false;
@@ -347,7 +346,6 @@ export async function getPlayerStatsForGame(gameId: string): Promise<PlayerGameS
         }
     }
 
-    // --- Pass 2: Aggregate discrete stats ---
     for (const event of events) {
         if (!stats[event.playerId]) continue;
         
@@ -358,7 +356,6 @@ export async function getPlayerStatsForGame(gameId: string): Promise<PlayerGameS
             case 'shot_miss_2p': stats[event.playerId].shots_attempted_2p++; break;
             case 'shot_made_3p': stats[event.playerId].points += 3; stats[event.playerId].shots_made_3p++; stats[event.playerId].shots_attempted_3p++; break;
             case 'shot_miss_3p': stats[event.playerId].shots_attempted_3p++; break;
-            
             case 'rebound_defensive': stats[event.playerId].reb_def++; break;
             case 'rebound_offensive': stats[event.playerId].reb_off++; break;
             case 'assist': stats[event.playerId].assists++; break;
@@ -371,7 +368,6 @@ export async function getPlayerStatsForGame(gameId: string): Promise<PlayerGameS
         }
     }
     
-    // --- Final Assembly ---
     return Object.values(stats).map(s => {
         const totalRebounds = s.reb_def + s.reb_off;
         const fieldGoalsMade = s.shots_made_2p + s.shots_made_3p;
@@ -460,6 +456,8 @@ export async function updateLiveGameState(
 
         if (updates.status === 'completed' && gameData.status === 'inprogress') {
             transaction.set(eventsRef.doc(), { ...baseEvent, action: 'period_end', period: gameData.currentPeriod || 1, gameTimeSeconds: 0 });
+            updateData.isTimerRunning = false;
+            updateData.periodTimeRemainingSeconds = 0;
         }
 
         if (updates.isTimerRunning === true && gameData.isTimerRunning === false) {
@@ -573,3 +571,5 @@ export async function substitutePlayer(
         return { success: false, error: error.message };
     }
 }
+
+    
