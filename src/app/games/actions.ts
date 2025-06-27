@@ -39,9 +39,11 @@ export async function createGame(formData: GameFormData, userId: string): Promis
             homeTeamId: formData.homeTeamId,
             homeTeamClubId: homeTeamData.clubId,
             homeTeamName: homeTeamData.name,
+            homeTeamLogoUrl: homeTeamData.logoUrl || null,
             awayTeamId: formData.awayTeamId,
             awayTeamClubId: awayTeamData.clubId,
             awayTeamName: awayTeamData.name,
+            awayTeamLogoUrl: awayTeamData.logoUrl || null,
             date: admin.firestore.Timestamp.fromDate(gameDateTime),
             location: formData.location,
             status: 'scheduled',
@@ -168,106 +170,105 @@ export async function getGameEvents(gameId: string): Promise<GameEvent[]> {
 
 export async function getPlayerStatsForGame(gameId: string): Promise<PlayerGameStats[]> {
     if (!adminDb) return [];
-    
+
     const gameRef = adminDb.collection('games').doc(gameId);
     const [gameDoc, eventsSnap] = await Promise.all([
         gameRef.get(),
         gameRef.collection('events').orderBy('createdAt', 'asc').get()
     ]);
-    
+
     if (!gameDoc.exists) return [];
-    
-    const gameData = gameDoc.data() as Game;
+
+    const gameData = { ...gameDoc.data(), createdAt: (gameDoc.data()?.createdAt as admin.firestore.Timestamp).toDate() } as Game;
     const events = eventsSnap.docs.map(doc => ({ ...doc.data(), createdAt: (doc.data().createdAt as admin.firestore.Timestamp).toDate() } as GameEvent));
 
-    const playerStats: { [playerId: string]: Omit<PlayerGameStats, 'playerId'> } = {};
-    const playerTimeTracker: { [playerId: string]: { periods: Set<number> } } = {};
+    const stats: { [playerId: string]: PlayerGameStats } = {};
 
     const allPlayerIds = [...new Set([...(gameData.homeTeamPlayerIds || []), ...(gameData.awayTeamPlayerIds || [])])];
-    
     if (allPlayerIds.length > 0) {
         const playerDocs = await adminDb.collection('players').where(admin.firestore.FieldPath.documentId(), 'in', allPlayerIds).get();
-        const playerMap = new Map<string, Player>();
-        playerDocs.forEach(doc => playerMap.set(doc.id, {id: doc.id, ...doc.data()} as Player));
+        const playerMap = new Map(playerDocs.docs.map(doc => [doc.id, { id: doc.id, ...doc.data() } as Player]));
 
-        for (const playerId of allPlayerIds) {
+        allPlayerIds.forEach(playerId => {
             const player = playerMap.get(playerId);
-            const playerName = player ? `${player.firstName} ${player.lastName}` : 'Jugador Desconocido';
-            playerStats[playerId] = {
-                playerName, timePlayedSeconds: 0, periodsPlayed: 0, points: 0,
-                shots_made_1p: 0, shots_attempted_1p: 0, shots_made_2p: 0, shots_attempted_2p: 0, shots_made_3p: 0, shots_attempted_3p: 0,
-                reb_def: 0, reb_off: 0, assists: 0, steals: 0, blocks: 0, turnovers: 0, fouls: 0,
-                blocks_against: 0, fouls_received: 0, pir: 0,
+            stats[playerId] = {
+                playerId,
+                playerName: player ? `${player.firstName} ${player.lastName}` : 'Desconocido',
+                timePlayedSeconds: 0, periodsPlayed: 0, points: 0, shots_made_1p: 0, shots_attempted_1p: 0,
+                shots_made_2p: 0, shots_attempted_2p: 0, shots_made_3p: 0, shots_attempted_3p: 0, reb_def: 0,
+                reb_off: 0, assists: 0, steals: 0, blocks: 0, turnovers: 0, fouls: 0, blocks_against: 0, fouls_received: 0, pir: 0,
             };
-            playerTimeTracker[playerId] = { periods: new Set() };
-        }
+        });
+    }
+
+    let onCourt = new Set<string>();
+    let lastEventTime = new Date(gameData.createdAt).getTime();
+    let isClockRunning = false;
+    let currentPeriod = 1;
+    const playerPeriods = new Map<string, Set<number>>();
+
+    // Set initial on-court players if game has started
+    if (gameData.status !== 'scheduled') {
+        (gameData.homeTeamOnCourtPlayerIds || []).forEach(id => onCourt.add(id));
+        (gameData.awayTeamOnCourtPlayerIds || []).forEach(id => onCourt.add(id));
     }
     
-    let onCourtPlayers = new Set<string>();
-    let lastEventTimestamp = new Date(gameData.createdAt).getTime();
-    let isTimerRunning = false;
-
-    if(gameData.homeTeamOnCourtPlayerIds) gameData.homeTeamOnCourtPlayerIds.forEach(p => onCourtPlayers.add(p));
-    if(gameData.awayTeamOnCourtPlayerIds) gameData.awayTeamOnCourtPlayerIds.forEach(p => onCourtPlayers.add(p));
-
     for (const event of events) {
-        const eventTimestamp = event.createdAt.getTime();
-        const timeDiffSeconds = isTimerRunning ? (eventTimestamp - lastEventTimestamp) / 1000 : 0;
-        
-        if (timeDiffSeconds > 0) {
-            onCourtPlayers.forEach(pId => {
-                if (playerStats[pId]) {
-                    playerStats[pId].timePlayedSeconds += timeDiffSeconds;
+        const eventTime = event.createdAt.getTime();
+        const timeDeltaSeconds = isClockRunning ? (eventTime - lastEventTime) / 1000 : 0;
+
+        if (timeDeltaSeconds > 0) {
+            onCourt.forEach(playerId => {
+                if (stats[playerId]) {
+                    stats[playerId].timePlayedSeconds += timeDeltaSeconds;
+                    if (!playerPeriods.has(playerId)) playerPeriods.set(playerId, new Set());
+                    playerPeriods.get(playerId)?.add(currentPeriod);
                 }
             });
         }
-        
-        lastEventTimestamp = eventTimestamp;
-        
-        switch (event.action) {
-            case 'period_start': case 'timer_start': isTimerRunning = true; break;
-            case 'period_end': case 'timer_pause': isTimerRunning = false; break;
-            case 'substitution_in': onCourtPlayers.add(event.playerId); break;
-            case 'substitution_out': onCourtPlayers.delete(event.playerId); break;
-            case 'shot_made_1p': if(playerStats[event.playerId]) { playerStats[event.playerId].points++; playerStats[event.playerId].shots_made_1p++; playerStats[event.playerId].shots_attempted_1p++; } break;
-            case 'shot_miss_1p': if(playerStats[event.playerId]) playerStats[event.playerId].shots_attempted_1p++; break;
-            case 'shot_made_2p': if(playerStats[event.playerId]) { playerStats[event.playerId].points += 2; playerStats[event.playerId].shots_made_2p++; playerStats[event.playerId].shots_attempted_2p++; } break;
-            case 'shot_miss_2p': if(playerStats[event.playerId]) playerStats[event.playerId].shots_attempted_2p++; break;
-            case 'shot_made_3p': if(playerStats[event.playerId]) { playerStats[event.playerId].points += 3; playerStats[event.playerId].shots_made_3p++; playerStats[event.playerId].shots_attempted_3p++; } break;
-            case 'shot_miss_3p': if(playerStats[event.playerId]) playerStats[event.playerId].shots_attempted_3p++; break;
-            case 'rebound_defensive': if(playerStats[event.playerId]) playerStats[event.playerId].reb_def++; break;
-            case 'rebound_offensive': if(playerStats[event.playerId]) playerStats[event.playerId].reb_off++; break;
-            case 'assist': if(playerStats[event.playerId]) playerStats[event.playerId].assists++; break;
-            case 'steal': if(playerStats[event.playerId]) playerStats[event.playerId].steals++; break;
-            case 'block': if(playerStats[event.playerId]) playerStats[event.playerId].blocks++; break;
-            case 'turnover': if(playerStats[event.playerId]) playerStats[event.playerId].turnovers++; break;
-            case 'foul': if(playerStats[event.playerId]) playerStats[event.playerId].fouls++; break;
-            case 'block_against': if(playerStats[event.playerId]) playerStats[event.playerId].blocks_against++; break;
-            case 'foul_received': if(playerStats[event.playerId]) playerStats[event.playerId].fouls_received++; break;
-        }
+        lastEventTime = eventTime;
 
-        if (event.playerId !== 'SYSTEM' && playerTimeTracker[event.playerId]) {
-            playerTimeTracker[event.playerId].periods.add(event.period);
+        switch (event.action) {
+            case 'period_start': 
+                currentPeriod = event.period;
+                onCourt = new Set([...(gameData.homeTeamOnCourtPlayerIds || []), ...(gameData.awayTeamOnCourtPlayerIds || [])]);
+                isClockRunning = false;
+                break;
+            case 'timer_start': isClockRunning = true; break;
+            case 'timer_pause': case 'period_end': isClockRunning = false; break;
+            case 'substitution_in': onCourt.add(event.playerId); break;
+            case 'substitution_out': onCourt.delete(event.playerId); break;
+            case 'shot_made_1p': if(stats[event.playerId]) { stats[event.playerId].points++; stats[event.playerId].shots_made_1p++; stats[event.playerId].shots_attempted_1p++; } break;
+            case 'shot_miss_1p': if(stats[event.playerId]) stats[event.playerId].shots_attempted_1p++; break;
+            case 'shot_made_2p': if(stats[event.playerId]) { stats[event.playerId].points += 2; stats[event.playerId].shots_made_2p++; stats[event.playerId].shots_attempted_2p++; } break;
+            case 'shot_miss_2p': if(stats[event.playerId]) stats[event.playerId].shots_attempted_2p++; break;
+            case 'shot_made_3p': if(stats[event.playerId]) { stats[event.playerId].points += 3; stats[event.playerId].shots_made_3p++; stats[event.playerId].shots_attempted_3p++; } break;
+            case 'shot_miss_3p': if(stats[event.playerId]) stats[event.playerId].shots_attempted_3p++; break;
+            case 'rebound_defensive': if(stats[event.playerId]) stats[event.playerId].reb_def++; break;
+            case 'rebound_offensive': if(stats[event.playerId]) stats[event.playerId].reb_off++; break;
+            case 'assist': if(stats[event.playerId]) stats[event.playerId].assists++; break;
+            case 'steal': if(stats[event.playerId]) stats[event.playerId].steals++; break;
+            case 'block': if(stats[event.playerId]) stats[event.playerId].blocks++; break;
+            case 'turnover': if(stats[event.playerId]) stats[event.playerId].turnovers++; break;
+            case 'foul': if(stats[event.playerId]) stats[event.playerId].fouls++; break;
+            case 'block_against': if(stats[event.playerId]) stats[event.playerId].blocks_against++; break;
+            case 'foul_received': if(stats[event.playerId]) stats[event.playerId].fouls_received++; break;
         }
     }
-
-    return Object.entries(playerStats).map(([playerId, stats]) => {
-        const totalRebounds = stats.reb_def + stats.reb_off;
-        const fieldGoalsMade = stats.shots_made_2p + stats.shots_made_3p;
-        const fieldGoalsAttempted = stats.shots_attempted_2p + stats.shots_attempted_3p;
+    
+    Object.values(stats).forEach(s => {
+        const totalRebounds = s.reb_def + s.reb_off;
+        const fieldGoalsMade = s.shots_made_2p + s.shots_made_3p;
+        const fieldGoalsAttempted = s.shots_attempted_2p + s.shots_attempted_3p;
         const missedFieldGoals = fieldGoalsAttempted - fieldGoalsMade;
-        const missedFreeThrows = stats.shots_attempted_1p - stats.shots_made_1p;
+        const missedFreeThrows = s.shots_attempted_1p - s.shots_made_1p;
         
-        const pir = (stats.points + totalRebounds + stats.assists + stats.steals + stats.blocks + stats.fouls_received) - (missedFieldGoals + missedFreeThrows + stats.turnovers + stats.fouls + stats.blocks_against);
-        
-        return {
-            playerId,
-            ...stats,
-            timePlayedSeconds: Math.round(stats.timePlayedSeconds),
-            periodsPlayed: playerTimeTracker[playerId].periods.size,
-            pir: Math.round(pir),
-        };
+        s.pir = (s.points + totalRebounds + s.assists + s.steals + s.blocks + s.fouls_received) - (missedFieldGoals + missedFreeThrows + s.turnovers + s.fouls + s.blocks_against);
+        s.timePlayedSeconds = Math.round(s.timePlayedSeconds);
+        s.periodsPlayed = playerPeriods.get(s.playerId)?.size || 0;
     });
+    
+    return Object.values(stats);
 }
 
 
