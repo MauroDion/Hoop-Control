@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useEffect, useState, useCallback } from 'react';
@@ -44,7 +43,7 @@ const PlayerStatCard = ({ player, stats, onClick }: { player: Player; stats: Pla
             )}
 
             {/* PIR */}
-            <div className="absolute top-2 right-2 text-2xl font-black text-blue-600">
+             <div className="absolute top-2 right-2 text-2xl font-black text-blue-600">
                 {stats.pir}
             </div>
             
@@ -183,13 +182,6 @@ export default function LiveGamePage() {
             setDisplayTime(game.periodTimeRemainingSeconds);
         }
     }, [game?.periodTimeRemainingSeconds]);
-
-    const handleUpdate = useCallback(async (updates: Partial<Game>) => {
-        const result = await updateLiveGameState(gameId, updates);
-        if (!result.success) {
-            toast({ variant: 'destructive', title: 'Error al Actualizar', description: result.error });
-        }
-    }, [gameId, toast]);
     
     const handleGameEvent = async (teamType: 'home' | 'away', playerId: string, playerName: string, action: GameEventAction) => {
         if (!game || game.status !== 'inprogress') return;
@@ -197,9 +189,14 @@ export default function LiveGamePage() {
         setActionPlayerInfo(null);
     };
 
-    const handleExecuteSubstitution = async (teamType: 'home' | 'away', playerInId: string, playerOutId: string | null) => {
+    const handleExecuteSubstitution = async (teamType: 'home' | 'away', playerIn: Player, playerOut: Player | null) => {
         if (!game) return;
-        const result = await substitutePlayer(gameId, teamType, playerInId, playerOutId);
+        
+        const playerInInfo = { id: playerIn.id, name: `${playerIn.firstName} ${playerIn.lastName}`};
+        const playerOutInfo = playerOut ? { id: playerOut.id, name: `${playerOut.firstName} ${playerOut.lastName}`} : null;
+
+        const result = await substitutePlayer(gameId, teamType, playerInInfo, playerOutInfo, game.currentPeriod || 1, displayTime);
+
         if (!result.success) {
             toast({ variant: 'destructive', title: 'Error de Sustitución', description: result.error });
         }
@@ -217,7 +214,7 @@ export default function LiveGamePage() {
         }
 
         if (onCourtIds.length < 5) {
-            handleExecuteSubstitution(teamType, player.id, null);
+            handleExecuteSubstitution(teamType, player, null);
         } else {
             setSubPlayerInfo({ player, teamType });
         }
@@ -225,34 +222,39 @@ export default function LiveGamePage() {
     
     const handleCourtPlayerClickInSubDialog = (playerOut: Player) => {
         if (!subPlayerInfo) return;
-        handleExecuteSubstitution(subPlayerInfo.teamType, subPlayerInfo.player.id, playerOut.id);
+        handleExecuteSubstitution(subPlayerInfo.teamType, subPlayerInfo.player, playerOut);
     };
 
     const handleToggleTimer = useCallback(() => {
         if (!game) return;
-        handleUpdate({ isTimerRunning: !game.isTimerRunning, periodTimeRemainingSeconds: displayTime });
-    }, [game, displayTime, handleUpdate]);
+        updateLiveGameState(gameId, { isTimerRunning: !game.isTimerRunning, periodTimeRemainingSeconds: displayTime });
+    }, [game, gameId, displayTime]);
     
     const handleNextPeriod = useCallback(() => {
         if (!game || !gameFormat) return;
         const currentPeriod = game.currentPeriod || 1;
         const maxPeriods = gameFormat.numPeriods || 4;
         if (currentPeriod < maxPeriods) {
-            handleUpdate({
+            updateLiveGameState(gameId, {
                 currentPeriod: currentPeriod + 1,
                 isTimerRunning: false,
                 periodTimeRemainingSeconds: (gameFormat.periodDurationMinutes || 10) * 60,
             });
         }
-    }, [game, gameFormat, handleUpdate]);
+    }, [game, gameFormat, gameId]);
 
     const handleResetTimer = useCallback(() => {
         if (!game || !gameFormat) return;
-        handleUpdate({
+        updateLiveGameState(gameId, {
             isTimerRunning: false,
             periodTimeRemainingSeconds: (gameFormat.periodDurationMinutes || 10) * 60,
         });
-    }, [game, gameFormat, handleUpdate]);
+    }, [game, gameFormat, gameId]);
+    
+    const handleGameStatusChange = (status: 'inprogress' | 'completed') => {
+        const periodSeconds = (gameFormat?.periodDurationMinutes || 10) * 60;
+        updateLiveGameState(gameId, { status, periodTimeRemainingSeconds: periodSeconds });
+    }
 
     const formatTime = (totalSeconds: number) => {
         const minutes = Math.floor(totalSeconds / 60);
@@ -362,12 +364,12 @@ export default function LiveGamePage() {
                 </CardHeader>
                 <CardContent>
                     {game.status === 'scheduled' && (
-                        <Button size="lg" className="w-full bg-green-600 hover:bg-green-700" onClick={() => handleUpdate({ status: 'inprogress', periodTimeRemainingSeconds: (gameFormat?.periodDurationMinutes || 10) * 60 })}>
+                        <Button size="lg" className="w-full bg-green-600 hover:bg-green-700" onClick={() => handleGameStatusChange('inprogress')}>
                             <Play className="mr-2 h-5 w-5"/> Empezar Partido
                         </Button>
                     )}
                     {game.status === 'inprogress' && (
-                        <Button size="lg" variant="destructive" className="w-full" onClick={() => handleUpdate({ status: 'completed', isTimerRunning: false })}>
+                        <Button size="lg" variant="destructive" className="w-full" onClick={() => handleGameStatusChange('completed')}>
                             <Flag className="mr-2 h-5 w-5"/> Finalizar Partido
                         </Button>
                     )}
