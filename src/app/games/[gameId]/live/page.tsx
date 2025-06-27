@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useEffect, useState, useCallback } from 'react';
@@ -31,7 +32,7 @@ const PlayerStatCard = ({ player, stats, onClick }: { player: Player; stats: Pla
     return (
         <Card onClick={onClick} className="p-2 relative aspect-[3/4] flex flex-col items-center justify-center overflow-hidden transition-all duration-300 hover:shadow-xl hover:scale-105 cursor-pointer bg-card">
             {/* Points */}
-            <div className="absolute top-2 left-2 text-2xl font-bold text-green-600 bg-white/80 rounded-full h-12 w-12 flex items-center justify-center backdrop-blur-sm z-10 shadow-md">
+            <div className="absolute top-2 left-2 text-2xl font-black text-green-600">
                 {stats.points}
             </div>
 
@@ -43,7 +44,7 @@ const PlayerStatCard = ({ player, stats, onClick }: { player: Player; stats: Pla
             )}
 
             {/* PIR */}
-            <div className="absolute top-2 right-2 text-2xl font-bold text-blue-600 bg-white/80 rounded-full h-12 w-12 flex items-center justify-center backdrop-blur-sm z-10 shadow-md">
+            <div className="absolute top-2 right-2 text-2xl font-black text-blue-600">
                 {stats.pir}
             </div>
             
