@@ -10,7 +10,8 @@ import { db } from '@/lib/firebase/client';
 import { updateLiveGameState, recordGameEvent, substitutePlayer, getPlayerStatsForGame } from '@/app/games/actions';
 import { getGameFormatById } from '@/app/game-formats/actions';
 import { getPlayersByTeamId } from '@/app/players/actions';
-import { getTeamById } from '@/app/teams/actions';
+import { getTeamById, getTeamsByCoach } from '@/app/teams/actions';
+import { getUserProfileById } from '@/app/users/actions';
 import type { Game, GameFormat, Player, GameEventAction, PlayerGameStats, UserFirestoreProfile, ProfileType } from '@/types';
 
 import { Button } from '@/components/ui/button';
