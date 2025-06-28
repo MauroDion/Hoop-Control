@@ -1,3 +1,4 @@
+
 'use server';
 import { adminDb } from '@/lib/firebase/admin';
 import admin from 'firebase-admin';
@@ -8,6 +9,7 @@ import { getUserProfileById } from '@/app/users/actions';
 import { getSeasons } from '@/app/seasons/actions';
 import { getCompetitionCategories } from '@/app/competition-categories/actions';
 import { getGameFormats } from '@/app/game-formats/actions';
+import { getPlayersByTeamId } from '../players/actions';
 
 
 async function getPlayersFromIds(playerIds: string[]): Promise<Player[]> {
@@ -147,25 +149,24 @@ export async function createTestGame(userId: string): Promise<{ success: boolean
         const gameFormat = allFormats[0];
         if (!gameFormat) return { success: false, error: 'No se encontraron formatos de partido.' };
 
-        let homeTeam: Team | undefined;
-        let awayTeam: Team | undefined;
-
-        if (profile.profileTypeId === 'coach') {
-            const coachTeams = await getCoachTeams(userId);
-            homeTeam = coachTeams[0];
-            if (!homeTeam) return { success: false, error: 'No tienes equipos asignados como entrenador.' };
-        } else if (['club_admin', 'coordinator'].includes(profile.profileTypeId)) {
-            const clubTeams = await getTeamsFromClub(profile.clubId);
-            homeTeam = clubTeams[0];
-            if (!homeTeam) return { success: false, error: `Tu club (${profile.clubId}) no tiene equipos.` };
-        } else { // super_admin
-            homeTeam = allTeams[0];
+        let homeTeam: Team | undefined = allTeams.find(t => t.id === "club-estudiantes-u12-masculino");
+        let awayTeam: Team | undefined = allTeams.find(t => t.id === "club-valencia-u12-masculino");
+        
+        if (!homeTeam || !awayTeam) {
+             return { success: false, error: 'No se encontraron los equipos de prueba por defecto. Ejecuta primero el poblador de datos (seeder).' };
         }
 
-        awayTeam = allTeams.find(t => t.id !== homeTeam!.id);
-        if (!awayTeam) { // Should be impossible if allTeams.length >= 2
-           awayTeam = allTeams[1];
+        const [homePlayers, awayPlayers] = await Promise.all([
+            getPlayersByTeamId(homeTeam.id),
+            getPlayersByTeamId(awayTeam.id),
+        ]);
+
+        if (homePlayers.length < 5 || awayPlayers.length < 5) {
+             return { success: false, error: 'Los equipos de prueba no tienen suficientes jugadores (mínimo 5). Ejecuta primero el poblador de datos (seeder).' };
         }
+
+        const homePlayerIds = homePlayers.map(p => p.id);
+        const awayPlayerIds = awayPlayers.map(p => p.id);
 
         const gameDateTime = new Date();
         const initialStats: TeamStats = {
@@ -200,10 +201,10 @@ export async function createTestGame(userId: string): Promise<{ success: boolean
             currentPeriod: 1,
             isTimerRunning: false,
             periodTimeRemainingSeconds: 0,
-            homeTeamPlayerIds: [],
-            awayTeamPlayerIds: [],
-            homeTeamOnCourtPlayerIds: [],
-            awayTeamOnCourtPlayerIds: [],
+            homeTeamPlayerIds,
+            awayTeamPlayerIds,
+            homeTeamOnCourtPlayerIds: homePlayerIds.slice(0, 5),
+            awayTeamOnCourtPlayerIds: awayPlayerIds.slice(0, 5),
             scorerAssignments: {},
         };
 
@@ -276,14 +277,17 @@ export async function getGamesByParent(userId: string): Promise<Game[]> {
             return []; 
         }
 
-        const childrenPlayerIds = profile.children.map(c => c.playerId);
-        if (childrenPlayerIds.length === 0) return [];
-
+        const childrenPlayerIds = new Set(profile.children.map(c => c.playerId));
+        if (childrenPlayerIds.size === 0) return [];
+        
         const allGames = await getAllGames();
         
         return allGames.filter(game => {
-            const gamePlayerIds = new Set([...(game.homeTeamPlayerIds || []), ...(game.awayTeamPlayerIds || [])]);
-            return childrenPlayerIds.some(childId => gamePlayerIds.has(childId));
+             const gamePlayerIds = new Set([...(game.homeTeamPlayerIds || []), ...(game.awayTeamPlayerIds || [])]);
+             for (const childId of childrenPlayerIds) {
+                 if (gamePlayerIds.has(childId)) return true;
+             }
+             return false;
         });
     } catch (error: any) {
         console.error("Error fetching games by parent:", error);
