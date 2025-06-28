@@ -41,7 +41,7 @@ export default function Header() {
   const [branding, setBranding] = useState<BrandingSettings>({});
 
   useEffect(() => {
-    if (user && !profile) {
+    if (user && (!profile || profile.uid !== user.uid)) {
       getUserProfileById(user.uid).then(profile => {
         if(profile) setProfile(profile)
       });
@@ -153,7 +153,7 @@ export default function Header() {
 
         <div className="ml-auto flex items-center space-x-4">
           {!loading && user ? (
-            <UserNav />
+            <UserNav profile={profile}/>
           ) : !loading ? ( 
             <Button asChild variant="default" size="sm">
               <Link href="/login" className="flex items-center">

@@ -13,9 +13,10 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useAuth } from '@/hooks/useAuth';
-import { LogOut, UserCircle, Settings } from 'lucide-react';
+import { LogOut, UserCircle, Settings, Users } from 'lucide-react';
+import type { UserFirestoreProfile } from '@/types';
 
-export function UserNav() {
+export function UserNav({ profile }: { profile: UserFirestoreProfile | null }) {
   const { user, logout } = useAuth();
 
   if (!user) {
@@ -53,11 +54,19 @@ export function UserNav() {
         <DropdownMenuSeparator />
         <DropdownMenuGroup>
           <DropdownMenuItem asChild>
-            <Link href="/profile" className="flex items-center">
+            <Link href="/profile" className="flex items-center cursor-pointer">
               <UserCircle className="mr-2 h-4 w-4" />
               Perfil
             </Link>
           </DropdownMenuItem>
+          {profile?.profileTypeId === 'parent_guardian' && (
+            <DropdownMenuItem asChild>
+              <Link href="/profile/my-children" className="flex items-center cursor-pointer">
+                <Users className="mr-2 h-4 w-4" />
+                Gestionar Hijos/as
+              </Link>
+            </DropdownMenuItem>
+          )}
           <DropdownMenuItem disabled className="flex items-center cursor-not-allowed">
             <Settings className="mr-2 h-4 w-4" />
             Configuración

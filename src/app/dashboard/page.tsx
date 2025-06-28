@@ -51,10 +51,14 @@ export default function DashboardPage() {
       getUserProfileById(user.uid)
         .then(profile => {
           if (profile) {
+            if (profile.profileTypeId === 'parent_guardian' && !profile.onboardingCompleted) {
+              router.replace('/profile/my-children');
+              return;
+            }
             setUserProfile(profile);
           } else {
             setProfileError("Tu perfil no se encontró en la base de datos. Se cerrará la sesión.");
-            logout(false); // Force logout if profile is missing
+            logout(false);
           }
         })
         .catch(err => {
@@ -64,8 +68,6 @@ export default function DashboardPage() {
           setLoadingProfile(false);
         });
     } else {
-      // If auth is resolved and there's no user, the middleware should have redirected.
-      // This is a failsafe.
       router.replace('/login');
     }
   }, [user, authLoading, logout, router]);
@@ -90,8 +92,7 @@ export default function DashboardPage() {
     setIsCreatingTestGame(false);
   }
   
-  // The AuthProvider shows a loader, so we only need to care about profile loading here.
-  if (loadingProfile) {
+  if (authLoading || loadingProfile) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)]">
         <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
@@ -127,7 +128,7 @@ export default function DashboardPage() {
       );
     }
     
-    if (userProfile?.clubId) {
+    if (userProfile?.clubId && userProfile.profileTypeId !== 'parent_guardian') {
        return (
         <>
           <p className="text-sm text-muted-foreground">
@@ -136,6 +137,21 @@ export default function DashboardPage() {
           <Button asChild>
             <Link href={`/clubs/${userProfile.clubId}`}>
               <Users className="mr-2 h-5 w-5" /> Gestionar mi Club
+            </Link>
+          </Button>
+        </>
+      );
+    }
+
+    if (userProfile?.profileTypeId === 'parent_guardian') {
+       return (
+        <>
+          <p className="text-sm text-muted-foreground">
+            Gestiona la información de tus hijos y sus equipos.
+          </p>
+          <Button asChild>
+            <Link href={`/profile/my-children`}>
+              <Users className="mr-2 h-5 w-5" /> Gestionar Mis Hijos/as
             </Link>
           </Button>
         </>
@@ -215,7 +231,7 @@ export default function DashboardPage() {
           <CardTitle className="text-2xl font-headline flex items-center">
             Gestión de Club y Equipos
           </CardTitle>
-          <CardDescription>Gestiona los detalles de tu club y crea nuevos equipos.</CardDescription>
+          <CardDescription>Gestiona los detalles de tu club, equipos o hijos.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {renderClubManagement()}

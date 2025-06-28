@@ -1,8 +1,9 @@
 'use server';
 
 import { adminAuth, adminDb, adminInitError } from '@/lib/firebase/admin';
-import type { UserFirestoreProfile, ProfileType, UserProfileStatus } from '@/types';
+import type { UserFirestoreProfile, ProfileType, UserProfileStatus, Child } from '@/types';
 import admin from 'firebase-admin';
+import { revalidatePath } from 'next/cache';
 
 export async function finalizeNewUserProfile(
   idToken: string,
@@ -19,7 +20,7 @@ export async function finalizeNewUserProfile(
     await adminAuth.updateUser(uid, { displayName: data.displayName });
     
     const userProfileRef = adminDb.collection('user_profiles').doc(uid);
-    const profileToSave: Omit<UserFirestoreProfile, 'createdAt' | 'updatedAt' | 'id'> & { createdAt: any, updatedAt: any } = {
+    const profileToSave: any = {
         uid: uid,
         email: decodedToken.email || null,
         displayName: data.displayName,
@@ -30,6 +31,11 @@ export async function finalizeNewUserProfile(
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     };
+
+    if (data.profileType === 'parent_guardian') {
+      profileToSave.onboardingCompleted = false;
+      profileToSave.children = [];
+    }
     
     await userProfileRef.set(profileToSave);
     
@@ -67,5 +73,73 @@ export async function getUserProfileById(uid: string): Promise<UserFirestoreProf
   } catch (error: any) {
     console.error(`UserActions: Error fetching user profile for UID ${uid} with Admin SDK:`, error.message, error.stack);
     return null;
+  }
+}
+
+export async function updateUserChildren(
+  uid: string,
+  children: Child[]
+): Promise<{ success: boolean; error?: string }> {
+  if (!adminDb) {
+    return { success: false, error: 'Database not initialized.' };
+  }
+  if (!uid) {
+    return { success: false, error: 'User not authenticated.' };
+  }
+
+  try {
+    const userProfileRef = adminDb.collection('user_profiles').doc(uid);
+    
+    await userProfileRef.update({
+      children: children,
+      onboardingCompleted: true,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    revalidatePath('/profile/my-children');
+    revalidatePath('/dashboard');
+    return { success: true };
+  } catch (error: any) {
+    console.error(`Error updating children for UID ${uid}:`, error);
+    return { success: false, error: 'Failed to update children information.' };
+  }
+}
+
+export async function getUsersByProfileTypeAndClub(
+  profileType: ProfileType,
+  clubId: string
+): Promise<UserFirestoreProfile[]> {
+  if (!adminDb) {
+    console.error("UserActions (getUsersByProfileTypeAndClub): Admin SDK not initialized.");
+    return [];
+  }
+  try {
+    const usersRef = adminDb.collection('user_profiles');
+    const q = usersRef.where('clubId', '==', clubId).where('profileTypeId', '==', profileType).where('status', '==', 'approved');
+    const querySnapshot = await q.get();
+
+    if (querySnapshot.empty) {
+      return [];
+    }
+    
+    const users = querySnapshot.docs.map(doc => {
+      const data = doc.data()!;
+      return {
+        uid: doc.id,
+        ...data,
+        createdAt: (data.createdAt.toDate() as Date).toISOString(),
+        updatedAt: (data.updatedAt.toDate() as Date).toISOString(),
+      } as UserFirestoreProfile;
+    });
+
+    users.sort((a, b) => (a.displayName || '').localeCompare(b.displayName || ''));
+    return users;
+
+  } catch (error: any) {
+    console.error(`Error fetching users by profile type '${profileType}' for club '${clubId}':`, error.message);
+    if (error.code === 'failed-precondition' && error.message.includes("index")) {
+        console.error("Firestore query failed. This is likely due to a missing composite index. Please create an index on 'clubId', 'profileTypeId', and 'status' for the 'user_profiles' collection.");
+    }
+    return [];
   }
 }

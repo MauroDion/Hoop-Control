@@ -39,6 +39,12 @@ export type ProfileType =
   | 'scorer'
   | 'super_admin'
   | 'user';
+  
+export interface Child {
+  id: string;
+  name: string;
+  competitionCategoryId: string;
+}
 
 export interface UserFirestoreProfile {
   uid: string;
@@ -50,6 +56,8 @@ export interface UserFirestoreProfile {
   status: UserProfileStatus;
   createdAt: string;
   updatedAt: string;
+  onboardingCompleted?: boolean;
+  children?: Child[];
 }
 
 export interface UserProfileAdminView extends UserFirestoreProfile {
