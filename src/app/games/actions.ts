@@ -138,7 +138,7 @@ export async function createTestGame(userId: string): Promise<{ success: boolean
             getGameFormats(),
         ]);
 
-        if (allTeams.length < 2) return { success: false, error: 'Se necesitan al menos dos equipos en el sistema para crear un partido de prueba.' };
+        if (allTeams.length < 2) return { success: false, error: 'Se necesitan al menos dos equipos en el sistema para crear un partido de prueba. Ejecuta primero el poblador de datos (seeder).' };
         
         const activeSeason = allSeasons.find(s => s.status === 'active');
         if (!activeSeason) return { success: false, error: 'No se encontró una temporada activa para el partido de prueba.' };
@@ -148,13 +148,9 @@ export async function createTestGame(userId: string): Promise<{ success: boolean
         
         const gameFormat = allFormats[0];
         if (!gameFormat) return { success: false, error: 'No se encontraron formatos de partido.' };
-
-        let homeTeam: Team | undefined = allTeams.find(t => t.id === "club-estudiantes-u12-masculino");
-        let awayTeam: Team | undefined = allTeams.find(t => t.id === "club-valencia-u12-masculino");
         
-        if (!homeTeam || !awayTeam) {
-             return { success: false, error: 'No se encontraron los equipos de prueba por defecto. Ejecuta primero el poblador de datos (seeder).' };
-        }
+        const homeTeam = allTeams[0];
+        const awayTeam = allTeams[1];
 
         const [homePlayers, awayPlayers] = await Promise.all([
             getPlayersByTeamId(homeTeam.id),
@@ -223,8 +219,8 @@ export async function getAllGames(): Promise<Game[]> {
     if (!adminDb) return [];
     try {
         const gamesRef = adminDb.collection('games');
-        const snapshot = await gamesRef.get();
-        const games = snapshot.docs.map(doc => {
+        const snapshot = await gamesRef.orderBy('date', 'desc').get();
+        return snapshot.docs.map(doc => {
             const data = doc.data();
             return {
                 id: doc.id,
@@ -234,9 +230,11 @@ export async function getAllGames(): Promise<Game[]> {
                 updatedAt: data.updatedAt ? (data.updatedAt as admin.firestore.Timestamp).toDate().toISOString() : undefined,
             } as Game;
         });
-        return games;
     } catch (error: any) {
         console.error("Error fetching all games: ", error);
+        if (error.code === 'failed-precondition') {
+             console.error("Firestore query failed, missing index. Please create an index on 'games' collection by 'date' descending.");
+        }
         return [];
     }
 }
