@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
@@ -10,7 +11,7 @@ import { db } from '@/lib/firebase/client';
 import { updateLiveGameState, recordGameEvent, substitutePlayer, getPlayerStatsForGame } from '@/app/games/actions';
 import { getGameFormatById } from '@/app/game-formats/actions';
 import { getPlayersByTeamId } from '@/app/players/actions';
-import { getTeamById, getTeamsByCoach } from '@/app/teams/actions';
+import { getTeamsByCoach } from '@/app/teams/actions';
 import { getUserProfileById } from '@/app/users/actions';
 import type { Game, GameFormat, Player, GameEventAction, PlayerGameStats, UserFirestoreProfile, ProfileType } from '@/types';
 
@@ -23,9 +24,11 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import Image from 'next/image';
 
 const PlayerStatCard = ({ player, stats, onClick, userProfileType, isChild, onCourt }: { player: Player; stats: PlayerGameStats; onClick?: () => void, userProfileType?: ProfileType, isChild: boolean, onCourt: boolean }) => {
-    const isParentAndNotChild = userProfileType === 'parent_guardian' && !isChild;
-    const isClickable = !isParentAndNotChild && onCourt;
-    const showStats = userProfileType !== 'parent_guardian' || isChild;
+    // A parent can only click their own child's card to add actions. A coach/admin can click anyone.
+    const isClickable = (userProfileType !== 'parent_guardian' || isChild) && onCourt;
+    
+    // A parent cannot see the PIR for any player.
+    const showPIR = userProfileType !== 'parent_guardian';
 
     const formatTime = (seconds: number) => {
         const mins = Math.floor(seconds / 60);
@@ -34,35 +37,33 @@ const PlayerStatCard = ({ player, stats, onClick, userProfileType, isChild, onCo
     };
 
     return (
-        <Card onClick={onClick} className={`p-2 relative aspect-[3/4] flex flex-col items-center justify-center overflow-hidden transition-all duration-300 bg-card ${isClickable ? "hover:shadow-xl hover:scale-105 cursor-pointer" : "cursor-default"}`}>
+        <Card onClick={isClickable ? onClick : undefined} className={`p-2 relative aspect-[3/4] flex flex-col items-center justify-center overflow-hidden transition-all duration-300 bg-card ${isClickable ? "hover:shadow-xl hover:scale-105 cursor-pointer" : "cursor-default"}`}>
+            {/* Points */}
             <div className="absolute top-2 left-2 text-2xl font-black text-green-600">
-                {showStats ? stats.points : '-'}
+                {stats.points}
             </div>
-            {showStats && stats.fouls > 0 && (
+
+            {/* Fouls */}
+            {stats.fouls > 0 && (
                  <div className="absolute top-1/2 -translate-y-1/2 right-2 flex items-center justify-center px-2 h-7 bg-destructive border-2 border-white/70 rounded-sm shadow-lg z-20">
                     <span className="text-yellow-300 text-xl font-extrabold" style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.5)' }}>{stats.fouls}</span>
                 </div>
             )}
-            {!showStats && stats.fouls > 0 && (
-                <div className="absolute top-1/2 -translate-y-1/2 right-2 flex items-center justify-center px-2 h-7 bg-muted border-2 border-white/70 rounded-sm shadow-lg z-20">
-                   <span className="text-muted-foreground text-xl font-extrabold">F</span>
-                </div>
-            )}
+            
+            {/* PIR */}
              <div className="absolute top-2 right-2 text-2xl font-black text-blue-600">
-                {showStats ? stats.pir : '-'}
+                {showPIR ? stats.pir : '-'}
             </div>
+
+            {/* Jersey Number */}
             <div className="text-8xl font-black text-destructive" style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.1)' }}>
                 {player.jerseyNumber || 'S/N'}
             </div>
-             <div className="absolute bottom-1 text-xs text-center font-semibold w-full px-1 bg-gradient-to-t from-background via-background to-transparent pt-8 pb-1">
+
+            {/* Name and Time */}
+            <div className="absolute bottom-1 text-xs text-center font-semibold w-full px-1 bg-gradient-to-t from-background via-background to-transparent pt-8 pb-1">
                 <p className="truncate">{player.firstName} {player.lastName}</p>
-                {showStats ? (
-                    <p className="font-mono text-muted-foreground">{formatTime(stats.timePlayedSeconds || 0)} ({stats.periodsPlayed || 0})</p>
-                ): (
-                     <div className="flex justify-center items-center text-muted-foreground">
-                        <Lock className="h-3 w-3 mr-1"/> Privado
-                    </div>
-                )}
+                <p className="font-mono text-muted-foreground">{formatTime(stats.timePlayedSeconds || 0)} ({stats.periodsPlayed || 0})</p>
             </div>
         </Card>
     );
@@ -299,8 +300,8 @@ export default function LiveGamePage() {
     const childrenPlayerIds = useMemo(() => new Set(profile?.children?.map(c => c.playerId) || []), [profile]);
 
     if (loading || authLoading) return <div className="flex justify-center items-center h-screen"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>;
-    if (error) return <div className="text-center p-6"><AlertTriangle className="mx-auto h-12 w-12 text-destructive mb-4" /><h1 className="text-2xl text-destructive">Error</h1><p>{error}</p></div>;
-    if (!game || !profile) return null;
+    if (error || !hasPermission) return <div className="text-center p-6"><AlertTriangle className="mx-auto h-12 w-12 text-destructive mb-4" /><h1 className="text-2xl text-destructive">Error</h1><p>{error || "No tienes permiso para ver esta página."}</p></div>;
+    if (!game) return null;
 
     const TeamPanel = ({ teamType, playersList }: { teamType: 'home' | 'away', playersList: Player[] }) => {
         const teamName = teamType === 'home' ? game.homeTeamName : game.awayTeamName;
@@ -324,7 +325,7 @@ export default function LiveGamePage() {
                         {onCourtPlayers.length > 0 ? onCourtPlayers.map(p => {
                              const stats = playerStats.find(s => s.playerId === p.id) || { ...defaultStats, playerId: p.id, playerName: `${p.firstName} ${p.lastName}`, pir: 0 };
                              const isChild = childrenPlayerIds.has(p.id);
-                             return <PlayerStatCard key={p.id} player={p} stats={stats} onClick={profile.profileTypeId === 'parent_guardian' && !isChild ? undefined : () => setActionPlayerInfo({ player: p, teamType })} userProfileType={profile?.profileTypeId} isChild={isChild} onCourt={true} />
+                             return <PlayerStatCard key={p.id} player={p} stats={stats} onClick={() => setActionPlayerInfo({ player: p, teamType })} userProfileType={profile?.profileTypeId} isChild={isChild} onCourt={true} />
                         }) : <p className="text-sm text-muted-foreground text-center italic col-span-full">Sin jugadores en pista</p>}
                     </div>
                     <Separator/>
@@ -373,22 +374,26 @@ export default function LiveGamePage() {
 
              <Dialog open={!!subPlayerInfo} onOpenChange={(isOpen) => !isOpen && setSubPlayerInfo(null)}>
                 <DialogContent className="max-w-4xl">
-                    <DialogHeader>
-                        <DialogTitle>Realizar Sustitución</DialogTitle>
-                        <DialogDescription>
-                            Selecciona el jugador en pista que saldrá por {subPlayerInfo?.player.firstName}.
-                        </DialogDescription>
-                    </DialogHeader>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 pt-4">
-                        {subPlayerInfo && game && (subPlayerInfo.teamType === 'home' ? homePlayers : awayPlayers)
-                                .filter(p => (game[subPlayerInfo!.teamType === 'home' ? 'homeTeamOnCourtPlayerIds' : 'awayTeamOnCourtPlayerIds'] || []).includes(p.id))
-                                .map(player => {
-                                    const stats = playerStats.find(s => s.playerId === player.id) || { ...defaultStats, playerId: player.id, playerName: `${player.firstName} ${player.lastName}`, pir: 0 };
-                                    const isChild = childrenPlayerIds.has(player.id);
-                                    return <PlayerStatCard key={player.id} player={player} stats={stats} onClick={() => handleCourtPlayerClickInSubDialog(player)} userProfileType={profile?.profileTypeId} isChild={isChild} onCourt={true} />
-                                })
-                        }
-                    </div>
+                    {subPlayerInfo && game && (
+                    <>
+                        <DialogHeader>
+                            <DialogTitle>Realizar Sustitución</DialogTitle>
+                            <DialogDescription>
+                                Selecciona el jugador en pista que saldrá por {subPlayerInfo.player.firstName}.
+                            </DialogDescription>
+                        </DialogHeader>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 pt-4">
+                            {(subPlayerInfo.teamType === 'home' ? homePlayers : awayPlayers)
+                                    .filter(p => (game[subPlayerInfo!.teamType === 'home' ? 'homeTeamOnCourtPlayerIds' : 'awayTeamOnCourtPlayerIds'] || []).includes(p.id))
+                                    .map(player => {
+                                        const stats = playerStats.find(s => s.playerId === player.id) || { ...defaultStats, playerId: player.id, playerName: `${player.firstName} ${player.lastName}`, pir: 0 };
+                                        const isChild = childrenPlayerIds.has(player.id);
+                                        return <PlayerStatCard key={player.id} player={player} stats={stats} onClick={() => handleCourtPlayerClickInSubDialog(player)} userProfileType={profile?.profileTypeId} isChild={isChild} onCourt={true} />
+                                    })
+                            }
+                        </div>
+                    </>
+                    )}
                 </DialogContent>
             </Dialog>
 
@@ -449,3 +454,4 @@ export default function LiveGamePage() {
         </div>
     )
 }
+
