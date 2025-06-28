@@ -1,3 +1,4 @@
+
 import { type NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminInitError } from '@/lib/firebase/admin'; // Import adminInitError
 import { getUserProfileById } from '@/app/users/actions';
