@@ -138,14 +138,6 @@ export default function Header() {
           )}
         </nav>
         
-        {/* DEBUG INFO */}
-        <div className="ml-4 p-2 border border-destructive text-destructive text-xs rounded">
-            <p className="font-bold">DEBUG:</p>
-            <p>Auth Loading: {loading.toString()}</p>
-            <p>User Email: {user ? user.email : 'null'}</p>
-            <p>Profile Role: {profile ? profile.profileTypeId : 'null'}</p>
-        </div>
-
         <div className="ml-auto flex items-center space-x-4">
           {!loading && user ? (
             <UserNav />

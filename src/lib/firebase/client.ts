@@ -12,7 +12,6 @@ if (getApps().length === 0) {
     app = initializeApp(firebaseConfig);
     auth = getAuth(app);
     // Persistence should be set dynamically before sign-in, not globally here.
-    // This was a potential source of server/client mismatches and errors.
     db = getFirestore(app);
   } catch (error) {
     console.error("Error initializing Firebase:", error);

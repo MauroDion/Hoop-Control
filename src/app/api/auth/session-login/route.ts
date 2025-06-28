@@ -1,4 +1,3 @@
-
 import { type NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminInitError } from '@/lib/firebase/admin'; // Import adminInitError
 import { getUserProfileById } from '@/app/users/actions';
@@ -12,7 +11,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const { idToken, rememberMe } = await request.json(); // Read rememberMe flag
+    const { idToken } = await request.json();
     if (!idToken) {
       console.log("API (session-login): Request failed because ID token is missing.");
       return NextResponse.json({ error: 'ID token is required.' }, { status: 400 });
@@ -36,7 +35,7 @@ export async function POST(request: NextRequest) {
       
       const sessionCookie = await adminAuth.createSessionCookie(idToken, { expiresIn });
       
-      // Options are now dynamic based on the rememberMe flag
+      // Options for a session cookie (expires when browser closes)
       const options: any = {
         name: 'session',
         value: sessionCookie,
@@ -46,15 +45,10 @@ export async function POST(request: NextRequest) {
         sameSite: 'none' as const,
       };
 
-      if (rememberMe) {
-        options.maxAge = expiresIn / 1000; // Set maxAge for persistent cookie
-      }
-      // If rememberMe is false, maxAge is not set, making it a session cookie
-
       const response = NextResponse.json({ status: 'success', message: 'Session cookie created.' }, { status: 200 });
       response.cookies.set(options);
       
-      console.log(`API (session-login): Session cookie successfully created (persistent: ${!!rememberMe}).`);
+      console.log(`API (session-login): Session cookie successfully created.`);
       return response;
 
     } else {

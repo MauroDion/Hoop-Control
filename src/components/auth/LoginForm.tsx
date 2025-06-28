@@ -15,17 +15,14 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { signInWithEmailAndPassword, setPersistence, browserSessionPersistence, browserLocalPersistence, signOut } from "firebase/auth";
+import { signInWithEmailAndPassword, setPersistence, browserSessionPersistence, signOut } from "firebase/auth";
 import { auth } from "@/lib/firebase/client";
 import { useRouter, useSearchParams } from "next/navigation";
 import React from "react";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Label } from "../ui/label";
 
 const formSchema = z.object({
   email: z.string().email({ message: "Dirección de email inválida." }),
   password: z.string().min(6, { message: "La contraseña debe tener al menos 6 caracteres." }),
-  rememberMe: z.boolean().default(false).optional(),
 });
 
 export function LoginForm() {
@@ -39,13 +36,13 @@ export function LoginForm() {
     defaultValues: {
       email: "",
       password: "",
-      rememberMe: true, // Default to persistent
     },
   });
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     try {
-      await setPersistence(auth, values.rememberMe ? browserLocalPersistence : browserSessionPersistence);
+      // Force session persistence for this sign-in attempt
+      await setPersistence(auth, browserSessionPersistence);
       
       const userCredential = await signInWithEmailAndPassword(auth, values.email, values.password);
       
@@ -57,7 +54,7 @@ export function LoginForm() {
       const response = await fetch('/api/auth/session-login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ idToken, rememberMe: values.rememberMe }),
+        body: JSON.stringify({ idToken }),
       });
 
       const responseData = await response.json();
@@ -114,41 +111,19 @@ export function LoginForm() {
               <FormControl>
                 <Input type="password" placeholder="••••••••" {...field} />
               </FormControl>
+               <div className="flex justify-end">
+                 <Link href="/reset-password" passHref>
+                    <Button variant="link" type="button" className="px-0 text-sm h-auto py-0">
+                    ¿Olvidaste tu contraseña?
+                    </Button>
+                </Link>
+               </div>
               <FormMessage />
             </FormItem>
           )}
         />
-        <div className="flex items-center justify-between">
-           <FormField
-            control={form.control}
-            name="rememberMe"
-            render={({ field }) => (
-              <FormItem className="flex flex-row items-start space-x-3 space-y-0">
-                <FormControl>
-                  <Checkbox
-                    checked={field.value}
-                    onCheckedChange={field.onChange}
-                    id="rememberMeLogin"
-                  />
-                </FormControl>
-                <div className="space-y-1 leading-none">
-                  <Label
-                    htmlFor="rememberMeLogin"
-                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                  >
-                    Recordarme
-                  </Label>
-                </div>
-              </FormItem>
-            )}
-          />
-          <Link href="/reset-password" passHref>
-            <Button variant="link" type="button" className="px-0 text-sm">
-              ¿Olvidaste tu contraseña?
-            </Button>
-          </Link>
-        </div>
-        <div className="space-y-2">
+
+        <div className="space-y-2 pt-2">
             <Button type="submit" className="w-full" disabled={form.formState.isSubmitting}>
             {form.formState.isSubmitting ? "Iniciando sesión..." : "Iniciar Sesión"}
             </Button>
