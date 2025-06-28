@@ -136,8 +136,6 @@ export default function LiveGamePage() {
         blocks_against: 0, fouls_received: 0, timeByPeriod: {}
     };
 
-    const childrenPlayerIds = useMemo(() => new Set(profile?.children?.map(c => c.playerId) || []), [profile]);
-
     const handleUpdate = useCallback(async (updates: Partial<Game>) => {
         const result = await updateLiveGameState(gameId, updates);
         if (!result.success) {
@@ -284,6 +282,8 @@ export default function LiveGamePage() {
         return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
     };
     
+    const childrenPlayerIds = useMemo(() => new Set(profile?.children?.map(c => c.playerId) || []), [profile]);
+
     if (loading || authLoading) return <div className="flex justify-center items-center h-screen"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>;
     if (error) return <div className="text-center p-6"><AlertTriangle className="mx-auto h-12 w-12 text-destructive mb-4" /><h1 className="text-2xl text-destructive">Error</h1><p>{error}</p></div>;
     if (!game) return null;
