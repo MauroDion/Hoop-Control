@@ -126,13 +126,26 @@ export default function MyChildrenPage() {
     };
     
     const playerOptions = useMemo(() => {
-      return watchedChildren.map((child) => {
-        const categoryId = child.competitionCategoryId;
-        if (!categoryId) return [];
-        const teamsInCategory = teams.filter(t => t.competitionCategoryId === categoryId);
-        const teamIdsInCategory = teamsInCategory.map(t => t.id);
-        return players.filter(p => teamIdsInCategory.includes(p.teamId || ''));
-      });
+        // Create a map for efficient team category lookup
+        const teamCategoryMap = new Map<string, string>();
+        teams.forEach(team => {
+            if (team.competitionCategoryId) {
+                teamCategoryMap.set(team.id, team.competitionCategoryId);
+            }
+        });
+    
+        // Map over the children fields to generate player options for each
+        return watchedChildren.map(child => {
+            const selectedCategoryId = child.competitionCategoryId;
+            if (!selectedCategoryId) return [];
+            
+            // Filter players directly by checking their team's category via the map
+            return players.filter(player => {
+                if (!player.teamId) return false;
+                const playerCategoryId = teamCategoryMap.get(player.teamId);
+                return playerCategoryId === selectedCategoryId;
+            });
+        });
     }, [watchedChildren, teams, players]);
 
     if (loadingData || authLoading) {
@@ -206,14 +219,14 @@ export default function MyChildrenPage() {
                                                 render={({ field }) => (
                                                     <FormItem>
                                                         <FormLabel>2. Selecciona al Jugador</FormLabel>
-                                                        <Select onValueChange={field.onChange} value={field.value} disabled={!watchedChildren[index]?.competitionCategoryId || playerOptions[index].length === 0}>
+                                                        <Select onValueChange={field.onChange} value={field.value} disabled={!watchedChildren[index]?.competitionCategoryId || playerOptions[index]?.length === 0}>
                                                             <FormControl>
                                                                 <SelectTrigger>
                                                                     <SelectValue placeholder={!watchedChildren[index]?.competitionCategoryId ? "Primero selecciona categoría" : "Selecciona un jugador..."} />
                                                                 </SelectTrigger>
                                                             </FormControl>
                                                             <SelectContent>
-                                                                {playerOptions[index].map(player => (
+                                                                {playerOptions[index]?.map(player => (
                                                                     <SelectItem key={player.id} value={player.id}>{player.firstName} {player.lastName}</SelectItem>
                                                                 ))}
                                                             </SelectContent>
