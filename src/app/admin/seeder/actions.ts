@@ -3,7 +3,7 @@
 import { adminDb } from '@/lib/firebase/admin';
 import admin from 'firebase-admin';
 
-// Helper function to delete all documents in a collection
+// Helper to delete all documents in a collection.
 async function deleteCollection(collectionPath: string, batchSize: number = 100) {
     if (!adminDb) return;
     const collectionRef = adminDb.collection(collectionPath);
@@ -35,6 +35,31 @@ async function deleteQueryBatch(query: admin.firestore.Query, resolve: (value: u
     });
 }
 
+// Helper to delete documents based on a query (e.g., seeded users).
+async function deleteDocumentsByQuery(query: admin.firestore.Query, batchSize: number = 100) {
+    if (!adminDb) return;
+    
+    const snapshot = await query.limit(batchSize).get();
+    
+    if (snapshot.size === 0) {
+        return;
+    }
+    
+    const batch = adminDb.batch();
+    snapshot.docs.forEach(doc => {
+        batch.delete(doc.ref);
+    });
+    await batch.commit();
+    
+    // Recurse on the next process tick, to avoid hitting stack limits.
+    if (snapshot.size === batchSize) {
+        process.nextTick(() => {
+            deleteDocumentsByQuery(query, batchSize);
+        });
+    }
+}
+
+
 // --- Data for Seeder ---
 const firstNamesMasculine = ["Hugo", "Lucas", "Mateo", "Leo", "Daniel", "Pablo", "Álvaro", "Adrián", "Manuel", "Enzo", "Martín", "Javier", "Marcos", "Alejandro", "David"];
 const firstNamesFeminine = ["Lucía", "Sofía", "Martina", "María", "Julia", "Paula", "Valeria", "Emma", "Daniela", "Carla", "Alba", "Noa", "Olivia", "Sara", "Carmen"];
@@ -59,14 +84,20 @@ export async function seedDatabase(): Promise<{ success: boolean; error?: string
     }
 
     try {
-        console.log('Iniciando el proceso de borrado de datos existentes...');
-        // WARNING: This will delete all users, teams, players etc.
-        const collectionsToDelete = ['gameFormats', 'competitionCategories', 'clubs', 'user_profiles', 'teams', 'players', 'seasons'];
+        console.log('Iniciando el proceso de borrado de datos de prueba...');
+        // Collections to be completely wiped out.
+        const collectionsToDelete = ['gameFormats', 'competitionCategories', 'clubs', 'teams', 'players', 'seasons', 'games'];
         for (const collection of collectionsToDelete) {
             console.log(`Borrando colección: ${collection}...`);
             await deleteCollection(collection);
             console.log(`Colección ${collection} borrada.`);
         }
+        
+        // ** SAFEGUARD ** Only delete users marked as seeded.
+        console.log("Borrando solo perfiles de usuario de prueba (seeded)...");
+        const seederUsersQuery = adminDb.collection('user_profiles').where('isSeeded', '==', true);
+        await deleteDocumentsByQuery(seederUsersQuery);
+        console.log("Perfiles de usuario de prueba borrados. Los usuarios manuales permanecen.");
         
         console.log('Proceso de borrado completado. Iniciando la carga de nuevos datos...');
 
@@ -114,6 +145,8 @@ export async function seedDatabase(): Promise<{ success: boolean; error?: string
                 profileTypeId: 'coordinator',
                 clubId: club.id,
                 status: 'approved',
+                isSeeded: true,
+                onboardingCompleted: true,
                 createdAt: serverTimestamp,
                 updatedAt: serverTimestamp,
             };
@@ -135,6 +168,8 @@ export async function seedDatabase(): Promise<{ success: boolean; error?: string
                         profileTypeId: 'coach',
                         clubId: club.id,
                         status: 'approved',
+                        isSeeded: true,
+                        onboardingCompleted: true,
                         createdAt: serverTimestamp,
                         updatedAt: serverTimestamp,
                     };
