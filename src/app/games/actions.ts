@@ -1,8 +1,9 @@
+
 'use server';
 import { adminDb } from '@/lib/firebase/admin';
 import admin from 'firebase-admin';
 import { revalidatePath } from 'next/cache';
-import type { Game, GameFormData, Team, TeamStats, Player, GameEvent, GameEventAction } from '@/types';
+import type { Game, GameFormData, Team, TeamStats, Player, GameEvent, GameEventAction, UserFirestoreProfile } from '@/types';
 import { getTeamsByCoach as getCoachTeams, getAllTeams, getTeamsByClubId as getTeamsFromClub } from '@/app/teams/actions';
 import { getUserProfileById } from '@/app/users/actions';
 import { getSeasons } from '@/app/seasons/actions';
@@ -25,6 +26,22 @@ export async function createGame(formData: GameFormData, userId: string): Promis
     if (!adminDb) return { success: false, error: "Database not initialized."};
 
     try {
+        const gameDate = new Date(`${formData.date}T00:00:00`); 
+        const startOfDay = admin.firestore.Timestamp.fromDate(new Date(gameDate.setHours(0, 0, 0, 0)));
+        const endOfDay = admin.firestore.Timestamp.fromDate(new Date(gameDate.setHours(23, 59, 59, 999)));
+
+        const existingGamesQuery = adminDb.collection('games')
+            .where('homeTeamId', '==', formData.homeTeamId)
+            .where('awayTeamId', '==', formData.awayTeamId)
+            .where('date', '>=', startOfDay)
+            .where('date', '<=', endOfDay);
+
+        const existingGamesSnap = await existingGamesQuery.get();
+
+        if (!existingGamesSnap.empty) {
+            return { success: false, error: 'Este partido (mismos equipos) ya ha sido programado para esta fecha.' };
+        }
+
         const [homeTeamSnap, awayTeamSnap] = await Promise.all([
             adminDb.collection('teams').doc(formData.homeTeamId).get(),
             adminDb.collection('teams').doc(formData.awayTeamId).get()
@@ -92,6 +109,10 @@ export async function createGame(formData: GameFormData, userId: string): Promis
 
     } catch (error: any) {
         console.error('Error creating game:', error);
+        if (error.code === 'failed-precondition' && error.message.includes('index')) {
+            console.error("Firestore composite index required. Please create an index on 'games' collection for fields: homeTeamId (asc), awayTeamId (asc), date (asc).");
+             return { success: false, error: 'Error del servidor: Se requiere un índice de base de datos. Contacte al administrador.' };
+        }
         return { success: false, error: error.message || "Failed to create game."};
     }
 }
@@ -612,3 +633,5 @@ export async function substitutePlayer(
         return { success: false, error: error.message };
     }
 }
+
+    
