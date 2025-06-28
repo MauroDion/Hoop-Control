@@ -1,4 +1,3 @@
-
 'use server';
 
 import { adminDb } from '@/lib/firebase/admin';
@@ -36,8 +35,8 @@ export async function getAllUserProfiles(): Promise<UserFirestoreProfile[]> {
       return {
         uid: doc.id,
         ...data,
-        createdAt: data.createdAt.toDate(),
-        updatedAt: data.updatedAt.toDate(),
+        createdAt: (data.createdAt.toDate() as Date).toISOString(),
+        updatedAt: (data.updatedAt.toDate() as Date).toISOString(),
       } as UserFirestoreProfile;
     });
     

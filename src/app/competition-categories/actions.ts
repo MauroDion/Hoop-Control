@@ -30,8 +30,8 @@ export async function getCompetitionCategories(): Promise<CompetitionCategory[]>
         description: data.description,
         level: data.level,
         gameFormatId: data.gameFormatId,
-        createdAt: data.createdAt ? data.createdAt.toDate() : undefined,
-        updatedAt: data.updatedAt ? data.updatedAt.toDate() : undefined,
+        createdAt: data.createdAt ? (data.createdAt as admin.firestore.Timestamp).toDate().toISOString() : undefined,
+        updatedAt: data.updatedAt ? (data.updatedAt as admin.firestore.Timestamp).toDate().toISOString() : undefined,
       } as CompetitionCategory; 
     });
     

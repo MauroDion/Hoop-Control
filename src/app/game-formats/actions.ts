@@ -32,7 +32,7 @@ export async function getGameFormats(): Promise<GameFormat[]> {
         periodDurationMinutes: data.periodDurationMinutes,
         defaultTotalTimeouts: data.defaultTotalTimeouts,
         minPeriodsPlayerMustPlay: data.minPeriodsPlayerMustPlay,
-        createdAt: data.createdAt ? data.createdAt.toDate() : undefined,
+        createdAt: data.createdAt ? (data.createdAt as admin.firestore.Timestamp).toDate().toISOString() : undefined,
       } as GameFormat; 
     });
     
@@ -58,7 +58,7 @@ export async function getGameFormatById(formatId: string): Promise<GameFormat | 
         return { 
             id: docSnap.id, 
             ...data,
-            createdAt: data.createdAt ? data.createdAt.toDate() : undefined,
+            createdAt: data.createdAt ? (data.createdAt as admin.firestore.Timestamp).toDate().toISOString() : undefined,
         } as GameFormat;
     } catch (error) {
         console.error(`Error getting game format by id ${formatId}:`, error);

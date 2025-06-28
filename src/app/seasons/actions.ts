@@ -1,4 +1,3 @@
-
 'use server';
 import { adminDb } from '@/lib/firebase/admin';
 import type { Season, SeasonFormData } from '@/types';
@@ -9,14 +8,14 @@ export async function getSeasons(): Promise<Season[]> {
     if (!adminDb) return [];
     try {
         const seasonsRef = adminDb.collection('seasons');
-        const snapshot = await seasonsRef.get();
+        const snapshot = await seasonsRef.orderBy('name', 'desc').get();
         return snapshot.docs.map(doc => {
             const data = doc.data();
             return {
                 id: doc.id,
                 ...data,
-                createdAt: data.createdAt ? data.createdAt.toDate() : undefined,
-                updatedAt: data.updatedAt ? data.updatedAt.toDate() : undefined,
+                createdAt: data.createdAt ? (data.createdAt as admin.firestore.Timestamp).toDate().toISOString() : undefined,
+                updatedAt: data.updatedAt ? (data.updatedAt as admin.firestore.Timestamp).toDate().toISOString() : undefined,
             } as Season;
         });
     } catch (error) {
@@ -38,8 +37,8 @@ export async function getSeasonById(seasonId: string): Promise<Season | null> {
         return {
             id: docSnap.id,
             ...data,
-            createdAt: data.createdAt ? data.createdAt.toDate() : undefined,
-            updatedAt: data.updatedAt ? data.updatedAt.toDate() : undefined,
+            createdAt: data.createdAt ? (data.createdAt as admin.firestore.Timestamp).toDate().toISOString() : undefined,
+            updatedAt: data.updatedAt ? (data.updatedAt as admin.firestore.Timestamp).toDate().toISOString() : undefined,
         } as Season;
     } catch (error: any) {
         console.error(`Error fetching season by ID ${seasonId}:`, error);
@@ -93,5 +92,3 @@ export async function updateSeason(
         return { success: false, error: error.message };
     }
 }
-
-    

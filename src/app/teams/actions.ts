@@ -1,5 +1,4 @@
-
-"use server";
+'use server';
 
 import { revalidatePath } from "next/cache";
 import { adminDb } from "@/lib/firebase/admin";
@@ -128,12 +127,12 @@ export async function getTeamsByClubId(clubId: string): Promise<Team[]> {
       return {
         id: doc.id,
         ...data,
-        createdAt: data.createdAt ? data.createdAt.toDate() : new Date(),
-        updatedAt: data.updatedAt ? data.updatedAt.toDate() : new Date(),
+        createdAt: data.createdAt ? (data.createdAt as admin.firestore.Timestamp).toDate().toISOString() : undefined,
+        updatedAt: data.updatedAt ? (data.updatedAt as admin.firestore.Timestamp).toDate().toISOString() : undefined,
       } as Team;
     });
 
-    teams.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+    teams.sort((a, b) => new Date(b.createdAt as string).getTime() - new Date(a.createdAt as string).getTime());
     
     return teams;
   } catch (error: any) {
@@ -171,8 +170,8 @@ export async function getTeamById(teamId: string): Promise<Team | null> {
     return {
       id: docSnap.id,
       ...data,
-      createdAt: data.createdAt ? data.createdAt.toDate() : new Date(),
-      updatedAt: data.updatedAt ? data.updatedAt.toDate() : new Date(),
+      createdAt: data.createdAt ? (data.createdAt as admin.firestore.Timestamp).toDate().toISOString() : undefined,
+      updatedAt: data.updatedAt ? (data.updatedAt as admin.firestore.Timestamp).toDate().toISOString() : undefined,
     } as Team;
   } catch (error: any) {
     console.error(`TeamActions: Error fetching team by ID ${teamId}:`, error.message, error.stack);
@@ -184,19 +183,21 @@ export async function getAllTeams(): Promise<Team[]> {
     if (!adminDb) return [];
     try {
         const teamsRef = adminDb.collection('teams');
-        const querySnapshot = await teamsRef.get();
+        const querySnapshot = await teamsRef.orderBy('name', 'asc').get();
         const teams = querySnapshot.docs.map(doc => {
             const data = doc.data();
             return {
                 id: doc.id,
                 ...data,
-                createdAt: data.createdAt ? data.createdAt.toDate() : new Date(),
-                updatedAt: data.updatedAt ? data.updatedAt.toDate() : new Date(),
+                createdAt: data.createdAt ? (data.createdAt as admin.firestore.Timestamp).toDate().toISOString() : undefined,
+                updatedAt: data.updatedAt ? (data.updatedAt as admin.firestore.Timestamp).toDate().toISOString() : undefined,
             } as Team;
         });
         return teams;
     } catch (e: any) {
-        console.error("Error fetching all teams:", e);
+        if (e.code === 'failed-precondition') {
+            console.error("Firestore error: Missing index for teams collection on 'name' field.");
+        }
         return [];
     }
 }
@@ -211,8 +212,8 @@ export async function getTeamsByCoach(userId: string): Promise<Team[]> {
              return {
                 id: doc.id,
                 ...data,
-                createdAt: data.createdAt ? data.createdAt.toDate() : new Date(),
-                updatedAt: data.updatedAt ? data.updatedAt.toDate() : new Date(),
+                createdAt: data.createdAt ? (data.createdAt as admin.firestore.Timestamp).toDate().toISOString() : undefined,
+                updatedAt: data.updatedAt ? (data.updatedAt as admin.firestore.Timestamp).toDate().toISOString() : undefined,
             } as Team;
         });
     } catch (e: any) {
@@ -220,5 +221,3 @@ export async function getTeamsByCoach(userId: string): Promise<Team[]> {
         return [];
     }
 }
-
-    

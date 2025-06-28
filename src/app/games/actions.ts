@@ -2,7 +2,7 @@
 import { adminDb } from '@/lib/firebase/admin';
 import admin from 'firebase-admin';
 import { revalidatePath } from 'next/cache';
-import type { Game, GameFormData, Team, TeamStats, Player, PlayerGameStats, GameEvent, GameEventAction } from '@/types';
+import type { Game, GameFormData, Team, TeamStats, Player, GameEvent, GameEventAction } from '@/types';
 import { getTeamsByCoach as getCoachTeams, getAllTeams, getTeamsByClubId as getTeamsFromClub } from '@/app/teams/actions';
 import { getUserProfileById } from '@/app/users/actions';
 import { getSeasons } from '@/app/seasons/actions';
@@ -249,66 +249,29 @@ export async function getGamesByParent(userId: string): Promise<Game[]> {
     if (!adminDb) return [];
     try {
         const profile = await getUserProfileById(userId);
-        if (!profile || !profile.children || profile.children.length === 0) {
-            return [];
+        if (!profile || profile.profileTypeId !== 'parent_guardian' || !profile.children || profile.children.length === 0) {
+            return []; 
         }
 
         const childrenPlayerIds = profile.children.map(c => c.playerId);
         if (childrenPlayerIds.length === 0) return [];
 
-        const playerDocs = await Promise.all(
-            childrenPlayerIds.map(id => adminDb!.collection('players').doc(id).get())
-        );
-
+        const playerDocs = await adminDb.collection('players').where(admin.firestore.FieldPath.documentId(), 'in', childrenPlayerIds).get();
+        
         const teamIds = new Set<string>();
         playerDocs.forEach(doc => {
-            if (doc.exists) {
-                const playerData = doc.data() as Player;
-                if (playerData.teamId) {
-                    teamIds.add(playerData.teamId);
-                }
+            const playerData = doc.data() as Player;
+            if (playerData.teamId) {
+                teamIds.add(playerData.teamId);
             }
         });
         
         if (teamIds.size === 0) return [];
 
+        const allGames = await getAllGames();
         const teamIdArray = Array.from(teamIds);
         
-        const gamesMap = new Map<string, Game>();
-        const gamesRef = adminDb.collection('games');
-
-        const chunks = [];
-        for (let i = 0; i < teamIdArray.length; i += 30) {
-            chunks.push(teamIdArray.slice(i, i + 30));
-        }
-        
-        const processSnapshot = (snap: admin.firestore.QuerySnapshot) => {
-            snap.forEach(doc => {
-                if (!gamesMap.has(doc.id)) {
-                    const gameData = doc.data();
-                    gamesMap.set(doc.id, {
-                        id: doc.id,
-                        ...gameData,
-                        date: (gameData.date as admin.firestore.Timestamp).toDate().toISOString(),
-                    } as Game);
-                }
-            });
-        };
-
-        for (const chunk of chunks) {
-            const homeGamesQuery = gamesRef.where('homeTeamId', 'in', chunk).get();
-            const awayGamesQuery = gamesRef.where('awayTeamId', 'in', chunk).get();
-
-            const [homeGamesSnap, awayGamesSnap] = await Promise.all([homeGamesQuery, awayGamesQuery]);
-           
-            processSnapshot(homeGamesSnap);
-            processSnapshot(awayGamesSnap);
-        }
-
-        const games = Array.from(gamesMap.values());
-        games.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-
-        return games;
+        return allGames.filter(game => teamIdArray.includes(game.homeTeamId) || teamIdArray.includes(game.awayTeamId));
     } catch (error: any) {
         console.error("Error fetching games by parent:", error);
         return [];

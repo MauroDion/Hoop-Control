@@ -1,4 +1,3 @@
-
 'use server';
 
 import type { Club, ClubFormData } from '@/types';
@@ -37,7 +36,7 @@ export async function getApprovedClubs(): Promise<Club[]> {
         city_name: data.city_name,
         logoUrl: data.logoUrl,
         approved: data.approved,
-        createdAt: data.createdAt ? data.createdAt.toDate() : undefined,
+        createdAt: data.createdAt ? (data.createdAt as admin.firestore.Timestamp).toDate().toISOString() : undefined,
       } as Club; 
     });
     
@@ -137,7 +136,7 @@ export async function getClubById(clubId: string): Promise<Club | null> {
             city_name: data.city_name,
             logoUrl: data.logoUrl,
             approved: data.approved,
-            createdAt: data.createdAt ? data.createdAt.toDate() : undefined,
+            createdAt: data.createdAt ? (data.createdAt as admin.firestore.Timestamp).toDate().toISOString() : undefined,
         } as Club;
 
     } catch (error: any) {
