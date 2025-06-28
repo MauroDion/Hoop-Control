@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useEffect, useState, useCallback } from 'react';
@@ -13,7 +14,6 @@ import { getPlayersByTeamId } from '@/app/players/actions';
 import { getTeamById, getTeamsByCoach } from '@/app/teams/actions';
 import { getUserProfileById } from '@/app/users/actions';
 
-
 // Types
 import type { Game, Player, Team } from '@/types';
 
@@ -22,9 +22,69 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
-import { Loader2, AlertTriangle, ChevronLeft, Users, Save, ShieldCheck, Gamepad2 } from 'lucide-react';
+import { Loader2, AlertTriangle, ChevronLeft, Users, Save, ShieldCheck, Gamepad2, CheckSquare, Square } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
+function areSetsEqual<T>(a: Set<T>, b: Set<T>): boolean {
+    if (a.size !== b.size) return false;
+    for (const item of a) {
+        if (!b.has(item)) return false;
+    }
+    return true;
+}
+
+const RosterCard = ({ teamType, teamName, players, selectedPlayers, initialSelectedPlayers, onSelect, onSave, onSelectAll, onClearAll, isSaving }: any) => {
+    const hasChanges = !areSetsEqual(selectedPlayers, initialSelectedPlayers);
+
+    return (
+        <Card className="shadow-xl">
+            <CardHeader>
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                    <div>
+                        <CardTitle className="flex items-center"><ShieldCheck className="mr-3 h-6 w-6"/>Convocatoria para {teamName}</CardTitle>
+                        <CardDescription>
+                            Selecciona los jugadores que participarán en este partido.
+                        </CardDescription>
+                    </div>
+                    <div className="space-x-2">
+                        <Button variant="outline" size="sm" onClick={() => onSelectAll(teamType)}><CheckSquare className="mr-2 h-4 w-4" />Seleccionar Todos</Button>
+                        <Button variant="outline" size="sm" onClick={() => onClearAll(teamType)}><Square className="mr-2 h-4 w-4" />Limpiar Selección</Button>
+                    </div>
+                </div>
+            </CardHeader>
+            <CardContent>
+                {players.length === 0 ? (
+                    <div className="text-center py-10 border-2 border-dashed rounded-lg">
+                        <Users className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+                        <h2 className="text-xl font-semibold">No hay Jugadores en la Plantilla</h2>
+                        <p className="text-muted-foreground">Añade jugadores en la página de gestión del equipo.</p>
+                    </div>
+                ) : (
+                    <div className="space-y-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                            {players.map((player: Player) => (
+                                <div key={player.id} className="flex items-center space-x-2 p-3 border rounded-md hover:bg-muted/50">
+                                    <Checkbox
+                                        id={`player-${teamType}-${player.id}`}
+                                        checked={selectedPlayers.has(player.id)}
+                                        onCheckedChange={() => onSelect(player.id, teamType)}
+                                    />
+                                    <Label htmlFor={`player-${teamType}-${player.id}`} className="cursor-pointer">
+                                        {player.firstName} {player.lastName} (#{player.jerseyNumber || 'N/A'})
+                                    </Label>
+                                </div>
+                            ))}
+                        </div>
+                        <Button onClick={() => onSave(teamType)} disabled={isSaving || !hasChanges}>
+                            {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                            {isSaving ? 'Guardando...' : `Guardar Convocatoria (${selectedPlayers.size})`}
+                        </Button>
+                    </div>
+                )}
+            </CardContent>
+        </Card>
+    );
+};
 
 export default function ManageGamePage() {
     const params = useParams();
@@ -35,12 +95,13 @@ export default function ManageGamePage() {
     const gameId = typeof params.gameId === 'string' ? params.gameId : '';
 
     const [game, setGame] = useState<Game | null>(null);
-    
     const [homePlayers, setHomePlayers] = useState<Player[]>([]);
     const [awayPlayers, setAwayPlayers] = useState<Player[]>([]);
     
     const [selectedHomePlayers, setSelectedHomePlayers] = useState<Set<string>>(new Set());
     const [selectedAwayPlayers, setSelectedAwayPlayers] = useState<Set<string>>(new Set());
+    const [initialHomePlayers, setInitialHomePlayers] = useState<Set<string>>(new Set());
+    const [initialAwayPlayers, setInitialAwayPlayers] = useState<Set<string>>(new Set());
     
     const [loadingData, setLoadingData] = useState(true);
     const [savingHome, setSavingHome] = useState(false);
@@ -51,9 +112,7 @@ export default function ManageGamePage() {
         setLoadingData(true);
         setError(null);
         try {
-            if (!gameId) {
-                throw new Error("Falta el ID del partido en la URL.");
-            }
+            if (!gameId) throw new Error("Falta el ID del partido en la URL.");
             
             const [profile, gameData] = await Promise.all([ getUserProfileById(userId), getGameById(gameId) ]);
 
@@ -67,9 +126,7 @@ export default function ManageGamePage() {
             const isSuperAdmin = profile.profileTypeId === 'super_admin';
             const isClubAdminForGame = (profile.profileTypeId === 'club_admin' || profile.profileTypeId === 'coordinator') && (profile.clubId === gameData.homeTeamClubId || profile.clubId === gameData.awayTeamClubId);
             
-            const hasPermission = isSuperAdmin || isClubAdminForGame || isCoachOfHomeTeam || isCoachOfAwayTeam;
-            
-            if (!hasPermission) {
+            if (!isSuperAdmin && !isClubAdminForGame && !isCoachOfHomeTeam && !isCoachOfAwayTeam) {
                 throw new Error("No tienes permiso para gestionar este partido.");
             }
             
@@ -82,8 +139,14 @@ export default function ManageGamePage() {
 
             setHomePlayers(homeTeamPlayers);
             setAwayPlayers(awayTeamPlayers);
-            setSelectedHomePlayers(new Set(gameData.homeTeamPlayerIds || []));
-            setSelectedAwayPlayers(new Set(gameData.awayTeamPlayerIds || []));
+
+            const initialHome = new Set(gameData.homeTeamPlayerIds || []);
+            const initialAway = new Set(gameData.awayTeamPlayerIds || []);
+
+            setSelectedHomePlayers(initialHome);
+            setInitialHomePlayers(initialHome);
+            setSelectedAwayPlayers(initialAway);
+            setInitialAwayPlayers(initialAway);
 
         } catch (err: any) {
             setError(err.message || "Error al cargar los datos del partido.");
@@ -113,6 +176,22 @@ export default function ManageGamePage() {
             return newSelection;
         });
     };
+    
+    const handleSelectAll = (teamType: 'home' | 'away') => {
+        if (teamType === 'home') {
+            setSelectedHomePlayers(new Set(homePlayers.map(p => p.id)));
+        } else {
+            setSelectedAwayPlayers(new Set(awayPlayers.map(p => p.id)));
+        }
+    };
+
+    const handleClearAll = (teamType: 'home' | 'away') => {
+        if (teamType === 'home') {
+            setSelectedHomePlayers(new Set());
+        } else {
+            setSelectedAwayPlayers(new Set());
+        }
+    };
 
     const handleSaveRoster = async (teamType: 'home' | 'away') => {
         if (!game) return;
@@ -126,6 +205,11 @@ export default function ManageGamePage() {
         const result = await updateGameRoster(game.id, Array.from(playerIds), isHomeTeam);
         if (result.success) {
             toast({ title: "Convocatoria Guardada", description: `La lista de jugadores ha sido actualizada.` });
+             if (teamType === 'home') {
+                setInitialHomePlayers(new Set(selectedHomePlayers));
+            } else {
+                setInitialAwayPlayers(new Set(selectedAwayPlayers));
+            }
         } else {
             toast({ variant: "destructive", title: "Error al Guardar", description: result.error });
         }
@@ -159,47 +243,6 @@ export default function ManageGamePage() {
     const homeRosterCount = selectedHomePlayers.size;
     const awayRosterCount = selectedAwayPlayers.size;
     const canStartGame = homeRosterCount >= 5 && awayRosterCount >= 5;
-
-    const RosterCard = ({teamType, teamName, players, selectedPlayers, onSelect, onSave, isSaving}: any) => (
-        <Card className="shadow-xl">
-            <CardHeader>
-                <CardTitle className="flex items-center"><ShieldCheck className="mr-3 h-6 w-6"/>Convocatoria para {teamName}</CardTitle>
-                <CardDescription>
-                    Selecciona los jugadores que participarán en este partido.
-                </CardDescription>
-            </CardHeader>
-            <CardContent>
-                {players.length === 0 ? (
-                    <div className="text-center py-10 border-2 border-dashed rounded-lg">
-                        <Users className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-                        <h2 className="text-xl font-semibold">No hay Jugadores en la Plantilla</h2>
-                        <p className="text-muted-foreground">Añade jugadores en la página de gestión del equipo.</p>
-                    </div>
-                ) : (
-                    <div className="space-y-4">
-                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                            {players.map((player: Player) => (
-                                <div key={player.id} className="flex items-center space-x-2 p-3 border rounded-md hover:bg-muted/50">
-                                    <Checkbox 
-                                        id={`player-${teamType}-${player.id}`}
-                                        checked={selectedPlayers.has(player.id)}
-                                        onCheckedChange={() => onSelect(player.id, teamType)}
-                                    />
-                                    <Label htmlFor={`player-${teamType}-${player.id}`} className="cursor-pointer">
-                                        {player.firstName} {player.lastName} (#{player.jerseyNumber || 'N/A'})
-                                    </Label>
-                                </div>
-                            ))}
-                        </div>
-                        <Button onClick={() => onSave(teamType)} disabled={isSaving}>
-                            {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-                            {isSaving ? 'Guardando...' : `Guardar Convocatoria (${selectedPlayers.size})`}
-                        </Button>
-                    </div>
-                )}
-            </CardContent>
-        </Card>
-    );
 
     return (
         <div className="space-y-8">
@@ -247,8 +290,11 @@ export default function ManageGamePage() {
                 teamName={game.homeTeamName}
                 players={homePlayers}
                 selectedPlayers={selectedHomePlayers}
+                initialSelectedPlayers={initialHomePlayers}
                 onSelect={handlePlayerSelection}
                 onSave={handleSaveRoster}
+                onSelectAll={handleSelectAll}
+                onClearAll={handleClearAll}
                 isSaving={savingHome}
             />
 
@@ -257,10 +303,14 @@ export default function ManageGamePage() {
                 teamName={game.awayTeamName}
                 players={awayPlayers}
                 selectedPlayers={selectedAwayPlayers}
+                initialSelectedPlayers={initialAwayPlayers}
                 onSelect={handlePlayerSelection}
                 onSave={handleSaveRoster}
+                onSelectAll={handleSelectAll}
+                onClearAll={handleClearAll}
                 isSaving={savingAway}
             />
         </div>
     );
 }
+
