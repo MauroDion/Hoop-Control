@@ -1,7 +1,6 @@
-
 "use client";
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'next/navigation';
 import { useForm, useFieldArray } from 'react-hook-form';
@@ -48,7 +47,7 @@ export default function MyChildrenPage() {
         defaultValues: { children: [] },
     });
     
-    const { control, watch } = form;
+    const { control, watch, setValue, reset } = form;
 
     const { fields, append, remove } = useFieldArray({
         control,
@@ -85,14 +84,14 @@ export default function MyChildrenPage() {
                     teamId: player?.teamId || ''
                 };
             });
-            form.reset({ children: defaultChildren });
+            reset({ children: defaultChildren });
 
         } catch(err: any) {
             setError(err.message);
         } finally {
             setLoadingData(false);
         }
-    }, [form]);
+    }, [reset]);
 
     useEffect(() => {
         if (authLoading) return;
@@ -120,15 +119,6 @@ export default function MyChildrenPage() {
             toast({ variant: 'destructive', title: 'Error al Guardar', description: result.error });
         }
     };
-    
-    const playerOptions = useMemo(() => {
-        return watchedChildren.map(child => {
-            const selectedTeamId = child.teamId;
-            if (!selectedTeamId) return [];
-            return players.filter(player => player.teamId === selectedTeamId);
-        });
-    }, [watchedChildren, players]);
-
 
     if (loadingData || authLoading) {
         return (
@@ -167,62 +157,69 @@ export default function MyChildrenPage() {
                     <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
                         {fields.length > 0 && (
                             <div className="space-y-4">
-                                {fields.map((field, index) => (
-                                    <div key={field.id} className="p-4 border rounded-lg flex flex-col md:flex-row gap-4 items-start">
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 flex-grow">
-                                            <FormField
-                                                control={control}
-                                                name={`children.${index}.teamId`}
-                                                render={({ field }) => (
-                                                    <FormItem>
-                                                        <FormLabel>1. Selecciona el Equipo</FormLabel>
-                                                        <Select onValueChange={(value) => {
-                                                            field.onChange(value);
-                                                            form.setValue(`children.${index}.playerId`, '');
-                                                        }} defaultValue={field.value}>
-                                                            <FormControl>
-                                                                <SelectTrigger>
-                                                                    <SelectValue placeholder="Selecciona un equipo..." />
-                                                                </SelectTrigger>
-                                                            </FormControl>
-                                                            <SelectContent>
-                                                                {teams.map(team => (
-                                                                    <SelectItem key={team.id} value={team.id}>{team.name}</SelectItem>
-                                                                ))}
-                                                            </SelectContent>
-                                                        </Select>
-                                                        <FormMessage />
-                                                    </FormItem>
-                                                )}
-                                            />
-                                            <FormField
-                                                control={control}
-                                                name={`children.${index}.playerId`}
-                                                render={({ field }) => (
-                                                    <FormItem>
-                                                        <FormLabel>2. Selecciona al Jugador</FormLabel>
-                                                        <Select onValueChange={field.onChange} value={field.value} disabled={!watchedChildren[index]?.teamId || playerOptions[index]?.length === 0}>
-                                                            <FormControl>
-                                                                <SelectTrigger>
-                                                                    <SelectValue placeholder={!watchedChildren[index]?.teamId ? "Primero selecciona equipo" : "Selecciona un jugador..."} />
-                                                                </SelectTrigger>
-                                                            </FormControl>
-                                                            <SelectContent>
-                                                                {playerOptions[index]?.map(player => (
-                                                                    <SelectItem key={player.id} value={player.id}>{player.firstName} {player.lastName}</SelectItem>
-                                                                ))}
-                                                            </SelectContent>
-                                                        </Select>
-                                                        <FormMessage />
-                                                    </FormItem>
-                                                )}
-                                            />
+                                {fields.map((field, index) => {
+                                    const selectedTeamId = watchedChildren[index]?.teamId;
+                                    const availablePlayers = selectedTeamId 
+                                        ? players.filter(player => player.teamId === selectedTeamId)
+                                        : [];
+
+                                    return (
+                                        <div key={field.id} className="p-4 border rounded-lg flex flex-col md:flex-row gap-4 items-start">
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 flex-grow">
+                                                <FormField
+                                                    control={control}
+                                                    name={`children.${index}.teamId`}
+                                                    render={({ field }) => (
+                                                        <FormItem>
+                                                            <FormLabel>1. Selecciona el Equipo</FormLabel>
+                                                            <Select onValueChange={(value) => {
+                                                                field.onChange(value);
+                                                                setValue(`children.${index}.playerId`, '');
+                                                            }} defaultValue={field.value}>
+                                                                <FormControl>
+                                                                    <SelectTrigger>
+                                                                        <SelectValue placeholder="Selecciona un equipo..." />
+                                                                    </SelectTrigger>
+                                                                </FormControl>
+                                                                <SelectContent>
+                                                                    {teams.map(team => (
+                                                                        <SelectItem key={team.id} value={team.id}>{team.name}</SelectItem>
+                                                                    ))}
+                                                                </SelectContent>
+                                                            </Select>
+                                                            <FormMessage />
+                                                        </FormItem>
+                                                    )}
+                                                />
+                                                <FormField
+                                                    control={control}
+                                                    name={`children.${index}.playerId`}
+                                                    render={({ field }) => (
+                                                        <FormItem>
+                                                            <FormLabel>2. Selecciona al Jugador</FormLabel>
+                                                            <Select onValueChange={field.onChange} value={field.value} disabled={!selectedTeamId || availablePlayers.length === 0}>
+                                                                <FormControl>
+                                                                    <SelectTrigger>
+                                                                        <SelectValue placeholder={!selectedTeamId ? "Primero selecciona equipo" : "Selecciona un jugador..."} />
+                                                                    </SelectTrigger>
+                                                                </FormControl>
+                                                                <SelectContent>
+                                                                    {availablePlayers.map(player => (
+                                                                        <SelectItem key={player.id} value={player.id}>{player.firstName} {player.lastName}</SelectItem>
+                                                                    ))}
+                                                                </SelectContent>
+                                                            </Select>
+                                                            <FormMessage />
+                                                        </FormItem>
+                                                    )}
+                                                />
+                                            </div>
+                                            <Button type="button" variant="ghost" size="icon" onClick={() => remove(index)} className="mt-2 md:mt-7 shrink-0">
+                                                <Trash2 className="h-5 w-5 text-destructive"/>
+                                            </Button>
                                         </div>
-                                        <Button type="button" variant="ghost" size="icon" onClick={() => remove(index)} className="mt-2 md:mt-7 shrink-0">
-                                            <Trash2 className="h-5 w-5 text-destructive"/>
-                                        </Button>
-                                    </div>
-                                ))}
+                                    )
+                                })}
                             </div>
                         )}
                         
