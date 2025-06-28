@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useParams } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import Link from 'next/link';
@@ -10,18 +10,21 @@ import { db } from '@/lib/firebase/client';
 import { updateLiveGameState, recordGameEvent, substitutePlayer, getPlayerStatsForGame } from '@/app/games/actions';
 import { getGameFormatById } from '@/app/game-formats/actions';
 import { getPlayersByTeamId } from '@/app/players/actions';
-import type { Game, GameFormat, Player, GameEventAction, PlayerGameStats } from '@/types';
+import { getUserProfileById } from '@/app/users/actions';
+import type { Game, GameFormat, Player, GameEventAction, PlayerGameStats, UserFirestoreProfile, ProfileType } from '@/types';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, AlertTriangle, ChevronLeft, Gamepad2, Minus, Plus, Play, Flag, Pause, TimerReset, FastForward, Timer as TimerIcon, CheckCircle, Ban, Users, Dribbble } from 'lucide-react';
+import { Loader2, AlertTriangle, ChevronLeft, Gamepad2, Minus, Plus, Play, Flag, Pause, TimerReset, FastForward, Timer as TimerIcon, CheckCircle, Ban, Users, Dribbble, Lock } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Separator } from '@/components/ui/separator';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import Image from 'next/image';
 
-const PlayerStatCard = ({ player, stats, onClick }: { player: Player; stats: PlayerGameStats; onClick: () => void }) => {
+const PlayerStatCard = ({ player, stats, onClick, userProfileType, isChild }: { player: Player; stats: PlayerGameStats; onClick: () => void, userProfileType?: ProfileType, isChild: boolean }) => {
     
+    const showStats = userProfileType !== 'parent_guardian' || isChild;
+
     const formatTime = (seconds: number) => {
         const mins = Math.floor(seconds / 60);
         const secs = seconds % 60;
@@ -32,19 +35,25 @@ const PlayerStatCard = ({ player, stats, onClick }: { player: Player; stats: Pla
         <Card onClick={onClick} className="p-2 relative aspect-[3/4] flex flex-col items-center justify-center overflow-hidden transition-all duration-300 hover:shadow-xl hover:scale-105 cursor-pointer bg-card">
             {/* Points */}
             <div className="absolute top-2 left-2 text-2xl font-black text-green-600">
-                {stats.points}
+                {showStats ? stats.points : '-'}
             </div>
 
             {/* Fouls */}
-            {stats.fouls > 0 && (
+            {showStats && stats.fouls > 0 && (
                  <div className="absolute top-1/2 -translate-y-1/2 right-2 flex items-center justify-center px-2 h-7 bg-destructive border-2 border-white/70 rounded-sm shadow-lg z-20">
                     <span className="text-yellow-300 text-xl font-extrabold" style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.5)' }}>{stats.fouls}</span>
                 </div>
             )}
+            {!showStats && stats.fouls > 0 && (
+                <div className="absolute top-1/2 -translate-y-1/2 right-2 flex items-center justify-center px-2 h-7 bg-muted border-2 border-white/70 rounded-sm shadow-lg z-20">
+                   <span className="text-muted-foreground text-xl font-extrabold">F</span>
+                </div>
+            )}
+
 
             {/* PIR */}
              <div className="absolute top-2 right-2 text-2xl font-black text-blue-600">
-                {stats.pir}
+                {showStats ? stats.pir : '-'}
             </div>
             
             {/* Jersey Number */}
@@ -55,7 +64,13 @@ const PlayerStatCard = ({ player, stats, onClick }: { player: Player; stats: Pla
              {/* Player Info */}
              <div className="absolute bottom-1 text-xs text-center font-semibold w-full px-1 bg-gradient-to-t from-background via-background to-transparent pt-8 pb-1">
                 <p className="truncate">{player.firstName} {player.lastName}</p>
-                <p className="font-mono text-muted-foreground">{formatTime(stats.timePlayedSeconds || 0)} ({stats.periodsPlayed || 0})</p>
+                {showStats ? (
+                    <p className="font-mono text-muted-foreground">{formatTime(stats.timePlayedSeconds || 0)} ({stats.periodsPlayed || 0})</p>
+                ): (
+                     <div className="flex justify-center items-center text-muted-foreground">
+                        <Lock className="h-3 w-3 mr-1"/> Privado
+                    </div>
+                )}
             </div>
         </Card>
     );
@@ -98,13 +113,14 @@ export default function LiveGamePage() {
     const params = useParams();
     const { toast } = useToast();
     const gameId = typeof params.gameId === 'string' ? params.gameId : '';
-    const { authLoading } = useAuth();
+    const { user, loading: authLoading } = useAuth();
 
     const [game, setGame] = useState<Game | null>(null);
     const [gameFormat, setGameFormat] = useState<GameFormat | null>(null);
     const [homePlayers, setHomePlayers] = useState<Player[]>([]);
     const [awayPlayers, setAwayPlayers] = useState<Player[]>([]);
     const [playerStats, setPlayerStats] = useState<PlayerGameStats[]>([]);
+    const [profile, setProfile] = useState<UserFirestoreProfile | null>(null);
 
     const [displayTime, setDisplayTime] = useState(0);
     const [loading, setLoading] = useState(true);
@@ -113,11 +129,11 @@ export default function LiveGamePage() {
     const [actionPlayerInfo, setActionPlayerInfo] = useState<{player: Player, teamType: 'home' | 'away'} | null>(null);
     const [subPlayerInfo, setSubPlayerInfo] = useState<{player: Player, teamType: 'home' | 'away'} | null>(null);
     
-    const defaultStats: Omit<PlayerGameStats, 'playerId'> = {
-        playerName: '', timePlayedSeconds: 0, periodsPlayed: 0,
+    const defaultStats: Omit<PlayerGameStats, 'pir'> & { timeByPeriod: { [period: number]: number } } = {
+        playerId: '', playerName: '', timePlayedSeconds: 0, periodsPlayed: 0,
         points: 0, shots_made_1p: 0, shots_attempted_1p: 0, shots_made_2p: 0, shots_attempted_2p: 0, shots_made_3p: 0, shots_attempted_3p: 0,
         reb_def: 0, reb_off: 0, assists: 0, steals: 0, blocks: 0, turnovers: 0, fouls: 0,
-        blocks_against: 0, fouls_received: 0, pir: 0,
+        blocks_against: 0, fouls_received: 0, timeByPeriod: {}
     };
 
     useEffect(() => {
@@ -126,6 +142,11 @@ export default function LiveGamePage() {
             setLoading(false);
             return;
         }
+
+        if (user) {
+            getUserProfileById(user.uid).then(setProfile);
+        }
+
         const gameRef = doc(db, 'games', gameId);
         const unsubscribe = onSnapshot(gameRef, async (docSnap) => {
             if (docSnap.exists()) {
@@ -162,7 +183,7 @@ export default function LiveGamePage() {
 
         return () => unsubscribe();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [gameId]);
+    }, [gameId, user]);
     
     useEffect(() => {
         let timerId: NodeJS.Timeout | null = null;
@@ -252,8 +273,15 @@ export default function LiveGamePage() {
     }, [game, gameFormat, gameId]);
     
     const handleGameStatusChange = (status: 'inprogress' | 'completed') => {
-        const periodSeconds = (gameFormat?.periodDurationMinutes || 10) * 60;
-        updateLiveGameState(gameId, { status, periodTimeRemainingSeconds: periodSeconds });
+        let updates: Partial<Game> = { status };
+        if (status === 'inprogress') {
+             updates.periodTimeRemainingSeconds = (gameFormat?.periodDurationMinutes || 10) * 60;
+        }
+        if (status === 'completed') {
+            updates.isTimerRunning = false;
+            updates.periodTimeRemainingSeconds = 0;
+        }
+        updateLiveGameState(gameId, updates);
     }
 
     const formatTime = (totalSeconds: number) => {
@@ -265,6 +293,8 @@ export default function LiveGamePage() {
     if (loading || authLoading) return <div className="flex justify-center items-center h-screen"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>;
     if (error) return <div className="text-center p-6"><AlertTriangle className="mx-auto h-12 w-12 text-destructive mb-4" /><h1 className="text-2xl text-destructive">Error</h1><p>{error}</p></div>;
     if (!game) return null;
+
+    const childrenPlayerIds = useMemo(() => new Set(profile?.children?.map(c => c.playerId) || []), [profile]);
 
     const TeamPanel = ({ teamType, playersList }: { teamType: 'home' | 'away', playersList: Player[] }) => {
         const teamName = teamType === 'home' ? game.homeTeamName : game.awayTeamName;
@@ -287,8 +317,9 @@ export default function LiveGamePage() {
                     <h4 className="font-semibold text-center">Jugadores en Pista</h4>
                     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
                         {onCourtPlayers.length > 0 ? onCourtPlayers.map(p => {
-                             const stats = playerStats.find(s => s.playerId === p.id) || { ...defaultStats, playerId: p.id, playerName: `${p.firstName} ${p.lastName}` };
-                             return <PlayerStatCard key={p.id} player={p} stats={stats} onClick={() => setActionPlayerInfo({ player: p, teamType })}/>
+                             const stats = playerStats.find(s => s.playerId === p.id) || { ...defaultStats, playerId: p.id, playerName: `${p.firstName} ${p.lastName}`, pir: 0 };
+                             const isChild = childrenPlayerIds.has(p.id);
+                             return <PlayerStatCard key={p.id} player={p} stats={stats} onClick={() => setActionPlayerInfo({ player: p, teamType })} userProfileType={profile?.profileTypeId} isChild={isChild} />
                         }) : <p className="text-sm text-muted-foreground text-center italic col-span-full">Sin jugadores en pista</p>}
                     </div>
 
@@ -296,8 +327,9 @@ export default function LiveGamePage() {
                     <h4 className="font-semibold text-center">Banquillo</h4>
                     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
                        {onBenchPlayers.length > 0 ? onBenchPlayers.map(p => {
-                           const stats = playerStats.find(s => s.playerId === p.id) || { ...defaultStats, playerId: p.id, playerName: `${p.firstName} ${p.lastName}` };
-                           return <PlayerStatCard key={p.id} player={p} stats={stats} onClick={() => handleBenchPlayerClick(p, teamType)}/>
+                           const stats = playerStats.find(s => s.playerId === p.id) || { ...defaultStats, playerId: p.id, playerName: `${p.firstName} ${p.lastName}`, pir: 0 };
+                           const isChild = childrenPlayerIds.has(p.id);
+                           return <PlayerStatCard key={p.id} player={p} stats={stats} onClick={() => handleBenchPlayerClick(p, teamType)} userProfileType={profile?.profileTypeId} isChild={isChild} />
                        }) : <p className="text-sm text-muted-foreground text-center italic col-span-full">Banquillo vacío</p>}
                     </div>
                 </CardContent>
@@ -343,8 +375,9 @@ export default function LiveGamePage() {
                         {subPlayerInfo && game && (subPlayerInfo.teamType === 'home' ? homePlayers : awayPlayers)
                                 .filter(p => (game[subPlayerInfo!.teamType === 'home' ? 'homeTeamOnCourtPlayerIds' : 'awayTeamOnCourtPlayerIds'] || []).includes(p.id))
                                 .map(player => {
-                                    const stats = playerStats.find(s => s.playerId === player.id) || { ...defaultStats, playerId: player.id, playerName: `${player.firstName} ${player.lastName}` };
-                                    return <PlayerStatCard key={player.id} player={player} stats={stats} onClick={() => handleCourtPlayerClickInSubDialog(player)} />
+                                    const stats = playerStats.find(s => s.playerId === player.id) || { ...defaultStats, playerId: player.id, playerName: `${player.firstName} ${player.lastName}`, pir: 0 };
+                                    const isChild = childrenPlayerIds.has(player.id);
+                                    return <PlayerStatCard key={player.id} player={player} stats={stats} onClick={() => handleCourtPlayerClickInSubDialog(player)} userProfileType={profile?.profileTypeId} isChild={isChild} />
                                 })
                         }
                     </div>
