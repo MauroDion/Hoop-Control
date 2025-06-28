@@ -41,9 +41,8 @@ export type ProfileType =
   | 'user';
   
 export interface Child {
-  id: string;
-  name: string;
-  competitionCategoryId: string;
+  id: string; // for React key
+  playerId: string;
 }
 
 export interface UserFirestoreProfile {

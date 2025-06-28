@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'next/navigation';
 import { useForm, useFieldArray } from 'react-hook-form';
@@ -10,21 +10,22 @@ import { v4 as uuidv4 } from 'uuid';
 
 import { getUserProfileById, updateUserChildren } from '@/app/users/actions';
 import { getCompetitionCategories } from '@/app/competition-categories/actions';
-import type { UserFirestoreProfile, CompetitionCategory, Child } from '@/types';
+import { getTeamsByClubId } from '@/app/teams/actions';
+import { getPlayersByClub } from '@/app/players/actions';
+
+import type { UserFirestoreProfile, CompetitionCategory, Child, Player, Team } from '@/types';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Loader2, AlertTriangle, Users, Trash2, PlusCircle, Save } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { Separator } from '@/components/ui/separator';
 
 const childSchema = z.object({
   id: z.string(),
-  name: z.string().min(2, "El nombre debe tener al menos 2 caracteres."),
   competitionCategoryId: z.string().min(1, "Debes seleccionar una categoría."),
+  playerId: z.string().min(1, "Debes seleccionar un jugador."),
 });
 
 const formSchema = z.object({
@@ -38,6 +39,8 @@ export default function MyChildrenPage() {
 
     const [profile, setProfile] = useState<UserFirestoreProfile | null>(null);
     const [categories, setCategories] = useState<CompetitionCategory[]>([]);
+    const [teams, setTeams] = useState<Team[]>([]);
+    const [players, setPlayers] = useState<Player[]>([]);
     const [loadingData, setLoadingData] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
@@ -46,10 +49,12 @@ export default function MyChildrenPage() {
         defaultValues: { children: [] },
     });
     
-    const { fields, append, remove, control } = useFieldArray({
+    const { fields, append, remove, control, watch } = useFieldArray({
         control: form.control,
         name: 'children',
     });
+
+    const watchedChildren = watch('children');
 
     const isOnboarding = profile && !profile.onboardingCompleted;
 
@@ -57,18 +62,32 @@ export default function MyChildrenPage() {
         setLoadingData(true);
         setError(null);
         try {
-            const [fetchedProfile, fetchedCategories] = await Promise.all([
-                getUserProfileById(uid),
-                getCompetitionCategories()
-            ]);
-
+            const fetchedProfile = await getUserProfileById(uid);
             if (!fetchedProfile || fetchedProfile.profileTypeId !== 'parent_guardian') {
                 throw new Error("No tienes permiso para acceder a esta página.");
             }
-            
             setProfile(fetchedProfile);
+            
+            const [fetchedCategories, fetchedTeams, fetchedPlayers] = await Promise.all([
+                getCompetitionCategories(),
+                getTeamsByClubId(fetchedProfile.clubId),
+                getPlayersByClub(fetchedProfile.clubId)
+            ]);
+
             setCategories(fetchedCategories);
-            form.reset({ children: fetchedProfile.children || [] });
+            setTeams(fetchedTeams);
+            setPlayers(fetchedPlayers);
+            
+            const defaultChildren = (fetchedProfile.children || []).map(child => {
+                const player = fetchedPlayers.find(p => p.id === child.playerId);
+                const team = player ? fetchedTeams.find(t => t.id === player.teamId) : undefined;
+                return {
+                    id: child.id,
+                    playerId: child.playerId,
+                    competitionCategoryId: team?.competitionCategoryId || ''
+                };
+            });
+            form.reset({ children: defaultChildren });
 
         } catch(err: any) {
             setError(err.message);
@@ -89,7 +108,12 @@ export default function MyChildrenPage() {
     const onSubmit = async (data: z.infer<typeof formSchema>) => {
         if (!user) return;
         
-        const result = await updateUserChildren(user.uid, data.children);
+        const childrenToSave: Child[] = data.children.map(c => ({
+            id: c.id,
+            playerId: c.playerId,
+        }));
+        
+        const result = await updateUserChildren(user.uid, childrenToSave);
         
         if (result.success) {
             toast({ title: "Información Guardada", description: "La información de tus hijos/as ha sido actualizada." });
@@ -98,6 +122,16 @@ export default function MyChildrenPage() {
             toast({ variant: 'destructive', title: 'Error al Guardar', description: result.error });
         }
     };
+    
+    const playerOptions = useMemo(() => {
+      return watchedChildren.map((child, index) => {
+        const categoryId = child.competitionCategoryId;
+        if (!categoryId) return [];
+        const teamsInCategory = teams.filter(t => t.competitionCategoryId === categoryId);
+        const teamIdsInCategory = teamsInCategory.map(t => t.id);
+        return players.filter(p => teamIdsInCategory.includes(p.teamId || ''));
+      });
+    }, [watchedChildren, teams, players]);
 
     if (loadingData || authLoading) {
         return (
@@ -141,22 +175,14 @@ export default function MyChildrenPage() {
                                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 flex-grow">
                                             <FormField
                                                 control={control}
-                                                name={`children.${index}.name`}
-                                                render={({ field }) => (
-                                                    <FormItem>
-                                                        <FormLabel>Nombre del Hijo/a</FormLabel>
-                                                        <FormControl><Input placeholder="Nombre y apellidos" {...field} /></FormControl>
-                                                        <FormMessage />
-                                                    </FormItem>
-                                                )}
-                                            />
-                                            <FormField
-                                                control={control}
                                                 name={`children.${index}.competitionCategoryId`}
                                                 render={({ field }) => (
                                                     <FormItem>
-                                                        <FormLabel>Categoría</FormLabel>
-                                                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                                        <FormLabel>1. Selecciona la Categoría</FormLabel>
+                                                        <Select onValueChange={(value) => {
+                                                            field.onChange(value);
+                                                            form.setValue(`children.${index}.playerId`, '');
+                                                        }} defaultValue={field.value}>
                                                             <FormControl>
                                                                 <SelectTrigger>
                                                                     <SelectValue placeholder="Selecciona una categoría..." />
@@ -165,6 +191,28 @@ export default function MyChildrenPage() {
                                                             <SelectContent>
                                                                 {categories.map(cat => (
                                                                     <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
+                                                                ))}
+                                                            </SelectContent>
+                                                        </Select>
+                                                        <FormMessage />
+                                                    </FormItem>
+                                                )}
+                                            />
+                                            <FormField
+                                                control={control}
+                                                name={`children.${index}.playerId`}
+                                                render={({ field }) => (
+                                                    <FormItem>
+                                                        <FormLabel>2. Selecciona al Jugador</FormLabel>
+                                                        <Select onValueChange={field.onChange} value={field.value} disabled={!watchedChildren[index]?.competitionCategoryId || playerOptions[index].length === 0}>
+                                                            <FormControl>
+                                                                <SelectTrigger>
+                                                                    <SelectValue placeholder="Selecciona un jugador..." />
+                                                                </SelectTrigger>
+                                                            </FormControl>
+                                                            <SelectContent>
+                                                                {playerOptions[index].map(player => (
+                                                                    <SelectItem key={player.id} value={player.id}>{player.firstName} {player.lastName}</SelectItem>
                                                                 ))}
                                                             </SelectContent>
                                                         </Select>
@@ -185,7 +233,7 @@ export default function MyChildrenPage() {
                            <Button
                                 type="button"
                                 variant="outline"
-                                onClick={() => append({ id: uuidv4(), name: '', competitionCategoryId: '' })}
+                                onClick={() => append({ id: uuidv4(), competitionCategoryId: '', playerId: '' })}
                             >
                                 <PlusCircle className="mr-2 h-4 w-4" /> Añadir otro hijo/a
                             </Button>

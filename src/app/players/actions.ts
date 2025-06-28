@@ -103,7 +103,6 @@ export async function deletePlayer(playerId: string, clubId: string, teamId: str
 }
 
 export async function getPlayersByTeamId(teamId: string): Promise<Player[]> {
-  console.log(`PlayerActions: Attempting to fetch players for teamId: ${teamId}`);
   if (!adminDb) {
     console.warn('PlayerActions (getPlayersByTeamId): Admin SDK not available. Returning empty array.');
     return [];
@@ -119,31 +118,62 @@ export async function getPlayersByTeamId(teamId: string): Promise<Player[]> {
     const querySnapshot = await q.get();
 
     if (querySnapshot.empty) {
-      console.log(`PlayerActions: No players found for teamId: ${teamId}`);
       return [];
     }
-    
-    console.log(`PlayerActions: Found ${querySnapshot.docs.length} players for teamId: ${teamId}.`);
     
     const players = querySnapshot.docs.map(doc => {
       const data = doc.data();
       return {
         id: doc.id,
         ...data,
-        createdAt: data.createdAt ? data.createdAt.toDate() : new Date(),
+        createdAt: data.createdAt ? (data.createdAt as admin.firestore.Timestamp).toDate().toISOString() : undefined,
       } as Player;
     });
 
-    // Sort by last name, then first name
-    players.sort((a, b) => {
-        const lastNameComp = a.lastName.localeCompare(b.lastName);
-        if (lastNameComp !== 0) return lastNameComp;
-        return a.firstName.localeCompare(b.firstName);
-    });
+    players.sort((a, b) => (a.lastName || '').localeCompare(b.lastName || '') || (a.firstName || '').localeCompare(b.firstName || ''));
     
     return players;
   } catch (error: any) {
     console.error(`PlayerActions: Error fetching players for team ${teamId}:`, error.message, error.stack);
     return [];
   }
+}
+
+export async function getPlayersByClub(clubId: string): Promise<Player[]> {
+    if (!adminDb) return [];
+    if (!clubId) return [];
+
+    const teamsRef = adminDb.collection('teams');
+    const teamsQuery = teamsRef.where('clubId', '==', clubId);
+    const teamsSnap = await teamsQuery.get();
+    if (teamsSnap.empty) return [];
+
+    const teamIds = teamsSnap.docs.map(doc => doc.id);
+    if (teamIds.length === 0) return [];
+
+    const playerChunks: Promise<admin.firestore.QuerySnapshot<admin.firestore.DocumentData>>[] = [];
+    for (let i = 0; i < teamIds.length; i += 30) {
+        const chunk = teamIds.slice(i, i + 30);
+        const playersRef = adminDb.collection('players');
+        const playersQuery = playersRef.where('teamId', 'in', chunk);
+        playerChunks.push(playersQuery.get());
+    }
+    
+    const allPlayersSnapshots = await Promise.all(playerChunks);
+    const players: Player[] = [];
+    
+    allPlayersSnapshots.forEach(snapshot => {
+        snapshot.docs.forEach(doc => {
+            const data = doc.data();
+            players.push({
+                id: doc.id,
+                ...data,
+                createdAt: data.createdAt ? (data.createdAt as admin.firestore.Timestamp).toDate().toISOString() : undefined,
+            } as Player);
+        });
+    });
+
+    players.sort((a, b) => (a.lastName || '').localeCompare(b.lastName || '') || (a.firstName || '').localeCompare(b.firstName || ''));
+    
+    return players;
 }
