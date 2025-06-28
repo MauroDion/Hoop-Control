@@ -30,15 +30,20 @@ export async function createGame(formData: GameFormData, userId: string): Promis
         const startOfDay = admin.firestore.Timestamp.fromDate(new Date(gameDate.setHours(0, 0, 0, 0)));
         const endOfDay = admin.firestore.Timestamp.fromDate(new Date(gameDate.setHours(23, 59, 59, 999)));
 
-        const existingGamesQuery = adminDb.collection('games')
-            .where('homeTeamId', '==', formData.homeTeamId)
-            .where('awayTeamId', '==', formData.awayTeamId)
+        // Rewritten query to avoid composite index.
+        // Fetch all games on the given day and filter in memory.
+        const gamesOnDayQuery = adminDb.collection('games')
             .where('date', '>=', startOfDay)
             .where('date', '<=', endOfDay);
+        
+        const gamesOnDaySnap = await gamesOnDayQuery.get();
 
-        const existingGamesSnap = await existingGamesQuery.get();
+        const gameExists = gamesOnDaySnap.docs.some(doc => {
+            const data = doc.data();
+            return data.homeTeamId === formData.homeTeamId && data.awayTeamId === formData.awayTeamId;
+        });
 
-        if (!existingGamesSnap.empty) {
+        if (gameExists) {
             return { success: false, error: 'Este partido (mismos equipos) ya ha sido programado para esta fecha.' };
         }
 
@@ -110,8 +115,8 @@ export async function createGame(formData: GameFormData, userId: string): Promis
     } catch (error: any) {
         console.error('Error creating game:', error);
         if (error.code === 'failed-precondition' && error.message.includes('index')) {
-            console.error("Firestore composite index required. Please create an index on 'games' collection for fields: homeTeamId (asc), awayTeamId (asc), date (asc).");
-             return { success: false, error: 'Error del servidor: Se requiere un índice de base de datos. Contacte al administrador.' };
+            console.error("Firestore index required. Please create an index on 'games' collection for field: date (ascending or descending).");
+             return { success: false, error: 'Error del servidor: Se requiere un índice de base de datos en el campo de fecha. Contacte al administrador.' };
         }
         return { success: false, error: error.message || "Failed to create game."};
     }
@@ -633,5 +638,3 @@ export async function substitutePlayer(
         return { success: false, error: error.message };
     }
 }
-
-    
