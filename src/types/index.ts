@@ -239,7 +239,7 @@ export type GameEventAction =
 export interface GameEvent {
     id: string;
     gameId: string;
-    teamId: 'home' | 'away';
+    teamId: 'home' | 'away' | 'system';
     playerId: string;
     playerName: string;
     action: GameEventAction;

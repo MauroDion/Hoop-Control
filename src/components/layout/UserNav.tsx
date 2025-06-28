@@ -14,10 +14,9 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { useAuth } from '@/hooks/useAuth';
 import { LogOut, UserCircle, Settings, Users } from 'lucide-react';
-import type { UserFirestoreProfile } from '@/types';
 
-export function UserNav({ profile }: { profile: UserFirestoreProfile | null }) {
-  const { user, logout } = useAuth();
+export function UserNav() {
+  const { user, profile, logout } = useAuth();
 
   if (!user) {
     return null;

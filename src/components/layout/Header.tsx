@@ -21,8 +21,7 @@ import {
     Dribbble
 } from 'lucide-react';
 import { useEffect, useState } from 'react'; 
-import { getUserProfileById } from '@/app/users/actions';
-import type { UserFirestoreProfile, BrandingSettings } from '@/types';
+import type { BrandingSettings } from '@/types';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -36,20 +35,8 @@ import { getBrandingSettings } from '@/app/admin/settings/actions';
 import { UserNav } from './UserNav';
 
 export default function Header() {
-  const { user, loading } = useAuth();
-  const [profile, setProfile] = useState<UserFirestoreProfile | null>(null);
+  const { user, loading, profile } = useAuth();
   const [branding, setBranding] = useState<BrandingSettings>({});
-
-  useEffect(() => {
-    if (user && (!profile || profile.uid !== user.uid)) {
-      getUserProfileById(user.uid).then(profile => {
-        if(profile) setProfile(profile)
-      });
-    }
-    if (!user) {
-      setProfile(null);
-    }
-  }, [user, profile]);
 
   useEffect(() => {
     getBrandingSettings().then(setBranding);
@@ -153,7 +140,7 @@ export default function Header() {
 
         <div className="ml-auto flex items-center space-x-4">
           {!loading && user ? (
-            <UserNav profile={profile}/>
+            <UserNav />
           ) : !loading ? ( 
             <Button asChild variant="default" size="sm">
               <Link href="/login" className="flex items-center">

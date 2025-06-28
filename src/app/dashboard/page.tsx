@@ -6,14 +6,11 @@ import { BarChart, Building, CheckSquare, Users, AlertTriangle, Loader2, TestTub
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
-import { getUserProfileById } from '@/app/users/actions';
-import type { UserFirestoreProfile } from '@/types';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 import { createTestGame } from '@/app/games/actions';
 
-// Dummy data - replace with actual data fetching
 const summaryData = {
   activeProjects: 5,
   completedTasks: 120,
@@ -21,7 +18,6 @@ const summaryData = {
   alerts: 2,
 };
 
-// Placeholder for API data state
 interface ApiData {
   keyMetric: string;
   value: number | string;
@@ -31,46 +27,12 @@ const apiSampleData: ApiData[] = [
   { keyMetric: "Uso del Presupuesto", value: "60%" },
 ];
 
+
 export default function DashboardPage() {
-  const { user, loading: authLoading, logout } = useAuth();
+  const { user, profile, loading } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
-  const [userProfile, setUserProfile] = useState<UserFirestoreProfile | null>(null);
-  const [loadingProfile, setLoadingProfile] = useState(true);
-  const [profileError, setProfileError] = useState<string | null>(null);
   const [isCreatingTestGame, setIsCreatingTestGame] = useState(false);
-
-  useEffect(() => {
-    if (authLoading) {
-      return;
-    }
-
-    if (user) {
-      setLoadingProfile(true);
-      setProfileError(null);
-      getUserProfileById(user.uid)
-        .then(profile => {
-          if (profile) {
-            if (profile.profileTypeId === 'parent_guardian' && !profile.onboardingCompleted) {
-              router.replace('/profile/my-children');
-              return;
-            }
-            setUserProfile(profile);
-          } else {
-            setProfileError("Tu perfil no se encontró en la base de datos. Se cerrará la sesión.");
-            logout(false);
-          }
-        })
-        .catch(err => {
-          setProfileError("Ocurrió un error al cargar tu perfil.");
-        })
-        .finally(() => {
-          setLoadingProfile(false);
-        });
-    } else {
-      router.replace('/login');
-    }
-  }, [user, authLoading, logout, router]);
 
   const handleCreateTestGame = async () => {
     if (!user) return;
@@ -92,7 +54,7 @@ export default function DashboardPage() {
     setIsCreatingTestGame(false);
   }
   
-  if (authLoading || loadingProfile) {
+  if (loading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)]">
         <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
@@ -101,17 +63,18 @@ export default function DashboardPage() {
     );
   }
 
+  if (!user || !profile) {
+    // This case should be handled by the AuthContext redirecting, but as a fallback:
+    return (
+       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)]">
+        <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
+        <p className="text-lg text-muted-foreground">Verificando sesión...</p>
+      </div>
+    )
+  }
+
   const renderClubManagement = () => {
-    if (profileError) {
-      return (
-        <div className="flex items-center text-destructive p-4 bg-destructive/10 rounded-md">
-          <AlertTriangle className="mr-3 h-5 w-5 flex-shrink-0" />
-          <span>{profileError}</span>
-        </div>
-      );
-    }
-    
-    if (userProfile?.profileTypeId === 'super_admin') {
+    if (profile?.profileTypeId === 'super_admin') {
       return (
         <>
           <p className="text-sm text-muted-foreground">
@@ -128,14 +91,14 @@ export default function DashboardPage() {
       );
     }
     
-    if (userProfile?.clubId && userProfile.profileTypeId !== 'parent_guardian') {
+    if (profile?.clubId && profile.profileTypeId !== 'parent_guardian') {
        return (
         <>
           <p className="text-sm text-muted-foreground">
             Puedes gestionar los equipos de tu club.
           </p>
           <Button asChild>
-            <Link href={`/clubs/${userProfile.clubId}`}>
+            <Link href={`/clubs/${profile.clubId}`}>
               <Users className="mr-2 h-5 w-5" /> Gestionar mi Club
             </Link>
           </Button>
@@ -143,7 +106,7 @@ export default function DashboardPage() {
       );
     }
 
-    if (userProfile?.profileTypeId === 'parent_guardian') {
+    if (profile?.profileTypeId === 'parent_guardian') {
        return (
         <>
           <p className="text-sm text-muted-foreground">
@@ -170,7 +133,7 @@ export default function DashboardPage() {
     <div className="space-y-8">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 p-6 bg-card rounded-lg shadow-lg">
         <div>
-          <h1 className="text-4xl font-headline font-bold text-primary">¡Bienvenido, {user?.displayName || user?.email}!</h1>
+          <h1 className="text-4xl font-headline font-bold text-primary">¡Bienvenido, {user.displayName || user.email}!</h1>
           <p className="text-lg text-muted-foreground mt-1">Este es un resumen de tu espacio de trabajo en Hoop Control.</p>
         </div>
          <Image 
@@ -238,7 +201,7 @@ export default function DashboardPage() {
         </CardContent>
       </Card>
 
-      {userProfile && ['super_admin', 'club_admin', 'coordinator', 'coach'].includes(userProfile.profileTypeId) && (
+      {profile && ['super_admin', 'club_admin', 'coordinator', 'coach'].includes(profile.profileTypeId) && (
         <Card className="shadow-lg bg-secondary/30">
             <CardHeader>
                 <CardTitle className="text-2xl font-headline flex items-center">
