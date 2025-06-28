@@ -13,30 +13,10 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useAuth } from '@/hooks/useAuth';
-import { signOut as firebaseSignOut } from 'firebase/auth';
-import { auth } from '@/lib/firebase/client';
-import { useRouter } from 'next/navigation';
 import { LogOut, UserCircle, Settings } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
 
 export function UserNav() {
-  const { user } = useAuth();
-  const router = useRouter();
-  const { toast } = useToast();
-
-  const handleLogout = async () => {
-    try {
-      await fetch('/api/auth/session-logout', { method: 'POST' });
-    } catch (error) {
-       console.error("Logout API call failed, proceeding with client-side cleanup:", error);
-    } finally {
-      await firebaseSignOut(auth);
-      toast({ title: "Sesión Cerrada", description: "Has cerrado sesión correctamente." });
-      router.push('/login');
-      router.refresh();
-    }
-  };
-
+  const { user, logout } = useAuth();
 
   if (!user) {
     return null;
@@ -85,7 +65,7 @@ export function UserNav() {
           </DropdownMenuItem>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={handleLogout} className="flex items-center cursor-pointer">
+        <DropdownMenuItem onClick={() => logout()} className="flex items-center cursor-pointer">
           <LogOut className="mr-2 h-4 w-4" />
           Cerrar Sesión
         </DropdownMenuItem>

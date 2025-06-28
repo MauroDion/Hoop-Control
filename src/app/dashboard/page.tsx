@@ -10,8 +10,6 @@ import { useEffect, useState } from 'react';
 import { getUserProfileById } from '@/app/users/actions';
 import type { UserFirestoreProfile } from '@/types';
 import { useRouter } from 'next/navigation';
-import { signOut as firebaseSignOut } from 'firebase/auth';
-import { auth } from '@/lib/firebase/client';
 import { useToast } from '@/hooks/use-toast';
 import { createTestGame } from '@/app/games/actions';
 
@@ -33,40 +31,8 @@ const apiSampleData: ApiData[] = [
   { keyMetric: "Uso del Presupuesto", value: "60%" },
 ];
 
-
-function StaleSessionError() {
-  const router = useRouter();
-  const { toast } = useToast();
-  
-  const handleForceLogout = async () => {
-    try {
-      await fetch('/api/auth/session-logout', { method: 'POST' });
-    } catch (error) {
-       console.error("Logout API call failed, proceeding with client-side cleanup:", error);
-    } finally {
-      await firebaseSignOut(auth);
-      toast({ title: "Sesión limpiada", description: "Por favor, inicia sesión de nuevo." });
-      router.push('/login');
-      router.refresh();
-    }
-  };
-
-  return (
-    <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)] text-center p-6">
-        <AlertTriangle className="h-16 w-16 text-destructive mb-4" />
-        <h1 className="text-3xl font-headline font-semibold text-destructive mb-2">Error de Sesión</h1>
-        <p className="text-muted-foreground mb-6 max-w-md">
-            Parece que tu sesión ha expirado o es inválida, pero el navegador aún la recuerda. Por favor, fuerza el cierre de sesión para continuar.
-        </p>
-        <Button onClick={handleForceLogout} variant="destructive">
-            Forzar Cierre de Sesión
-        </Button>
-    </div>
-  )
-}
-
 export default function DashboardPage() {
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, logout } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
   const [userProfile, setUserProfile] = useState<UserFirestoreProfile | null>(null);
@@ -75,8 +41,9 @@ export default function DashboardPage() {
   const [isCreatingTestGame, setIsCreatingTestGame] = useState(false);
 
   useEffect(() => {
-    // This effect handles the logic after Firebase's auth state is resolved.
-    if (authLoading) return;
+    if (authLoading) {
+      return;
+    }
 
     if (user) {
       setLoadingProfile(true);
@@ -86,7 +53,8 @@ export default function DashboardPage() {
           if (profile) {
             setUserProfile(profile);
           } else {
-            setProfileError("Tu perfil no se encontró en la base de datos. Contacta a un administrador.");
+            setProfileError("Tu perfil no se encontró en la base de datos. Se cerrará la sesión.");
+            logout(false); // Force logout if profile is missing
           }
         })
         .catch(err => {
@@ -95,8 +63,12 @@ export default function DashboardPage() {
         .finally(() => {
           setLoadingProfile(false);
         });
+    } else {
+      // If auth is resolved and there's no user, the middleware should have redirected.
+      // This is a failsafe.
+      router.replace('/login');
     }
-  }, [user, authLoading]);
+  }, [user, authLoading, logout, router]);
 
   const handleCreateTestGame = async () => {
     if (!user) return;
@@ -117,17 +89,8 @@ export default function DashboardPage() {
     }
     setIsCreatingTestGame(false);
   }
-
-  if (authLoading || !user) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)]">
-        <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-        <h1 className="text-2xl font-headline font-semibold">Verificando sesión...</h1>
-        <p className="text-muted-foreground">Por favor, espera.</p>
-      </div>
-    );
-  }
   
+  // The AuthProvider shows a loader, so we only need to care about profile loading here.
   if (loadingProfile) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)]">
@@ -136,8 +99,6 @@ export default function DashboardPage() {
       </div>
     );
   }
-
-  const canCreateTestGame = userProfile && ['super_admin', 'club_admin', 'coordinator', 'coach'].includes(userProfile.profileTypeId);
 
   const renderClubManagement = () => {
     if (profileError) {
@@ -193,7 +154,7 @@ export default function DashboardPage() {
     <div className="space-y-8">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 p-6 bg-card rounded-lg shadow-lg">
         <div>
-          <h1 className="text-4xl font-headline font-bold text-primary">¡Bienvenido, {user.displayName || user.email}!</h1>
+          <h1 className="text-4xl font-headline font-bold text-primary">¡Bienvenido, {user?.displayName || user?.email}!</h1>
           <p className="text-lg text-muted-foreground mt-1">Este es un resumen de tu espacio de trabajo en Hoop Control.</p>
         </div>
          <Image 
@@ -261,7 +222,7 @@ export default function DashboardPage() {
         </CardContent>
       </Card>
 
-      {canCreateTestGame && (
+      {userProfile && ['super_admin', 'club_admin', 'coordinator', 'coach'].includes(userProfile.profileTypeId) && (
         <Card className="shadow-lg bg-secondary/30">
             <CardHeader>
                 <CardTitle className="text-2xl font-headline flex items-center">
