@@ -138,17 +138,22 @@ export default function LiveGamePage() {
 
     const childrenPlayerIds = useMemo(() => new Set(profile?.children?.map(c => c.playerId) || []), [profile]);
 
+    const handleUpdate = useCallback(async (updates: Partial<Game>) => {
+        const result = await updateLiveGameState(gameId, updates);
+        if (!result.success) {
+            toast({ variant: 'destructive', title: 'Error al Actualizar', description: result.error });
+        }
+    }, [gameId, toast]);
+
     useEffect(() => {
         if (!gameId) {
             setError("ID del partido no encontrado.");
             setLoading(false);
             return;
         }
-
         if (user) {
             getUserProfileById(user.uid).then(setProfile);
         }
-
         const gameRef = doc(db, 'games', gameId);
         const unsubscribe = onSnapshot(gameRef, async (docSnap) => {
             if (docSnap.exists()) {
@@ -157,21 +162,10 @@ export default function LiveGamePage() {
                 setGame(gameData);
                 
                 getPlayerStatsForGame(gameId).then(setPlayerStats);
-                
-                if (!gameData.isTimerRunning) {
-                   setDisplayTime(gameData.periodTimeRemainingSeconds ?? 0);
-                }
 
-                if (!gameFormat && gameData.gameFormatId) {
-                    getGameFormatById(gameData.gameFormatId).then(setGameFormat);
-                }
-
-                if (homePlayers.length === 0 && gameData.homeTeamId) {
-                    getPlayersByTeamId(gameData.homeTeamId).then(setHomePlayers);
-                }
-                 if (awayPlayers.length === 0 && gameData.awayTeamId) {
-                    getPlayersByTeamId(gameData.awayTeamId).then(setAwayPlayers);
-                }
+                if (!gameFormat && gameData.gameFormatId) getGameFormatById(gameData.gameFormatId).then(setGameFormat);
+                if (homePlayers.length === 0 && gameData.homeTeamId) getPlayersByTeamId(gameData.homeTeamId).then(setHomePlayers);
+                if (awayPlayers.length === 0 && gameData.awayTeamId) getPlayersByTeamId(gameData.awayTeamId).then(setAwayPlayers);
 
             } else {
                 setError("El partido no existe o ha sido eliminado.");
@@ -182,29 +176,29 @@ export default function LiveGamePage() {
             setError("No se pudo conectar para recibir actualizaciones en tiempo real.");
             setLoading(false);
         });
-
         return () => unsubscribe();
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [gameId, user]);
-    
+
+    useEffect(() => {
+        if (game) {
+            setDisplayTime(game.periodTimeRemainingSeconds ?? 0);
+        }
+    }, [game]);
+
     useEffect(() => {
         let timerId: NodeJS.Timeout | null = null;
-       if (game?.isTimerRunning && displayTime > 0) {
-           timerId = setInterval(() => {
-               setDisplayTime(prev => prev > 0 ? prev - 1 : 0);
-           }, 1000);
-       }
-       return () => {
-           if (timerId) clearInterval(timerId);
-       };
-    }, [game?.isTimerRunning, displayTime]);
-
-
-    useEffect(() => {
-        if (game?.periodTimeRemainingSeconds !== undefined) {
-            setDisplayTime(game.periodTimeRemainingSeconds);
+        if (game?.isTimerRunning && displayTime > 0) {
+            timerId = setInterval(() => {
+                setDisplayTime(prevTime => prevTime - 1);
+            }, 1000);
+        } else if (game?.isTimerRunning && displayTime <= 0) {
+            handleUpdate({ isTimerRunning: false });
         }
-    }, [game?.periodTimeRemainingSeconds]);
+        return () => {
+            if (timerId) clearInterval(timerId);
+        };
+    }, [game?.isTimerRunning, displayTime, handleUpdate]);
     
     const handleGameEvent = async (teamType: 'home' | 'away', playerId: string, playerName: string, action: GameEventAction) => {
         if (!game || game.status !== 'inprogress') return;
@@ -214,12 +208,9 @@ export default function LiveGamePage() {
 
     const handleExecuteSubstitution = async (teamType: 'home' | 'away', playerIn: Player, playerOut: Player | null) => {
         if (!game) return;
-        
         const playerInInfo = { id: playerIn.id, name: `${playerIn.firstName} ${playerIn.lastName}`};
         const playerOutInfo = playerOut ? { id: playerOut.id, name: `${playerOut.firstName} ${playerOut.lastName}`} : null;
-
         const result = await substitutePlayer(gameId, teamType, playerInInfo, playerOutInfo, game.currentPeriod || 1, displayTime);
-
         if (!result.success) {
             toast({ variant: 'destructive', title: 'Error de Sustitución', description: result.error });
         }
@@ -230,12 +221,10 @@ export default function LiveGamePage() {
         if (!game) return;
         const onCourtField = teamType === 'home' ? 'homeTeamOnCourtPlayerIds' : 'awayTeamOnCourtPlayerIds';
         const onCourtIds = game[onCourtField] || [];
-        
         if (onCourtIds.includes(player.id)) {
             toast({ variant: 'default', title: 'Jugador en pista', description: 'Este jugador ya está en la pista.' });
             return;
         }
-
         if (onCourtIds.length < 5) {
             handleExecuteSubstitution(teamType, player, null);
         } else {
@@ -250,29 +239,32 @@ export default function LiveGamePage() {
 
     const handleToggleTimer = useCallback(() => {
         if (!game) return;
-        updateLiveGameState(gameId, { isTimerRunning: !game.isTimerRunning, periodTimeRemainingSeconds: displayTime });
-    }, [game, gameId, displayTime]);
+        handleUpdate({
+            isTimerRunning: !game.isTimerRunning,
+            periodTimeRemainingSeconds: displayTime,
+        });
+    }, [game, displayTime, handleUpdate]);
     
     const handleNextPeriod = useCallback(() => {
         if (!game || !gameFormat) return;
         const currentPeriod = game.currentPeriod || 1;
         const maxPeriods = gameFormat.numPeriods || 4;
         if (currentPeriod < maxPeriods) {
-            updateLiveGameState(gameId, {
+            handleUpdate({
                 currentPeriod: currentPeriod + 1,
                 isTimerRunning: false,
                 periodTimeRemainingSeconds: (gameFormat.periodDurationMinutes || 10) * 60,
             });
         }
-    }, [game, gameFormat, gameId]);
+    }, [game, gameFormat, handleUpdate]);
 
     const handleResetTimer = useCallback(() => {
         if (!game || !gameFormat) return;
-        updateLiveGameState(gameId, {
+        handleUpdate({
             isTimerRunning: false,
             periodTimeRemainingSeconds: (gameFormat.periodDurationMinutes || 10) * 60,
         });
-    }, [game, gameFormat, gameId]);
+    }, [game, gameFormat, handleUpdate]);
     
     const handleGameStatusChange = (status: 'inprogress' | 'completed') => {
         let updates: Partial<Game> = { status };
@@ -283,7 +275,7 @@ export default function LiveGamePage() {
             updates.isTimerRunning = false;
             updates.periodTimeRemainingSeconds = 0;
         }
-        updateLiveGameState(gameId, updates);
+        handleUpdate(updates);
     }
 
     const formatTime = (totalSeconds: number) => {
