@@ -136,6 +136,8 @@ export default function LiveGamePage() {
         blocks_against: 0, fouls_received: 0, timeByPeriod: {}
     };
 
+    const childrenPlayerIds = useMemo(() => new Set(profile?.children?.map(c => c.playerId) || []), [profile]);
+
     useEffect(() => {
         if (!gameId) {
             setError("ID del partido no encontrado.");
@@ -293,8 +295,6 @@ export default function LiveGamePage() {
     if (loading || authLoading) return <div className="flex justify-center items-center h-screen"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>;
     if (error) return <div className="text-center p-6"><AlertTriangle className="mx-auto h-12 w-12 text-destructive mb-4" /><h1 className="text-2xl text-destructive">Error</h1><p>{error}</p></div>;
     if (!game) return null;
-
-    const childrenPlayerIds = useMemo(() => new Set(profile?.children?.map(c => c.playerId) || []), [profile]);
 
     const TeamPanel = ({ teamType, playersList }: { teamType: 'home' | 'away', playersList: Player[] }) => {
         const teamName = teamType === 'home' ? game.homeTeamName : game.awayTeamName;
