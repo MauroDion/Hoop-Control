@@ -255,13 +255,31 @@ export async function getGamesByParent(userId: string): Promise<Game[]> {
 
         const childrenPlayerIds = profile.children.map(c => c.playerId);
         if (childrenPlayerIds.length === 0) return [];
+
+        const playerDocs = await Promise.all(
+            childrenPlayerIds.map(id => adminDb!.collection('players').doc(id).get())
+        );
+
+        const teamIds = new Set<string>();
+        playerDocs.forEach(doc => {
+            if (doc.exists) {
+                const playerData = doc.data() as Player;
+                if (playerData.teamId) {
+                    teamIds.add(playerData.teamId);
+                }
+            }
+        });
+        
+        if (teamIds.size === 0) return [];
+
+        const teamIdArray = Array.from(teamIds);
         
         const gamesMap = new Map<string, Game>();
         const gamesRef = adminDb.collection('games');
-        
+
         const chunks = [];
-        for (let i = 0; i < childrenPlayerIds.length; i += 30) {
-            chunks.push(childrenPlayerIds.slice(i, i + 30));
+        for (let i = 0; i < teamIdArray.length; i += 30) {
+            chunks.push(teamIdArray.slice(i, i + 30));
         }
         
         const processSnapshot = (snap: admin.firestore.QuerySnapshot) => {
@@ -278,8 +296,8 @@ export async function getGamesByParent(userId: string): Promise<Game[]> {
         };
 
         for (const chunk of chunks) {
-            const homeGamesQuery = gamesRef.where('homeTeamPlayerIds', 'array-contains-any', chunk).get();
-            const awayGamesQuery = gamesRef.where('awayTeamPlayerIds', 'array-contains-any', chunk).get();
+            const homeGamesQuery = gamesRef.where('homeTeamId', 'in', chunk).get();
+            const awayGamesQuery = gamesRef.where('awayTeamId', 'in', chunk).get();
 
             const [homeGamesSnap, awayGamesSnap] = await Promise.all([homeGamesQuery, awayGamesQuery]);
            

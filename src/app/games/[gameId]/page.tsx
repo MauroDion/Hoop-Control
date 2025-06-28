@@ -10,12 +10,12 @@ import { es } from 'date-fns/locale';
 // Actions
 import { getGameById, updateGameRoster } from '@/app/games/actions';
 import { getPlayersByTeamId } from '@/app/players/actions';
-import { getTeamById, getTeamsByCoach } from '@/app/teams/actions';
+import { getTeamsByCoach } from '@/app/teams/actions';
 import { getUserProfileById } from '@/app/users/actions';
 
 
 // Types
-import type { Game, Player, Team } from '@/types';
+import type { Game, Player } from '@/types';
 
 // Components
 import { Button } from '@/components/ui/button';
@@ -73,7 +73,7 @@ const RosterCard = ({ teamType, teamName, players, selectedPlayers, initialSelec
                                         disabled={readOnly}
                                     />
                                     <Label htmlFor={`player-${teamType}-${player.id}`} className="cursor-pointer">
-                                        {player.firstName} {player.lastName} (#{player.jerseyNumber || 'N/A'})
+                                        {player.firstName} {player.lastName} (#{player.jerseyNumber || 'S/N'})
                                     </Label>
                                 </div>
                             ))}
@@ -125,6 +125,11 @@ export default function ManageGamePage() {
             if (!profile) throw new Error("No se pudo encontrar tu perfil de usuario.");
             if (!gameData) throw new Error("Partido no encontrado.");
             
+            const [homeTeamPlayers, awayTeamPlayers] = await Promise.all([
+                getPlayersByTeamId(gameData.homeTeamId),
+                getPlayersByTeamId(gameData.awayTeamId)
+            ]);
+
             const coachTeams = await getTeamsByCoach(userId);
             const isCoachOfHomeTeam = coachTeams.some(t => t.id === gameData.homeTeamId);
             const isCoachOfAwayTeam = coachTeams.some(t => t.id === gameData.awayTeamId);
@@ -135,9 +140,9 @@ export default function ManageGamePage() {
             let isParentOfPlayerInGame = false;
             if (profile.profileTypeId === 'parent_guardian' && profile.children && profile.children.length > 0) {
                 const childrenPlayerIds = new Set(profile.children.map(c => c.playerId));
-                const gamePlayerIds = new Set([...(gameData.homeTeamPlayerIds || []), ...(gameData.awayTeamPlayerIds || [])]);
+                const allTeamPlayerIds = new Set([...homeTeamPlayers.map(p => p.id), ...awayTeamPlayers.map(p => p.id)]);
                 for (const childPlayerId of childrenPlayerIds) {
-                    if (gamePlayerIds.has(childPlayerId)) {
+                    if (allTeamPlayerIds.has(childPlayerId)) {
                         isParentOfPlayerInGame = true;
                         break;
                     }
@@ -145,6 +150,7 @@ export default function ManageGamePage() {
             }
 
             const hasPermission = isSuperAdmin || isClubAdminForGame || isCoachOfHomeTeam || isCoachOfAwayTeam || isParentOfPlayerInGame;
+            
             if (!hasPermission) {
                 throw new Error("No tienes permiso para ver este partido.");
             }
@@ -152,11 +158,6 @@ export default function ManageGamePage() {
             setGame(gameData);
             setCanManageRoster(isSuperAdmin || isClubAdminForGame || isCoachOfHomeTeam || isCoachOfAwayTeam);
             
-            const [homeTeamPlayers, awayTeamPlayers] = await Promise.all([
-                getPlayersByTeamId(gameData.homeTeamId),
-                getPlayersByTeamId(gameData.awayTeamId)
-            ]);
-
             setHomePlayers(homeTeamPlayers);
             setAwayPlayers(awayTeamPlayers);
 
