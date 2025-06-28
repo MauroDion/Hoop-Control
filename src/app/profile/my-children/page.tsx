@@ -49,8 +49,10 @@ export default function MyChildrenPage() {
         defaultValues: { children: [] },
     });
     
-    const { fields, append, remove, control, watch } = useFieldArray({
-        control: form.control,
+    const { control, watch } = form;
+
+    const { fields, append, remove } = useFieldArray({
+        control,
         name: 'children',
     });
 
@@ -124,7 +126,7 @@ export default function MyChildrenPage() {
     };
     
     const playerOptions = useMemo(() => {
-      return watchedChildren.map((child, index) => {
+      return watchedChildren.map((child) => {
         const categoryId = child.competitionCategoryId;
         if (!categoryId) return [];
         const teamsInCategory = teams.filter(t => t.competitionCategoryId === categoryId);
@@ -207,7 +209,7 @@ export default function MyChildrenPage() {
                                                         <Select onValueChange={field.onChange} value={field.value} disabled={!watchedChildren[index]?.competitionCategoryId || playerOptions[index].length === 0}>
                                                             <FormControl>
                                                                 <SelectTrigger>
-                                                                    <SelectValue placeholder="Selecciona un jugador..." />
+                                                                    <SelectValue placeholder={!watchedChildren[index]?.competitionCategoryId ? "Primero selecciona categoría" : "Selecciona un jugador..."} />
                                                                 </SelectTrigger>
                                                             </FormControl>
                                                             <SelectContent>
