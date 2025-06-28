@@ -333,25 +333,29 @@ export default function LiveGamePage() {
         <div className="space-y-6">
             <Dialog open={!!actionPlayerInfo} onOpenChange={(isOpen) => !isOpen && setActionPlayerInfo(null)}>
                 <DialogContent className="max-w-3xl">
-                     <DialogHeader>
-                        <div className="flex items-center gap-4">
-                            <div className="w-16 h-16 p-2 border rounded-md flex items-center justify-center bg-muted/50 shrink-0">
-                               <Image src={actionPlayerInfo?.teamType === 'home' ? (game.homeTeamLogoUrl || 'https://placehold.co/100x100.png') : (game.awayTeamLogoUrl || 'https://placehold.co/100x100.png')} alt="Team Logo" width={64} height={64} className="object-contain"/>
+                    {actionPlayerInfo && game && (
+                         <>
+                            <DialogHeader>
+                                <div className="flex items-center gap-4">
+                                    <div className="w-16 h-16 p-2 border rounded-md flex items-center justify-center bg-muted/50 shrink-0">
+                                       <Image src={actionPlayerInfo.teamType === 'home' ? (game.homeTeamLogoUrl || 'https://placehold.co/100x100.png') : (game.awayTeamLogoUrl || 'https://placehold.co/100x100.png')} alt="Team Logo" width={64} height={64} className="object-contain"/>
+                                    </div>
+                                    <div>
+                                        <DialogTitle className="text-2xl">
+                                            {actionPlayerInfo.player.firstName} {actionPlayerInfo.player.lastName} (#{actionPlayerInfo.player.jerseyNumber || 'S/N'})
+                                        </DialogTitle>
+                                        <DialogDescription>
+                                            {actionPlayerInfo.teamType === 'home' ? game.homeTeamName : game.awayTeamName}
+                                        </DialogDescription>
+                                    </div>
+                                </div>
+                            </DialogHeader>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 py-4">
+                                <ShotActionButtons onAction={(action) => handleGameEvent(actionPlayerInfo.teamType, actionPlayerInfo.player.id, `${actionPlayerInfo.player.firstName} ${actionPlayerInfo.player.lastName}`, action)} />
+                                <OtherActionButtons onAction={(action) => handleGameEvent(actionPlayerInfo.teamType, actionPlayerInfo.player.id, `${actionPlayerInfo.player.firstName} ${actionPlayerInfo.player.lastName}`, action)} />
                             </div>
-                            <div>
-                                <DialogTitle className="text-2xl">
-                                    {actionPlayerInfo?.player.firstName} {actionPlayerInfo?.player.lastName} (#{actionPlayerInfo?.player.jerseyNumber || 'S/N'})
-                                </DialogTitle>
-                                <DialogDescription>
-                                    {actionPlayerInfo?.teamType === 'home' ? game.homeTeamName : game.awayTeamName}
-                                </DialogDescription>
-                            </div>
-                        </div>
-                    </DialogHeader>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 py-4">
-                        <ShotActionButtons onAction={(action) => handleGameEvent(actionPlayerInfo!.teamType, actionPlayerInfo!.player.id, `${actionPlayerInfo!.player.firstName} ${actionPlayerInfo!.player.lastName}`, action)} />
-                        <OtherActionButtons onAction={(action) => handleGameEvent(actionPlayerInfo!.teamType, actionPlayerInfo!.player.id, `${actionPlayerInfo!.player.firstName} ${actionPlayerInfo!.player.lastName}`, action)} />
-                    </div>
+                        </>
+                    )}
                 </DialogContent>
             </Dialog>
 
