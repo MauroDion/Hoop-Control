@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'next/navigation';
-import { getGamesByCoach, getAllGames, getGamesByClub } from '@/app/games/actions';
+import { getGamesByCoach, getAllGames, getGamesByClub, getGamesByParent } from '@/app/games/actions';
 import { getUserProfileById } from '@/app/users/actions';
 import type { Game, UserFirestoreProfile } from '@/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -41,6 +41,12 @@ export default function GamesPage() {
            return;
         }
         
+        if (!['coach', 'coordinator', 'club_admin', 'super_admin', 'parent_guardian'].includes(profile.profileTypeId)) {
+           setError("Acceso Denegado. No tienes permisos para ver esta página.");
+           setLoading(false);
+           return;
+        }
+        
         let fetchedGames: Game[] = [];
         if (profile.profileTypeId === 'super_admin') {
             fetchedGames = await getAllGames();
@@ -48,6 +54,8 @@ export default function GamesPage() {
             fetchedGames = await getGamesByClub(profile.clubId);
         } else if (profile.profileTypeId === 'coach') {
             fetchedGames = await getGamesByCoach(user.uid);
+        } else if (profile.profileTypeId === 'parent_guardian') {
+            fetchedGames = await getGamesByParent(user.uid);
         }
         
         const activeGames = fetchedGames.filter(game => game.status === 'scheduled' || game.status === 'inprogress');

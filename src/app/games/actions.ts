@@ -1,4 +1,3 @@
-
 'use server';
 import { adminDb } from '@/lib/firebase/admin';
 import admin from 'firebase-admin';
@@ -242,6 +241,58 @@ export async function getGamesByCoach(userId: string): Promise<Game[]> {
         return allGames.filter(game => teamIds.includes(game.homeTeamId) || teamIds.includes(game.awayTeamId));
     } catch (error: any) {
         console.error("Error fetching games by coach:", error);
+        return [];
+    }
+}
+
+export async function getGamesByParent(userId: string): Promise<Game[]> {
+    if (!adminDb) return [];
+    try {
+        const profile = await getUserProfileById(userId);
+        if (!profile || !profile.children || profile.children.length === 0) {
+            return [];
+        }
+
+        const childrenPlayerIds = profile.children.map(c => c.playerId);
+        if (childrenPlayerIds.length === 0) return [];
+        
+        const gamesMap = new Map<string, Game>();
+        const gamesRef = adminDb.collection('games');
+        
+        const chunks = [];
+        for (let i = 0; i < childrenPlayerIds.length; i += 30) {
+            chunks.push(childrenPlayerIds.slice(i, i + 30));
+        }
+        
+        const processSnapshot = (snap: admin.firestore.QuerySnapshot) => {
+            snap.forEach(doc => {
+                if (!gamesMap.has(doc.id)) {
+                    const gameData = doc.data();
+                    gamesMap.set(doc.id, {
+                        id: doc.id,
+                        ...gameData,
+                        date: (gameData.date as admin.firestore.Timestamp).toDate().toISOString(),
+                    } as Game);
+                }
+            });
+        };
+
+        for (const chunk of chunks) {
+            const homeGamesQuery = gamesRef.where('homeTeamPlayerIds', 'array-contains-any', chunk).get();
+            const awayGamesQuery = gamesRef.where('awayTeamPlayerIds', 'array-contains-any', chunk).get();
+
+            const [homeGamesSnap, awayGamesSnap] = await Promise.all([homeGamesQuery, awayGamesQuery]);
+           
+            processSnapshot(homeGamesSnap);
+            processSnapshot(awayGamesSnap);
+        }
+
+        const games = Array.from(gamesMap.values());
+        games.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+        return games;
+    } catch (error: any) {
+        console.error("Error fetching games by parent:", error);
         return [];
     }
 }

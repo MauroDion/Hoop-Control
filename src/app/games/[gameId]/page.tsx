@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useEffect, useState, useCallback } from 'react';
@@ -13,6 +12,7 @@ import { getGameById, updateGameRoster } from '@/app/games/actions';
 import { getPlayersByTeamId } from '@/app/players/actions';
 import { getTeamById, getTeamsByCoach } from '@/app/teams/actions';
 import { getUserProfileById } from '@/app/users/actions';
+
 
 // Types
 import type { Game, Player, Team } from '@/types';
@@ -33,7 +33,7 @@ function areSetsEqual<T>(a: Set<T>, b: Set<T>): boolean {
     return true;
 }
 
-const RosterCard = ({ teamType, teamName, players, selectedPlayers, initialSelectedPlayers, onSelect, onSave, onSelectAll, onClearAll, isSaving }: any) => {
+const RosterCard = ({ teamType, teamName, players, selectedPlayers, initialSelectedPlayers, onSelect, onSave, onSelectAll, onClearAll, isSaving, readOnly }: any) => {
     const hasChanges = !areSetsEqual(selectedPlayers, initialSelectedPlayers);
 
     return (
@@ -46,10 +46,12 @@ const RosterCard = ({ teamType, teamName, players, selectedPlayers, initialSelec
                             Selecciona los jugadores que participarán en este partido.
                         </CardDescription>
                     </div>
-                    <div className="space-x-2">
-                        <Button variant="outline" size="sm" onClick={() => onSelectAll(teamType)}><CheckSquare className="mr-2 h-4 w-4" />Seleccionar Todos</Button>
-                        <Button variant="outline" size="sm" onClick={() => onClearAll(teamType)}><Square className="mr-2 h-4 w-4" />Limpiar Selección</Button>
-                    </div>
+                    {!readOnly && (
+                        <div className="space-x-2">
+                            <Button variant="outline" size="sm" onClick={() => onSelectAll(teamType)}><CheckSquare className="mr-2 h-4 w-4" />Seleccionar Todos</Button>
+                            <Button variant="outline" size="sm" onClick={() => onClearAll(teamType)}><Square className="mr-2 h-4 w-4" />Limpiar Selección</Button>
+                        </div>
+                    )}
                 </div>
             </CardHeader>
             <CardContent>
@@ -68,6 +70,7 @@ const RosterCard = ({ teamType, teamName, players, selectedPlayers, initialSelec
                                         id={`player-${teamType}-${player.id}`}
                                         checked={selectedPlayers.has(player.id)}
                                         onCheckedChange={() => onSelect(player.id, teamType)}
+                                        disabled={readOnly}
                                     />
                                     <Label htmlFor={`player-${teamType}-${player.id}`} className="cursor-pointer">
                                         {player.firstName} {player.lastName} (#{player.jerseyNumber || 'N/A'})
@@ -75,10 +78,12 @@ const RosterCard = ({ teamType, teamName, players, selectedPlayers, initialSelec
                                 </div>
                             ))}
                         </div>
-                        <Button onClick={() => onSave(teamType)} disabled={isSaving || !hasChanges}>
-                            {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-                            {isSaving ? 'Guardando...' : `Guardar Convocatoria (${selectedPlayers.size})`}
-                        </Button>
+                        {!readOnly && (
+                            <Button onClick={() => onSave(teamType)} disabled={isSaving || !hasChanges}>
+                                {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                                {isSaving ? 'Guardando...' : `Guardar Convocatoria (${selectedPlayers.size})`}
+                            </Button>
+                        )}
                     </div>
                 )}
             </CardContent>
@@ -107,6 +112,7 @@ export default function ManageGamePage() {
     const [savingHome, setSavingHome] = useState(false);
     const [savingAway, setSavingAway] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [canManageRoster, setCanManageRoster] = useState(false);
 
     const loadPageData = useCallback(async (userId: string) => {
         setLoadingData(true);
@@ -126,11 +132,25 @@ export default function ManageGamePage() {
             const isSuperAdmin = profile.profileTypeId === 'super_admin';
             const isClubAdminForGame = (profile.profileTypeId === 'club_admin' || profile.profileTypeId === 'coordinator') && (profile.clubId === gameData.homeTeamClubId || profile.clubId === gameData.awayTeamClubId);
             
-            if (!isSuperAdmin && !isClubAdminForGame && !isCoachOfHomeTeam && !isCoachOfAwayTeam) {
-                throw new Error("No tienes permiso para gestionar este partido.");
+            let isParentOfPlayerInGame = false;
+            if (profile.profileTypeId === 'parent_guardian' && profile.children && profile.children.length > 0) {
+                const childrenPlayerIds = new Set(profile.children.map(c => c.playerId));
+                const gamePlayerIds = new Set([...(gameData.homeTeamPlayerIds || []), ...(gameData.awayTeamPlayerIds || [])]);
+                for (const childPlayerId of childrenPlayerIds) {
+                    if (gamePlayerIds.has(childPlayerId)) {
+                        isParentOfPlayerInGame = true;
+                        break;
+                    }
+                }
+            }
+
+            const hasPermission = isSuperAdmin || isClubAdminForGame || isCoachOfHomeTeam || isCoachOfAwayTeam || isParentOfPlayerInGame;
+            if (!hasPermission) {
+                throw new Error("No tienes permiso para ver este partido.");
             }
             
             setGame(gameData);
+            setCanManageRoster(isSuperAdmin || isClubAdminForGame || isCoachOfHomeTeam || isCoachOfAwayTeam);
             
             const [homeTeamPlayers, awayTeamPlayers] = await Promise.all([
                 getPlayersByTeamId(gameData.homeTeamId),
@@ -264,7 +284,7 @@ export default function ManageGamePage() {
                 </CardHeader>
             </Card>
 
-            {['scheduled', 'inprogress'].includes(game.status) && (
+            {canManageRoster && ['scheduled', 'inprogress'].includes(game.status) && (
                  <Card className={`shadow-xl ${canStartGame ? 'bg-green-50 border-green-200' : 'bg-yellow-50 border-yellow-200'}`}>
                     <CardHeader>
                         <CardTitle className={`flex items-center ${canStartGame ? 'text-green-800' : 'text-yellow-800'}`}><Gamepad2 className="mr-3 h-6 w-6"/>Panel de Partido en Vivo</CardTitle>
@@ -296,6 +316,7 @@ export default function ManageGamePage() {
                 onSelectAll={handleSelectAll}
                 onClearAll={handleClearAll}
                 isSaving={savingHome}
+                readOnly={!canManageRoster}
             />
 
             <RosterCard 
@@ -309,8 +330,8 @@ export default function ManageGamePage() {
                 onSelectAll={handleSelectAll}
                 onClearAll={handleClearAll}
                 isSaving={savingAway}
+                readOnly={!canManageRoster}
             />
         </div>
     );
 }
-
