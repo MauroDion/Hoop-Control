@@ -1,4 +1,3 @@
-
 'use server';
 import { adminDb } from '@/lib/firebase/admin';
 import admin from 'firebase-admin';
@@ -30,8 +29,6 @@ export async function createGame(formData: GameFormData, userId: string): Promis
         const startOfDay = admin.firestore.Timestamp.fromDate(new Date(gameDate.setHours(0, 0, 0, 0)));
         const endOfDay = admin.firestore.Timestamp.fromDate(new Date(gameDate.setHours(23, 59, 59, 999)));
 
-        // Rewritten query to avoid composite index.
-        // Fetch all games on the given day and filter in memory.
         const gamesOnDayQuery = adminDb.collection('games')
             .where('date', '>=', startOfDay)
             .where('date', '<=', endOfDay);
@@ -282,22 +279,12 @@ export async function getGamesByParent(userId: string): Promise<Game[]> {
         const childrenPlayerIds = profile.children.map(c => c.playerId);
         if (childrenPlayerIds.length === 0) return [];
 
-        const playerDocs = await adminDb.collection('players').where(admin.firestore.FieldPath.documentId(), 'in', childrenPlayerIds).get();
-        
-        const teamIds = new Set<string>();
-        playerDocs.forEach(doc => {
-            const playerData = doc.data() as Player;
-            if (playerData.teamId) {
-                teamIds.add(playerData.teamId);
-            }
-        });
-        
-        if (teamIds.size === 0) return [];
-
         const allGames = await getAllGames();
-        const teamIdArray = Array.from(teamIds);
         
-        return allGames.filter(game => teamIdArray.includes(game.homeTeamId) || teamIdArray.includes(game.awayTeamId));
+        return allGames.filter(game => {
+            const gamePlayerIds = new Set([...(game.homeTeamPlayerIds || []), ...(game.awayTeamPlayerIds || [])]);
+            return childrenPlayerIds.some(childId => gamePlayerIds.has(childId));
+        });
     } catch (error: any) {
         console.error("Error fetching games by parent:", error);
         return [];
@@ -372,31 +359,32 @@ export async function getPlayerStatsForGame(gameId: string): Promise<PlayerGameS
         };
     });
 
-    const events = eventsSnap.docs.map(doc => ({ ...doc.data(), createdAt: (doc.data().createdAt as admin.firestore.Timestamp).toMillis() }) as unknown as GameEvent & { createdAt: number });
-
     const state = {
         onCourt: new Set<string>(),
         isClockRunning: false,
         currentPeriod: 1,
-        lastTimestamp: new Date(gameData.createdAt as string).getTime()
     };
+    let lastTimestamp: number | null = null;
+
+    const events = eventsSnap.docs.map(doc => ({ ...doc.data(), createdAt: (doc.data().createdAt as admin.firestore.Timestamp).toMillis() }) as unknown as GameEvent & { createdAt: number });
 
     for (const event of events) {
         const eventTimestamp = event.createdAt;
-        const timeDelta = (eventTimestamp - state.lastTimestamp) / 1000.0;
 
-        if (state.isClockRunning && timeDelta > 0) {
-            state.onCourt.forEach(playerId => {
-                if (stats[playerId]) {
-                    stats[playerId].timePlayedSeconds += timeDelta;
-                    stats[playerId].timeByPeriod[state.currentPeriod] = (stats[playerId].timeByPeriod[state.currentPeriod] || 0) + timeDelta;
-                }
-            });
+        if (lastTimestamp !== null) {
+            const timeDelta = (eventTimestamp - lastTimestamp) / 1000.0;
+            if (state.isClockRunning && timeDelta > 0) {
+                state.onCourt.forEach(playerId => {
+                    if (stats[playerId]) {
+                        stats[playerId].timePlayedSeconds += timeDelta;
+                        stats[playerId].timeByPeriod[state.currentPeriod] = (stats[playerId].timeByPeriod[state.currentPeriod] || 0) + timeDelta;
+                    }
+                });
+            }
         }
+        lastTimestamp = eventTimestamp;
         
-        state.lastTimestamp = eventTimestamp;
-        
-        if (stats[event.playerId]) {
+        if (event.playerId && stats[event.playerId]) {
              switch (event.action) {
                 case 'shot_made_1p': stats[event.playerId].points++; stats[event.playerId].shots_made_1p++; stats[event.playerId].shots_attempted_1p++; break;
                 case 'shot_miss_1p': stats[event.playerId].shots_attempted_1p++; break;
@@ -425,8 +413,8 @@ export async function getPlayerStatsForGame(gameId: string): Promise<PlayerGameS
         }
     }
     
-    if (state.isClockRunning) {
-        const timeDelta = (Date.now() - state.lastTimestamp) / 1000.0;
+    if (state.isClockRunning && lastTimestamp) {
+        const timeDelta = (Date.now() - lastTimestamp) / 1000.0;
         state.onCourt.forEach(playerId => {
             if (stats[playerId]) {
                 stats[playerId].timePlayedSeconds += timeDelta;
