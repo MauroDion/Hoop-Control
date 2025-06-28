@@ -15,7 +15,7 @@ import { getUserProfileById } from '@/app/users/actions';
 
 
 // Types
-import type { Game, Player } from '@/types';
+import type { Game, Player, Team } from '@/types';
 
 // Components
 import { Button } from '@/components/ui/button';
@@ -113,6 +113,7 @@ export default function ManageGamePage() {
     const [savingAway, setSavingAway] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [canManageRoster, setCanManageRoster] = useState(false);
+    const [canAccessLiveGame, setCanAccessLiveGame] = useState(false);
 
     const loadPageData = useCallback(async (userId: string) => {
         setLoadingData(true);
@@ -125,12 +126,12 @@ export default function ManageGamePage() {
             if (!profile) throw new Error("No se pudo encontrar tu perfil de usuario.");
             if (!gameData) throw new Error("Partido no encontrado.");
             
-            const [homeTeamPlayers, awayTeamPlayers] = await Promise.all([
+            const [homeTeamPlayers, awayTeamPlayers, coachTeams] = await Promise.all([
                 getPlayersByTeamId(gameData.homeTeamId),
-                getPlayersByTeamId(gameData.awayTeamId)
+                getPlayersByTeamId(gameData.awayTeamId),
+                getTeamsByCoach(userId)
             ]);
 
-            const coachTeams = await getTeamsByCoach(userId);
             const isCoachOfHomeTeam = coachTeams.some(t => t.id === gameData.homeTeamId);
             const isCoachOfAwayTeam = coachTeams.some(t => t.id === gameData.awayTeamId);
 
@@ -157,6 +158,7 @@ export default function ManageGamePage() {
             
             setGame(gameData);
             setCanManageRoster(isSuperAdmin || isClubAdminForGame || isCoachOfHomeTeam || isCoachOfAwayTeam);
+            setCanAccessLiveGame(hasPermission);
             
             setHomePlayers(homeTeamPlayers);
             setAwayPlayers(awayTeamPlayers);
@@ -286,7 +288,7 @@ export default function ManageGamePage() {
                 </CardHeader>
             </Card>
 
-            {canManageRoster && ['scheduled', 'inprogress'].includes(game.status) && (
+            {canAccessLiveGame && ['scheduled', 'inprogress'].includes(game.status) && (
                  <Card className={`shadow-xl ${canStartGame ? 'bg-green-50 border-green-200' : 'bg-yellow-50 border-yellow-200'}`}>
                     <CardHeader>
                         <CardTitle className={`flex items-center ${canStartGame ? 'text-green-800' : 'text-yellow-800'}`}><Gamepad2 className="mr-3 h-6 w-6"/>Panel de Partido en Vivo</CardTitle>

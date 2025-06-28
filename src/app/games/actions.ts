@@ -21,6 +21,23 @@ async function getPlayersFromIds(playerIds: string[]): Promise<Player[]> {
         .map(doc => ({ id: doc.id, ...doc.data() } as Player));
 }
 
+export async function getTeamById(teamId: string): Promise<Team | null> {
+    if (!adminDb || !teamId) return null;
+    try {
+        const doc = await adminDb.collection('teams').doc(teamId).get();
+        if (!doc.exists) return null;
+        const data = doc.data()!;
+        return {
+            id: doc.id,
+            ...data,
+            createdAt: (data.createdAt as admin.firestore.Timestamp).toDate().toISOString(),
+            updatedAt: (data.updatedAt as admin.firestore.Timestamp).toDate().toISOString(),
+        } as Team;
+    } catch (e) {
+        return null;
+    }
+}
+
 // Action to create a new game
 export async function createGame(formData: GameFormData, userId: string): Promise<{ success: boolean; error?: string; id?: string }> {
     if (!userId) return { success: false, error: "User not authenticated." };
@@ -138,6 +155,13 @@ export async function createTestGame(userId: string): Promise<{ success: boolean
             teamsForTest = await getTeamsFromClub(profile.clubId);
             if (teamsForTest.length < 2) {
                 return { success: false, error: 'Se necesitan al menos dos equipos en tu club para crear un partido de prueba.' };
+            }
+        } else if (profile.profileTypeId === 'coach') {
+             teamsForTest = await getCoachTeams(profile.uid);
+             const otherTeams = await getAllTeams();
+             teamsForTest = [...teamsForTest, ...otherTeams.filter(t => !teamsForTest.some(tt => tt.id === t.id))];
+             if (teamsForTest.length < 2) {
+                return { success: false, error: 'Se necesitan al menos dos equipos en el sistema para crear un partido de prueba.' };
             }
         } else {
             teamsForTest = await getAllTeams();
@@ -434,7 +458,7 @@ export async function getPlayerStatsForGame(gameId: string): Promise<PlayerGameS
         }
     }
     
-    if (state.isClockRunning && lastTimestamp) {
+    if (state.isClockRunning && lastTimestamp && gameData.status === 'inprogress') {
         const timeDelta = (Date.now() - lastTimestamp) / 1000.0;
         state.onCourt.forEach(playerId => {
             if (stats[playerId]) {
@@ -492,24 +516,29 @@ export async function updateGameRoster(
 
 export async function updateLiveGameState(
   gameId: string,
+  userId: string,
   updates: Partial<Pick<Game, 'status' | 'currentPeriod' | 'periodTimeRemainingSeconds' | 'isTimerRunning'>>
 ): Promise<{ success: boolean; error?: string }> {
   if (!adminDb) return { success: false, error: "La base de datos no está inicializada." };
   
-  const gameRef = adminDb.collection('games').doc(gameId);
-  const eventsRef = gameRef.collection('events');
-
   try {
+    const profile = await getUserProfileById(userId);
+    if (!profile || !['super_admin', 'club_admin', 'coordinator', 'coach'].includes(profile.profileTypeId)) {
+        return { success: false, error: "No tienes permiso para modificar el estado del partido." };
+    }
+
+    const gameRef = adminDb.collection('games').doc(gameId);
+    
+    const updateData: { [key: string]: any } = { 
+        ...updates,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    };
+
     await adminDb.runTransaction(async (transaction) => {
         const gameDoc = await transaction.get(gameRef);
         if (!gameDoc.exists) throw new Error("El partido no existe.");
         
         const gameData = gameDoc.data() as Game;
-        const updateData: { [key: string]: any } = { 
-            ...updates,
-            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-        };
-
         const serverTimestamp = admin.firestore.FieldValue.serverTimestamp();
         const baseEvent = { gameId, teamId: 'system' as const, playerId: 'SYSTEM', playerName: 'System', createdAt: serverTimestamp };
 
@@ -524,28 +553,10 @@ export async function updateLiveGameState(
             updateData.awayTeamOnCourtPlayerIds = startingAway;
 
             const [homePlayers, awayPlayers] = await Promise.all([ getPlayersFromIds(startingHome), getPlayersFromIds(startingAway) ]);
-
+            const eventsRef = gameRef.collection('events');
             transaction.set(eventsRef.doc(), { ...baseEvent, action: 'period_start', period: 1, gameTimeSeconds: updates.periodTimeRemainingSeconds || 0 });
             homePlayers.forEach(p => transaction.set(eventsRef.doc(), { ...baseEvent, teamId: 'home', playerId: p.id, playerName: `${p.firstName} ${p.lastName}`, action: 'substitution_in', period: 1, gameTimeSeconds: updates.periodTimeRemainingSeconds || 0 }));
             awayPlayers.forEach(p => transaction.set(eventsRef.doc(), { ...baseEvent, teamId: 'away', playerId: p.id, playerName: `${p.firstName} ${p.lastName}`, action: 'substitution_in', period: 1, gameTimeSeconds: updates.periodTimeRemainingSeconds || 0 }));
-        }
-
-        if (updates.status === 'completed' && gameData.status === 'inprogress') {
-            transaction.set(eventsRef.doc(), { ...baseEvent, action: 'period_end', period: gameData.currentPeriod || 1, gameTimeSeconds: 0 });
-            updateData.isTimerRunning = false;
-            updateData.periodTimeRemainingSeconds = 0;
-        }
-
-        if (updates.isTimerRunning === true && gameData.isTimerRunning === false) {
-            transaction.set(eventsRef.doc(), { ...baseEvent, action: 'timer_start', period: gameData.currentPeriod || 1, gameTimeSeconds: gameData.periodTimeRemainingSeconds || 0 });
-        }
-        if (updates.isTimerRunning === false && gameData.isTimerRunning === true) {
-            transaction.set(eventsRef.doc(), { ...baseEvent, action: 'timer_pause', period: gameData.currentPeriod || 1, gameTimeSeconds: updates.periodTimeRemainingSeconds || 0 });
-        }
-
-        if (updates.currentPeriod && updates.currentPeriod > (gameData.currentPeriod || 1)) {
-            transaction.set(eventsRef.doc(), { ...baseEvent, action: 'period_end', period: gameData.currentPeriod || 1, gameTimeSeconds: 0 });
-            transaction.set(eventsRef.doc(), { ...baseEvent, action: 'period_start', period: updates.currentPeriod, gameTimeSeconds: updates.periodTimeRemainingSeconds || 0 });
         }
 
         transaction.update(gameRef, updateData);
@@ -560,27 +571,44 @@ export async function updateLiveGameState(
 
 export async function recordGameEvent(
   gameId: string,
+  userId: string,
   event: Omit<GameEvent, 'id' | 'createdAt' | 'gameId'>
 ): Promise<{ success: boolean; error?: string }> {
   if (!adminDb) return { success: false, error: 'Database not initialized' };
 
   const gameRef = adminDb.collection('games').doc(gameId);
   const eventRef = gameRef.collection('events').doc();
-  const { action, teamId } = event;
-
+  
   try {
-    await adminDb.runTransaction(async (transaction) => {
-      const updates: { [key: string]: any } = {
-        updatedAt: admin.firestore.FieldValue.serverTimestamp()
-      };
-      
-      const pointMapping: { [key: string]: number } = {
-        'shot_made_1p': 1, 'shot_made_2p': 2, 'shot_made_3p': 3,
-      };
+    const profile = await getUserProfileById(userId);
+    if (!profile) return { success: false, error: "Usuario no encontrado." };
+  
+    const game = await getGameById(gameId);
+    if (!game) return { success: false, error: "Partido no encontrado." };
 
-      if (pointMapping[action]) {
-        const points = pointMapping[action];
-        const scoreField = teamId === 'home' ? 'homeTeamScore' : 'awayTeamScore';
+    const isSuperAdmin = profile.profileTypeId === 'super_admin';
+    const isClubAdmin = ['club_admin', 'coordinator'].includes(profile.profileTypeId) && (profile.clubId === game.homeTeamClubId || profile.clubId === game.awayTeamClubId);
+    const coachTeams = await getCoachTeams(userId);
+    const isCoachOfGame = profile.profileTypeId === 'coach' && coachTeams.some(t => t.id === game.homeTeamId || t.id === game.awayTeamId);
+  
+    const childrenPlayerIds = new Set(profile.children?.map(c => c.playerId) || []);
+    const isParentScoringForChild = profile.profileTypeId === 'parent_guardian' && childrenPlayerIds.has(event.playerId);
+
+    if (!isSuperAdmin && !isClubAdmin && !isCoachOfGame && !isParentScoringForChild) {
+      return { success: false, error: 'No tienes permiso para registrar acciones en este partido.' };
+    }
+  
+    if (profile.profileTypeId === 'parent_guardian' && !isParentScoringForChild) {
+        return { success: false, error: 'Solo puedes registrar acciones para tu hijo/a.' };
+    }
+
+    await adminDb.runTransaction(async (transaction) => {
+      const updates: { [key: string]: any } = { updatedAt: admin.firestore.FieldValue.serverTimestamp() };
+      
+      const pointMapping: { [key: string]: number } = { 'shot_made_1p': 1, 'shot_made_2p': 2, 'shot_made_3p': 3 };
+      if (pointMapping[event.action]) {
+        const points = pointMapping[event.action];
+        const scoreField = event.teamId === 'home' ? 'homeTeamScore' : 'awayTeamScore';
         updates[scoreField] = admin.firestore.FieldValue.increment(points);
       }
 
@@ -597,6 +625,7 @@ export async function recordGameEvent(
 
 export async function substitutePlayer(
     gameId: string, 
+    userId: string,
     teamId: 'home' | 'away', 
     playerIn: { id: string, name: string },
     playerOut: { id: string, name: string } | null,
@@ -605,10 +634,16 @@ export async function substitutePlayer(
 ): Promise<{ success: boolean; error?: string }> {
     if (!adminDb) return { success: false, error: 'La base de datos no está inicializada.' };
 
-    const gameRef = adminDb.collection('games').doc(gameId);
-    const eventsRef = gameRef.collection('events');
-    
     try {
+        const profile = await getUserProfileById(userId);
+        if (!profile) return { success: false, error: "Usuario no encontrado." };
+        if (!['super_admin', 'club_admin', 'coordinator', 'coach'].includes(profile.profileTypeId)) {
+          return { success: false, error: 'No tienes permiso para realizar sustituciones.' };
+        }
+
+        const gameRef = adminDb.collection('games').doc(gameId);
+        const eventsRef = gameRef.collection('events');
+        
         await adminDb.runTransaction(async (transaction) => {
             const gameDoc = await transaction.get(gameRef);
             if (!gameDoc.exists) throw new Error("Partido no encontrado.");

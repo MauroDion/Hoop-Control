@@ -10,7 +10,7 @@ import { db } from '@/lib/firebase/client';
 import { updateLiveGameState, recordGameEvent, substitutePlayer, getPlayerStatsForGame } from '@/app/games/actions';
 import { getGameFormatById } from '@/app/game-formats/actions';
 import { getPlayersByTeamId } from '@/app/players/actions';
-import { getUserProfileById } from '@/app/users/actions';
+import { getTeamById } from '@/app/teams/actions';
 import type { Game, GameFormat, Player, GameEventAction, PlayerGameStats, UserFirestoreProfile, ProfileType } from '@/types';
 
 import { Button } from '@/components/ui/button';
@@ -21,8 +21,9 @@ import { Separator } from '@/components/ui/separator';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import Image from 'next/image';
 
-const PlayerStatCard = ({ player, stats, onClick, userProfileType, isChild }: { player: Player; stats: PlayerGameStats; onClick: () => void, userProfileType?: ProfileType, isChild: boolean }) => {
-    
+const PlayerStatCard = ({ player, stats, onClick, userProfileType, isChild, onCourt }: { player: Player; stats: PlayerGameStats; onClick?: () => void, userProfileType?: ProfileType, isChild: boolean, onCourt: boolean }) => {
+    const isParentAndNotChild = userProfileType === 'parent_guardian' && !isChild;
+    const isClickable = !isParentAndNotChild && onCourt;
     const showStats = userProfileType !== 'parent_guardian' || isChild;
 
     const formatTime = (seconds: number) => {
@@ -32,13 +33,10 @@ const PlayerStatCard = ({ player, stats, onClick, userProfileType, isChild }: { 
     };
 
     return (
-        <Card onClick={onClick} className="p-2 relative aspect-[3/4] flex flex-col items-center justify-center overflow-hidden transition-all duration-300 hover:shadow-xl hover:scale-105 cursor-pointer bg-card">
-            {/* Points */}
+        <Card onClick={onClick} className={`p-2 relative aspect-[3/4] flex flex-col items-center justify-center overflow-hidden transition-all duration-300 bg-card ${isClickable ? "hover:shadow-xl hover:scale-105 cursor-pointer" : "cursor-default"}`}>
             <div className="absolute top-2 left-2 text-2xl font-black text-green-600">
                 {showStats ? stats.points : '-'}
             </div>
-
-            {/* Fouls */}
             {showStats && stats.fouls > 0 && (
                  <div className="absolute top-1/2 -translate-y-1/2 right-2 flex items-center justify-center px-2 h-7 bg-destructive border-2 border-white/70 rounded-sm shadow-lg z-20">
                     <span className="text-yellow-300 text-xl font-extrabold" style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.5)' }}>{stats.fouls}</span>
@@ -49,19 +47,12 @@ const PlayerStatCard = ({ player, stats, onClick, userProfileType, isChild }: { 
                    <span className="text-muted-foreground text-xl font-extrabold">F</span>
                 </div>
             )}
-
-
-            {/* PIR */}
              <div className="absolute top-2 right-2 text-2xl font-black text-blue-600">
                 {showStats ? stats.pir : '-'}
             </div>
-            
-            {/* Jersey Number */}
             <div className="text-8xl font-black text-destructive" style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.1)' }}>
                 {player.jerseyNumber || 'S/N'}
             </div>
-
-             {/* Player Info */}
              <div className="absolute bottom-1 text-xs text-center font-semibold w-full px-1 bg-gradient-to-t from-background via-background to-transparent pt-8 pb-1">
                 <p className="truncate">{player.firstName} {player.lastName}</p>
                 {showStats ? (
@@ -113,18 +104,18 @@ export default function LiveGamePage() {
     const params = useParams();
     const { toast } = useToast();
     const gameId = typeof params.gameId === 'string' ? params.gameId : '';
-    const { user, loading: authLoading } = useAuth();
+    const { user, profile, loading: authLoading } = useAuth();
 
     const [game, setGame] = useState<Game | null>(null);
     const [gameFormat, setGameFormat] = useState<GameFormat | null>(null);
     const [homePlayers, setHomePlayers] = useState<Player[]>([]);
     const [awayPlayers, setAwayPlayers] = useState<Player[]>([]);
     const [playerStats, setPlayerStats] = useState<PlayerGameStats[]>([]);
-    const [profile, setProfile] = useState<UserFirestoreProfile | null>(null);
 
     const [displayTime, setDisplayTime] = useState(0);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [hasPermission, setHasPermission] = useState(false);
     
     const [actionPlayerInfo, setActionPlayerInfo] = useState<{player: Player, teamType: 'home' | 'away'} | null>(null);
     const [subPlayerInfo, setSubPlayerInfo] = useState<{player: Player, teamType: 'home' | 'away'} | null>(null);
@@ -137,34 +128,50 @@ export default function LiveGamePage() {
     };
 
     const handleUpdate = useCallback(async (updates: Partial<Game>) => {
-        const result = await updateLiveGameState(gameId, updates);
+        if (!user) return;
+        const result = await updateLiveGameState(gameId, user.uid, updates);
         if (!result.success) {
             toast({ variant: 'destructive', title: 'Error al Actualizar', description: result.error });
         }
-    }, [gameId, toast]);
+    }, [gameId, toast, user]);
 
     useEffect(() => {
-        if (!gameId) {
-            setError("ID del partido no encontrado.");
+        if (authLoading) return;
+        if (!user || !profile) {
+            setError("Debes iniciar sesión para ver esta página.");
             setLoading(false);
             return;
         }
-        if (user) {
-            getUserProfileById(user.uid).then(setProfile);
-        }
+
         const gameRef = doc(db, 'games', gameId);
         const unsubscribe = onSnapshot(gameRef, async (docSnap) => {
             if (docSnap.exists()) {
                 const data = docSnap.data();
-                const gameData = { id: docSnap.id, ...data, date: new Date((data.date as any).seconds * 1000).toISOString() } as Game;
+                const gameData = { id: docSnap.id, ...data, date: (data.date as any).toDate() } as Game;
                 setGame(gameData);
                 
-                getPlayerStatsForGame(gameId).then(setPlayerStats);
+                const isSuperAdmin = profile.profileTypeId === 'super_admin';
+                const isClubAdmin = ['club_admin', 'coordinator'].includes(profile.profileTypeId) && (profile.clubId === gameData.homeTeamClubId || profile.clubId === gameData.awayTeamClubId);
+                const isParentOfPlayer = profile.profileTypeId === 'parent_guardian' && (profile.children || []).some(child => 
+                    (gameData.homeTeamPlayerIds || []).includes(child.playerId) || 
+                    (gameData.awayTeamPlayerIds || []).includes(child.playerId)
+                );
+                
+                const coachTeams = await getTeamsByCoach(user.uid);
+                const isCoachOfGame = coachTeams.some(t => t.id === gameData.homeTeamId || t.id === gameData.awayTeamId);
+
+                if (isSuperAdmin || isClubAdmin || isCoachOfGame || isParentOfPlayer) {
+                    setHasPermission(true);
+                } else {
+                    setError("No tienes permiso para ver este partido en vivo.");
+                    setLoading(false);
+                    return;
+                }
 
                 if (!gameFormat && gameData.gameFormatId) getGameFormatById(gameData.gameFormatId).then(setGameFormat);
                 if (homePlayers.length === 0 && gameData.homeTeamId) getPlayersByTeamId(gameData.homeTeamId).then(setHomePlayers);
                 if (awayPlayers.length === 0 && gameData.awayTeamId) getPlayersByTeamId(gameData.awayTeamId).then(setAwayPlayers);
-
+                getPlayerStatsForGame(gameId).then(setPlayerStats);
             } else {
                 setError("El partido no existe o ha sido eliminado.");
             }
@@ -175,14 +182,8 @@ export default function LiveGamePage() {
             setLoading(false);
         });
         return () => unsubscribe();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [gameId, user]);
+    }, [gameId, user, profile, authLoading, gameFormat, homePlayers.length, awayPlayers.length]);
 
-    useEffect(() => {
-        if (game) {
-            setDisplayTime(game.periodTimeRemainingSeconds ?? 0);
-        }
-    }, [game]);
 
     useEffect(() => {
         let timerId: NodeJS.Timeout | null = null;
@@ -198,17 +199,23 @@ export default function LiveGamePage() {
         };
     }, [game?.isTimerRunning, displayTime, handleUpdate]);
     
+    useEffect(() => {
+        if (game?.periodTimeRemainingSeconds !== undefined) {
+            setDisplayTime(game.periodTimeRemainingSeconds);
+        }
+    }, [game?.periodTimeRemainingSeconds]);
+
     const handleGameEvent = async (teamType: 'home' | 'away', playerId: string, playerName: string, action: GameEventAction) => {
-        if (!game || game.status !== 'inprogress') return;
-        await recordGameEvent(gameId, { teamId: teamType, playerId, playerName, action, period: game.currentPeriod || 1, gameTimeSeconds: displayTime });
+        if (!game || game.status !== 'inprogress' || !user) return;
+        await recordGameEvent(gameId, user.uid, { teamId: teamType, playerId, playerName, action, period: game.currentPeriod || 1, gameTimeSeconds: displayTime });
         setActionPlayerInfo(null);
     };
 
     const handleExecuteSubstitution = async (teamType: 'home' | 'away', playerIn: Player, playerOut: Player | null) => {
-        if (!game) return;
+        if (!game || !user) return;
         const playerInInfo = { id: playerIn.id, name: `${playerIn.firstName} ${playerIn.lastName}`};
         const playerOutInfo = playerOut ? { id: playerOut.id, name: `${playerOut.firstName} ${playerOut.lastName}`} : null;
-        const result = await substitutePlayer(gameId, teamType, playerInInfo, playerOutInfo, game.currentPeriod || 1, displayTime);
+        const result = await substitutePlayer(gameId, user.uid, teamType, playerInInfo, playerOutInfo, game.currentPeriod || 1, displayTime);
         if (!result.success) {
             toast({ variant: 'destructive', title: 'Error de Sustitución', description: result.error });
         }
@@ -216,7 +223,13 @@ export default function LiveGamePage() {
     };
 
     const handleBenchPlayerClick = (player: Player, teamType: 'home' | 'away') => {
-        if (!game) return;
+        if (!game || !profile) return;
+        const canSub = ['super_admin', 'club_admin', 'coordinator', 'coach'].includes(profile.profileTypeId);
+        if (!canSub) {
+            toast({ variant: "default", title: "Solo Vista", description: "Solo los entrenadores o administradores pueden hacer sustituciones." });
+            return;
+        }
+
         const onCourtField = teamType === 'home' ? 'homeTeamOnCourtPlayerIds' : 'awayTeamOnCourtPlayerIds';
         const onCourtIds = game[onCourtField] || [];
         if (onCourtIds.includes(player.id)) {
@@ -286,7 +299,7 @@ export default function LiveGamePage() {
 
     if (loading || authLoading) return <div className="flex justify-center items-center h-screen"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>;
     if (error) return <div className="text-center p-6"><AlertTriangle className="mx-auto h-12 w-12 text-destructive mb-4" /><h1 className="text-2xl text-destructive">Error</h1><p>{error}</p></div>;
-    if (!game) return null;
+    if (!game || !profile) return null;
 
     const TeamPanel = ({ teamType, playersList }: { teamType: 'home' | 'away', playersList: Player[] }) => {
         const teamName = teamType === 'home' ? game.homeTeamName : game.awayTeamName;
@@ -304,24 +317,22 @@ export default function LiveGamePage() {
                 </CardHeader>
                 <CardContent className="space-y-4">
                     <div className="text-8xl font-bold text-primary text-center">{teamType === 'home' ? game.homeTeamScore : game.awayTeamScore}</div>
-                    
                     <Separator/>
                     <h4 className="font-semibold text-center">Jugadores en Pista</h4>
                     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
                         {onCourtPlayers.length > 0 ? onCourtPlayers.map(p => {
                              const stats = playerStats.find(s => s.playerId === p.id) || { ...defaultStats, playerId: p.id, playerName: `${p.firstName} ${p.lastName}`, pir: 0 };
                              const isChild = childrenPlayerIds.has(p.id);
-                             return <PlayerStatCard key={p.id} player={p} stats={stats} onClick={() => setActionPlayerInfo({ player: p, teamType })} userProfileType={profile?.profileTypeId} isChild={isChild} />
+                             return <PlayerStatCard key={p.id} player={p} stats={stats} onClick={profile.profileTypeId === 'parent_guardian' && !isChild ? undefined : () => setActionPlayerInfo({ player: p, teamType })} userProfileType={profile?.profileTypeId} isChild={isChild} onCourt={true} />
                         }) : <p className="text-sm text-muted-foreground text-center italic col-span-full">Sin jugadores en pista</p>}
                     </div>
-
                     <Separator/>
                     <h4 className="font-semibold text-center">Banquillo</h4>
                     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
                        {onBenchPlayers.length > 0 ? onBenchPlayers.map(p => {
                            const stats = playerStats.find(s => s.playerId === p.id) || { ...defaultStats, playerId: p.id, playerName: `${p.firstName} ${p.lastName}`, pir: 0 };
                            const isChild = childrenPlayerIds.has(p.id);
-                           return <PlayerStatCard key={p.id} player={p} stats={stats} onClick={() => handleBenchPlayerClick(p, teamType)} userProfileType={profile?.profileTypeId} isChild={isChild} />
+                           return <PlayerStatCard key={p.id} player={p} stats={stats} onClick={() => handleBenchPlayerClick(p, teamType)} userProfileType={profile?.profileTypeId} isChild={isChild} onCourt={false} />
                        }) : <p className="text-sm text-muted-foreground text-center italic col-span-full">Banquillo vacío</p>}
                     </div>
                 </CardContent>
@@ -373,7 +384,7 @@ export default function LiveGamePage() {
                                 .map(player => {
                                     const stats = playerStats.find(s => s.playerId === player.id) || { ...defaultStats, playerId: player.id, playerName: `${player.firstName} ${player.lastName}`, pir: 0 };
                                     const isChild = childrenPlayerIds.has(player.id);
-                                    return <PlayerStatCard key={player.id} player={player} stats={stats} onClick={() => handleCourtPlayerClickInSubDialog(player)} userProfileType={profile?.profileTypeId} isChild={isChild} />
+                                    return <PlayerStatCard key={player.id} player={player} stats={stats} onClick={() => handleCourtPlayerClickInSubDialog(player)} userProfileType={profile?.profileTypeId} isChild={isChild} onCourt={true} />
                                 })
                         }
                     </div>
