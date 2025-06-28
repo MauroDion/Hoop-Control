@@ -60,14 +60,10 @@ export async function createGame(formData: GameFormData, userId: string): Promis
         const gameDateTime = new Date(`${formData.date}T${formData.time}`);
         
         const initialStats: TeamStats = {
-            onePointAttempts: 0, onePointMade: 0,
-            twoPointAttempts: 0, twoPointMade: 0,
-            threePointAttempts: 0, threePointMade: 0,
-            fouls: 0, timeouts: 0, 
-            reboundsOffensive: 0, reboundsDefensive: 0,
-            assists: 0, steals: 0, blocks: 0, turnovers: 0,
-            blocksAgainst: 0,
-            foulsReceived: 0,
+            onePointAttempts: 0, onePointMade: 0, twoPointAttempts: 0, twoPointMade: 0,
+            threePointAttempts: 0, threePointMade: 0, fouls: 0, timeouts: 0, 
+            reboundsOffensive: 0, reboundsDefensive: 0, assists: 0, steals: 0,
+            blocks: 0, turnovers: 0, blocksAgainst: 0, foulsReceived: 0,
         };
 
         const newGameData = {
@@ -131,15 +127,32 @@ export async function createTestGame(userId: string): Promise<{ success: boolean
             return { success: false, error: 'No tienes permiso para crear partidos de prueba.' };
         }
 
-        const [allTeams, allSeasons, allCategories, allFormats] = await Promise.all([
-            getAllTeams(),
+        const [allSeasons, allCategories, allFormats] = await Promise.all([
             getSeasons(),
             getCompetitionCategories(),
             getGameFormats(),
         ]);
 
-        if (allTeams.length < 2) return { success: false, error: 'Se necesitan al menos dos equipos en el sistema para crear un partido de prueba. Ejecuta primero el poblador de datos (seeder).' };
+        let teamsForTest: Team[];
+        if (['club_admin', 'coordinator'].includes(profile.profileTypeId)) {
+            teamsForTest = await getTeamsFromClub(profile.clubId);
+            if (teamsForTest.length < 2) {
+                return { success: false, error: 'Se necesitan al menos dos equipos en tu club para crear un partido de prueba.' };
+            }
+        } else {
+            teamsForTest = await getAllTeams();
+            if (teamsForTest.length < 2) {
+                return { success: false, error: 'Se necesitan al menos dos equipos en el sistema para crear un partido de prueba. Ejecuta primero el poblador de datos (seeder).' };
+            }
+        }
         
+        const homeTeam = teamsForTest[0];
+        const awayTeam = teamsForTest[1];
+
+        if (!homeTeam || !awayTeam) {
+             return { success: false, error: 'No se pudieron seleccionar los equipos para el partido de prueba.' };
+        }
+
         const activeSeason = allSeasons.find(s => s.status === 'active');
         if (!activeSeason) return { success: false, error: 'No se encontró una temporada activa para el partido de prueba.' };
 
@@ -149,9 +162,6 @@ export async function createTestGame(userId: string): Promise<{ success: boolean
         const gameFormat = allFormats[0];
         if (!gameFormat) return { success: false, error: 'No se encontraron formatos de partido.' };
         
-        const homeTeam = allTeams[0];
-        const awayTeam = allTeams[1];
-
         const [homePlayers, awayPlayers] = await Promise.all([
             getPlayersByTeamId(homeTeam.id),
             getPlayersByTeamId(awayTeam.id),
@@ -161,8 +171,8 @@ export async function createTestGame(userId: string): Promise<{ success: boolean
              return { success: false, error: 'Los equipos de prueba no tienen suficientes jugadores (mínimo 5). Ejecuta primero el poblador de datos (seeder).' };
         }
 
-        const homePlayerIds = homePlayers.map(p => p.id);
-        const awayPlayerIds = awayPlayers.map(p => p.id);
+        const homeTeamPlayerIds = homePlayers.map(p => p.id);
+        const awayTeamPlayerIds = awayPlayers.map(p => p.id);
 
         const gameDateTime = new Date();
         const initialStats: TeamStats = {
@@ -199,8 +209,8 @@ export async function createTestGame(userId: string): Promise<{ success: boolean
             periodTimeRemainingSeconds: 0,
             homeTeamPlayerIds,
             awayTeamPlayerIds,
-            homeTeamOnCourtPlayerIds: homePlayerIds.slice(0, 5),
-            awayTeamOnCourtPlayerIds: awayPlayerIds.slice(0, 5),
+            homeTeamOnCourtPlayerIds: homeTeamPlayerIds.slice(0, 5),
+            awayTeamOnCourtPlayerIds: awayTeamPlayerIds.slice(0, 5),
             scorerAssignments: {},
         };
 
@@ -280,13 +290,22 @@ export async function getGamesByParent(userId: string): Promise<Game[]> {
         
         const allGames = await getAllGames();
         
-        return allGames.filter(game => {
-             const gamePlayerIds = new Set([...(game.homeTeamPlayerIds || []), ...(game.awayTeamPlayerIds || [])]);
-             for (const childId of childrenPlayerIds) {
-                 if (gamePlayerIds.has(childId)) return true;
-             }
-             return false;
+        const playerTeams = new Map<string, string>();
+        const allPlayers = await getPlayersFromIds(Array.from(childrenPlayerIds));
+        const allTeamIds: string[] = [];
+        allPlayers.forEach(p => {
+            if(p.teamId) {
+                playerTeams.set(p.id, p.teamId);
+                if (!allTeamIds.includes(p.teamId)) {
+                    allTeamIds.push(p.teamId);
+                }
+            }
         });
+
+        return allGames.filter(game => {
+             return allTeamIds.includes(game.homeTeamId) || allTeamIds.includes(game.awayTeamId);
+        });
+
     } catch (error: any) {
         console.error("Error fetching games by parent:", error);
         return [];
