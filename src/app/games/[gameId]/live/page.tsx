@@ -11,27 +11,23 @@ import { db } from '@/lib/firebase/client';
 import { updateLiveGameState, recordGameEvent, substitutePlayer, getPlayerStatsForGame } from '@/app/games/actions';
 import { getGameFormatById } from '@/app/game-formats/actions';
 import { getPlayersByTeamId } from '@/app/players/actions';
-import { getTeamsByCoach } from '@/app/teams/actions';
-import { getUserProfileById } from '@/app/users/actions';
 import type { Game, GameFormat, Player, GameEventAction, PlayerGameStats, UserFirestoreProfile, ProfileType } from '@/types';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, AlertTriangle, ChevronLeft, Gamepad2, Minus, Plus, Play, Flag, Pause, TimerReset, FastForward, Timer as TimerIcon, CheckCircle, Ban, Users, Dribbble, Lock } from 'lucide-react';
+import { Loader2, AlertTriangle, ChevronLeft, Gamepad2, Minus, Plus, Play, Flag, Pause, TimerReset, FastForward, Timer as TimerIcon, CheckCircle, Ban, Users, Dribbble } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Separator } from '@/components/ui/separator';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import Image from 'next/image';
 
-const PlayerStatCard = ({ player, stats, onClick, userProfileType, isChild, onCourt }: { player: Player; stats: PlayerGameStats; onClick?: () => void, userProfileType?: ProfileType, isChild: boolean, onCourt: boolean }) => {
-    // A parent can only see stats for their own child.
-    const canSeeStats = userProfileType !== 'parent_guardian' || isChild;
+const PlayerStatCard = ({ player, stats, onClick, userProfileType, isChild, isTeammate, onCourt }: { player: Player; stats: PlayerGameStats; onClick?: () => void, userProfileType?: ProfileType, isChild: boolean, isTeammate: boolean, onCourt: boolean }) => {
+    
+    // Parents can see advanced stats for their child and all opponents, but not for other teammates.
+    const canSeeAdvancedStats = userProfileType !== 'parent_guardian' || isChild || !isTeammate;
     
     // A parent can only click their own child's card to add actions. A coach/admin can click anyone.
     const isClickable = (userProfileType !== 'parent_guardian' || isChild) && onCourt;
-    
-    // A parent cannot see the PIR for any player.
-    const showPIR = userProfileType !== 'parent_guardian';
 
     const formatTime = (seconds: number) => {
         const mins = Math.floor(seconds / 60);
@@ -41,27 +37,21 @@ const PlayerStatCard = ({ player, stats, onClick, userProfileType, isChild, onCo
 
     return (
         <Card onClick={isClickable ? onClick : undefined} className={`p-2 relative aspect-[3/4] flex flex-col items-center justify-center overflow-hidden transition-all duration-300 bg-card ${isClickable ? "hover:shadow-xl hover:scale-105 cursor-pointer" : "cursor-default"}`}>
-            {!canSeeStats && (
-                <div className="absolute inset-0 bg-background/80 backdrop-blur-sm z-10 flex items-center justify-center">
-                    <Lock className="h-8 w-8 text-muted-foreground"/>
-                </div>
-            )}
-            
             {/* Points */}
-            <div className={`absolute top-2 left-2 text-2xl font-black text-green-600 ${!canSeeStats ? 'invisible' : ''}`}>
+            <div className='absolute top-2 left-2 text-2xl font-black text-green-600'>
                 {stats.points}
             </div>
 
             {/* Fouls */}
             {stats.fouls > 0 && (
-                 <div className={`absolute top-1/2 -translate-y-1/2 right-2 flex items-center justify-center px-2 h-7 bg-destructive border-2 border-white/70 rounded-sm shadow-lg z-20 ${!canSeeStats ? 'invisible' : ''}`}>
+                 <div className='absolute top-1/2 -translate-y-1/2 right-2 flex items-center justify-center px-2 h-7 bg-destructive border-2 border-white/70 rounded-sm shadow-lg z-20'>
                     <span className="text-yellow-300 text-xl font-extrabold" style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.5)' }}>{stats.fouls}</span>
                 </div>
             )}
             
             {/* PIR */}
              <div className="absolute top-2 right-2 text-2xl font-black text-blue-600">
-                {showPIR ? stats.pir : '-'}
+                {canSeeAdvancedStats ? stats.pir : '-'}
             </div>
 
             {/* Jersey Number */}
@@ -72,7 +62,7 @@ const PlayerStatCard = ({ player, stats, onClick, userProfileType, isChild, onCo
             {/* Name and Time */}
             <div className="absolute bottom-1 text-xs text-center font-semibold w-full px-1 bg-gradient-to-t from-background via-background to-transparent pt-8 pb-1">
                 <p className="truncate">{player.firstName} {player.lastName}</p>
-                <p className={`font-mono text-muted-foreground ${!canSeeStats ? 'invisible' : ''}`}>{formatTime(stats.timePlayedSeconds || 0)} ({stats.periodsPlayed || 0})</p>
+                <p className={`font-mono text-muted-foreground ${!canSeeAdvancedStats ? 'invisible' : ''}`}>{formatTime(stats.timePlayedSeconds || 0)} ({stats.periodsPlayed || 0})</p>
             </div>
         </Card>
     );
@@ -168,8 +158,11 @@ export default function LiveGamePage() {
                     (gameData.awayTeamPlayerIds || []).includes(child.playerId)
                 );
                 
-                const coachTeams = await getTeamsByCoach(user.uid);
-                const isCoachOfGame = coachTeams.some(t => t.id === gameData.homeTeamId || t.id === gameData.awayTeamId);
+                let isCoachOfGame = false;
+                if(profile.profileTypeId === 'coach') {
+                    const coachTeams = await getTeamsByCoach(user.uid);
+                    isCoachOfGame = coachTeams.some(t => t.id === gameData.homeTeamId || t.id === gameData.awayTeamId);
+                }
 
                 if (isSuperAdmin || isClubAdmin || isCoachOfGame || isParentOfPlayer) {
                     setHasPermission(true);
@@ -305,9 +298,27 @@ export default function LiveGamePage() {
         const seconds = totalSeconds % 60;
         return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
     };
-    
-    const childrenPlayerIds = useMemo(() => new Set(profile?.children?.map(c => c.playerId) || []), [profile]);
 
+    const parentChildInfo = useMemo(() => {
+        if (profile?.profileTypeId !== 'parent_guardian' || !profile.children) {
+            return { teamType: null, childIds: new Set<string>() };
+        }
+        const childIds = new Set(profile.children.map(c => c.playerId));
+        let teamType: 'home' | 'away' | null = null;
+        
+        for (const id of childIds) {
+            if ((game?.homeTeamPlayerIds || []).includes(id)) {
+                teamType = 'home';
+                break;
+            }
+            if ((game?.awayTeamPlayerIds || []).includes(id)) {
+                teamType = 'away';
+                break;
+            }
+        }
+        return { teamType, childIds };
+    }, [profile, game]);
+    
     if (loading || authLoading) return <div className="flex justify-center items-center h-screen"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>;
     if (error || !hasPermission) return <div className="text-center p-6"><AlertTriangle className="mx-auto h-12 w-12 text-destructive mb-4" /><h1 className="text-2xl text-destructive">Error</h1><p>{error || "No tienes permiso para ver esta página."}</p></div>;
     if (!game) return null;
@@ -319,6 +330,8 @@ export default function LiveGamePage() {
 
         const onCourtPlayers = playersList.filter(p => gameRosterIds.has(p.id) && onCourtIds.has(p.id));
         const onBenchPlayers = playersList.filter(p => gameRosterIds.has(p.id) && !onCourtIds.has(p.id));
+        
+        const isParentsTeam = profile?.profileTypeId === 'parent_guardian' && parentChildInfo.teamType === teamType;
         
         return (
             <Card className="shadow-lg">
@@ -333,8 +346,9 @@ export default function LiveGamePage() {
                     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
                         {onCourtPlayers.length > 0 ? onCourtPlayers.map(p => {
                              const stats = playerStats.find(s => s.playerId === p.id) || { ...defaultStats, playerId: p.id, playerName: `${p.firstName} ${p.lastName}`, pir: 0 };
-                             const isChild = childrenPlayerIds.has(p.id);
-                             return <PlayerStatCard key={p.id} player={p} stats={stats} onClick={() => setActionPlayerInfo({ player: p, teamType })} userProfileType={profile?.profileTypeId} isChild={isChild} onCourt={true} />
+                             const isChild = parentChildInfo.childIds.has(p.id);
+                             const isTeammate = isParentsTeam && !isChild;
+                             return <PlayerStatCard key={p.id} player={p} stats={stats} onClick={() => setActionPlayerInfo({ player: p, teamType })} userProfileType={profile?.profileTypeId} isChild={isChild} isTeammate={isTeammate} onCourt={true} />
                         }) : <p className="text-sm text-muted-foreground text-center italic col-span-full">Sin jugadores en pista</p>}
                     </div>
                     <Separator/>
@@ -342,8 +356,9 @@ export default function LiveGamePage() {
                     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
                        {onBenchPlayers.length > 0 ? onBenchPlayers.map(p => {
                            const stats = playerStats.find(s => s.playerId === p.id) || { ...defaultStats, playerId: p.id, playerName: `${p.firstName} ${p.lastName}`, pir: 0 };
-                           const isChild = childrenPlayerIds.has(p.id);
-                           return <PlayerStatCard key={p.id} player={p} stats={stats} onClick={() => handleBenchPlayerClick(p, teamType)} userProfileType={profile?.profileTypeId} isChild={isChild} onCourt={false} />
+                           const isChild = parentChildInfo.childIds.has(p.id);
+                           const isTeammate = isParentsTeam && !isChild;
+                           return <PlayerStatCard key={p.id} player={p} stats={stats} onClick={() => handleBenchPlayerClick(p, teamType)} userProfileType={profile?.profileTypeId} isChild={isChild} isTeammate={isTeammate} onCourt={false} />
                        }) : <p className="text-sm text-muted-foreground text-center italic col-span-full">Banquillo vacío</p>}
                     </div>
                 </CardContent>
@@ -396,8 +411,9 @@ export default function LiveGamePage() {
                                     .filter(p => (game[subPlayerInfo!.teamType === 'home' ? 'homeTeamOnCourtPlayerIds' : 'awayTeamOnCourtPlayerIds'] || []).includes(p.id))
                                     .map(player => {
                                         const stats = playerStats.find(s => s.playerId === player.id) || { ...defaultStats, playerId: player.id, playerName: `${player.firstName} ${player.lastName}`, pir: 0 };
-                                        const isChild = childrenPlayerIds.has(player.id);
-                                        return <PlayerStatCard key={player.id} player={player} stats={stats} onClick={() => handleCourtPlayerClickInSubDialog(player)} userProfileType={profile?.profileTypeId} isChild={isChild} onCourt={true} />
+                                        const isChild = parentChildInfo.childIds.has(player.id);
+                                        const isTeammate = parentChildInfo.teamType === subPlayerInfo.teamType && !isChild;
+                                        return <PlayerStatCard key={player.id} player={player} stats={stats} onClick={() => handleCourtPlayerClickInSubDialog(player)} userProfileType={profile?.profileTypeId} isChild={isChild} isTeammate={isTeammate} onCourt={true} />
                                     })
                             }
                         </div>
@@ -463,3 +479,6 @@ export default function LiveGamePage() {
         </div>
     )
 }
+
+
+    
