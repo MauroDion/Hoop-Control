@@ -24,6 +24,9 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import Image from 'next/image';
 
 const PlayerStatCard = ({ player, stats, onClick, userProfileType, isChild, onCourt }: { player: Player; stats: PlayerGameStats; onClick?: () => void, userProfileType?: ProfileType, isChild: boolean, onCourt: boolean }) => {
+    // A parent can only see stats for their own child.
+    const canSeeStats = userProfileType !== 'parent_guardian' || isChild;
+    
     // A parent can only click their own child's card to add actions. A coach/admin can click anyone.
     const isClickable = (userProfileType !== 'parent_guardian' || isChild) && onCourt;
     
@@ -38,14 +41,20 @@ const PlayerStatCard = ({ player, stats, onClick, userProfileType, isChild, onCo
 
     return (
         <Card onClick={isClickable ? onClick : undefined} className={`p-2 relative aspect-[3/4] flex flex-col items-center justify-center overflow-hidden transition-all duration-300 bg-card ${isClickable ? "hover:shadow-xl hover:scale-105 cursor-pointer" : "cursor-default"}`}>
+            {!canSeeStats && (
+                <div className="absolute inset-0 bg-background/80 backdrop-blur-sm z-10 flex items-center justify-center">
+                    <Lock className="h-8 w-8 text-muted-foreground"/>
+                </div>
+            )}
+            
             {/* Points */}
-            <div className="absolute top-2 left-2 text-2xl font-black text-green-600">
+            <div className={`absolute top-2 left-2 text-2xl font-black text-green-600 ${!canSeeStats ? 'invisible' : ''}`}>
                 {stats.points}
             </div>
 
             {/* Fouls */}
             {stats.fouls > 0 && (
-                 <div className="absolute top-1/2 -translate-y-1/2 right-2 flex items-center justify-center px-2 h-7 bg-destructive border-2 border-white/70 rounded-sm shadow-lg z-20">
+                 <div className={`absolute top-1/2 -translate-y-1/2 right-2 flex items-center justify-center px-2 h-7 bg-destructive border-2 border-white/70 rounded-sm shadow-lg z-20 ${!canSeeStats ? 'invisible' : ''}`}>
                     <span className="text-yellow-300 text-xl font-extrabold" style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.5)' }}>{stats.fouls}</span>
                 </div>
             )}
@@ -63,7 +72,7 @@ const PlayerStatCard = ({ player, stats, onClick, userProfileType, isChild, onCo
             {/* Name and Time */}
             <div className="absolute bottom-1 text-xs text-center font-semibold w-full px-1 bg-gradient-to-t from-background via-background to-transparent pt-8 pb-1">
                 <p className="truncate">{player.firstName} {player.lastName}</p>
-                <p className="font-mono text-muted-foreground">{formatTime(stats.timePlayedSeconds || 0)} ({stats.periodsPlayed || 0})</p>
+                <p className={`font-mono text-muted-foreground ${!canSeeStats ? 'invisible' : ''}`}>{formatTime(stats.timePlayedSeconds || 0)} ({stats.periodsPlayed || 0})</p>
             </div>
         </Card>
     );
@@ -96,7 +105,7 @@ const OtherActionButtons = ({ onAction }: { onAction: (action: GameEventAction) 
             <Button className="justify-start" variant="destructive" onClick={() => onAction('block_against')}>Tapón Sufrido</Button>
             <Button className="justify-start" variant="destructive" onClick={() => onAction('turnover')}>Pérdida</Button>
             <Button className="justify-start" variant="destructive" onClick={() => onAction('foul')}>Falta Personal</Button>
-            <Button className="justify-start bg-green-600 hover:bg-green-700 text-primary-foreground" onClick={() => onAction('foul_received')}>Falta Recibida</Button>
+            <Button className="justify-start" variant="outline" onClick={() => onAction('foul_received')}>Falta Recibida</Button>
         </div>
     </div>
 );
@@ -363,9 +372,9 @@ export default function LiveGamePage() {
                                     </div>
                                 </div>
                             </DialogHeader>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 py-4">
-                                <ShotActionButtons onAction={(action) => handleGameEvent(actionPlayerInfo.teamType, actionPlayerInfo.player.id, `${actionPlayerInfo.player.firstName} ${actionPlayerInfo.player.lastName}`, action)} />
-                                <OtherActionButtons onAction={(action) => handleGameEvent(actionPlayerInfo.teamType, actionPlayerInfo.player.id, `${actionPlayerInfo.player.firstName} ${actionPlayerInfo.player.lastName}`, action)} />
+                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 py-4">
+                                <ShotActionButtons onAction={(action) => handleGameEvent(actionPlayerInfo!.teamType, actionPlayerInfo!.player.id, `${actionPlayerInfo!.player.firstName} ${actionPlayerInfo!.player.lastName}`, action)} />
+                                <OtherActionButtons onAction={(action) => handleGameEvent(actionPlayerInfo!.teamType, actionPlayerInfo!.player.id, `${actionPlayerInfo!.player.firstName} ${actionPlayerInfo!.player.lastName}`, action)} />
                             </div>
                         </>
                     )}
@@ -454,4 +463,3 @@ export default function LiveGamePage() {
         </div>
     )
 }
-
