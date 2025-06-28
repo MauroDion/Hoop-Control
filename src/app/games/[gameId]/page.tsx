@@ -10,7 +10,7 @@ import { es } from 'date-fns/locale';
 // Actions
 import { getGameById, updateGameRoster } from '@/app/games/actions';
 import { getPlayersByTeamId } from '@/app/players/actions';
-import { getTeamsByCoach } from '@/app/teams/actions';
+import { getTeamsByCoach, getTeamById } from '@/app/teams/actions';
 import { getUserProfileById } from '@/app/users/actions';
 
 
@@ -264,6 +264,7 @@ export default function ManageGamePage() {
     const homeRosterCount = selectedHomePlayers.size;
     const awayRosterCount = selectedAwayPlayers.size;
     const canStartGame = homeRosterCount >= 5 && awayRosterCount >= 5;
+    const isRosterEditable = canManageRoster && game.status === 'scheduled';
 
     return (
         <div className="space-y-8">
@@ -317,7 +318,7 @@ export default function ManageGamePage() {
                 onSelectAll={handleSelectAll}
                 onClearAll={handleClearAll}
                 isSaving={savingHome}
-                readOnly={!canManageRoster}
+                readOnly={!isRosterEditable}
             />
 
             <RosterCard 
@@ -331,7 +332,7 @@ export default function ManageGamePage() {
                 onSelectAll={handleSelectAll}
                 onClearAll={handleClearAll}
                 isSaving={savingAway}
-                readOnly={!canManageRoster}
+                readOnly={!isRosterEditable}
             />
         </div>
     );
