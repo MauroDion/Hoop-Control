@@ -3,8 +3,8 @@
 import { adminDb } from '@/lib/firebase/admin';
 import admin from 'firebase-admin';
 import { revalidatePath } from 'next/cache';
-import type { Game, GameFormData, Team, TeamStats, Player, GameEvent, GameEventAction, UserFirestoreProfile, StatCategory } from '@/types';
-import { getTeamsByCoach as getCoachTeams, getAllTeams, getTeamsByClubId as getTeamsFromClub } from '@/app/teams/actions';
+import type { Game, GameFormData, Team, TeamStats, Player, GameEvent, GameEventAction, UserFirestoreProfile, StatCategory, PlayerGameStats } from '@/types';
+import { getTeamsByCoach, getAllTeams, getTeamsByClubId as getTeamsFromClub } from '@/app/teams/actions';
 import { getUserProfileById } from '@/app/users/actions';
 import { getSeasons } from '@/app/seasons/actions';
 import { getCompetitionCategories } from '@/app/competition-categories/actions';
@@ -520,5 +520,241 @@ export async function finishAllInProgressGames(userId: string): Promise<{ succes
     } catch (error: any) {
         console.error("Error finishing all in-progress games:", error);
         return { success: false, error: error.message };
+    }
+}
+
+export async function assignScorer(
+    gameId: string, 
+    userId: string, 
+    displayName: string, 
+    category: StatCategory, 
+    release: boolean = false
+): Promise<{ success: boolean; error?: string }> {
+    if (!adminDb) return { success: false, error: "Database not initialized." };
+
+    const gameRef = adminDb.collection('games').doc(gameId);
+
+    try {
+        await adminDb.runTransaction(async (transaction) => {
+            const gameDoc = await transaction.get(gameRef);
+            if (!gameDoc.exists) throw new Error("Game not found.");
+            
+            const assignments = gameDoc.data()?.scorerAssignments || {};
+
+            if (release) {
+                if (assignments[category]?.uid === userId) {
+                    transaction.update(gameRef, { [`scorerAssignments.${category}`]: null });
+                } else {
+                    // This can happen in a race condition, but it's not a critical failure.
+                    console.warn(`User ${userId} tried to release a category not assigned to them.`);
+                }
+            } else {
+                if (assignments[category] && assignments[category].uid !== userId) {
+                    throw new Error(`Category "${category}" is already controlled by ${assignments[category].displayName}.`);
+                }
+                transaction.update(gameRef, { [`scorerAssignments.${category}`]: { uid: userId, displayName } });
+            }
+        });
+        return { success: true };
+    } catch (error: any) {
+        return { success: false, error: error.message };
+    }
+}
+
+export async function recordGameEvent(
+  gameId: string,
+  userId: string,
+  eventData: Omit<GameEvent, 'id' | 'gameId' | 'createdAt' | 'createdBy'>
+): Promise<{ success: boolean; error?: string }> {
+    if (!adminDb) return { success: false, error: 'Database not initialized' };
+    
+    const gameRef = adminDb.collection('games').doc(gameId);
+    const eventRef = gameRef.collection('events').doc();
+
+    try {
+        await adminDb.runTransaction(async (transaction) => {
+            const gameDoc = await transaction.get(gameRef);
+            if (!gameDoc.exists) throw new Error("Game not found.");
+
+            const gameData = gameDoc.data() as Game;
+            const profile = await getUserProfileById(userId);
+            const isSuperAdmin = profile?.profileTypeId === 'super_admin';
+
+            // Permission check
+            const assignments = gameData.scorerAssignments || {};
+            const { action } = eventData;
+            let requiredCategory: StatCategory | null = null;
+            if (action.startsWith('shot')) requiredCategory = 'shots';
+            else if (action.includes('foul')) requiredCategory = 'fouls';
+            else if (['rebound_defensive', 'rebound_offensive', 'assist', 'steal', 'block', 'turnover', 'block_against'].includes(action)) requiredCategory = 'turnovers';
+            
+            if (requiredCategory && assignments[requiredCategory]?.uid !== userId && !isSuperAdmin) {
+                 throw new Error(`You are not assigned to score "${requiredCategory}".`);
+            }
+
+            const newEvent: Omit<GameEvent, 'id'> = {
+                ...eventData,
+                gameId,
+                createdBy: userId,
+                createdAt: admin.firestore.FieldValue.serverTimestamp() as any, // Cast for transaction
+            };
+            transaction.set(eventRef, newEvent);
+
+            const scoreField = eventData.teamId === 'home' ? 'homeTeamScore' : 'awayTeamScore';
+            const statsField = eventData.teamId === 'home' ? 'homeTeamStats' : 'awayTeamStats';
+            
+            const updates: { [key: string]: any } = {};
+            if (action === 'shot_made_1p') {
+                updates[scoreField] = admin.firestore.FieldValue.increment(1);
+                updates[`${statsField}.onePointAttempts`] = admin.firestore.FieldValue.increment(1);
+                updates[`${statsField}.onePointMade`] = admin.firestore.FieldValue.increment(1);
+            } else if (action === 'shot_miss_1p') {
+                updates[`${statsField}.onePointAttempts`] = admin.firestore.FieldValue.increment(1);
+            } else if (action === 'shot_made_2p') {
+                updates[scoreField] = admin.firestore.FieldValue.increment(2);
+                updates[`${statsField}.twoPointAttempts`] = admin.firestore.FieldValue.increment(1);
+                updates[`${statsField}.twoPointMade`] = admin.firestore.FieldValue.increment(1);
+            } else if (action === 'shot_miss_2p') {
+                updates[`${statsField}.twoPointAttempts`] = admin.firestore.FieldValue.increment(1);
+            } else if (action === 'shot_made_3p') {
+                updates[scoreField] = admin.firestore.FieldValue.increment(3);
+                updates[`${statsField}.threePointAttempts`] = admin.firestore.FieldValue.increment(1);
+                updates[`${statsField}.threePointMade`] = admin.firestore.FieldValue.increment(1);
+            } else if (action === 'shot_miss_3p') {
+                 updates[`${statsField}.threePointAttempts`] = admin.firestore.FieldValue.increment(1);
+            } else if (action === 'foul') {
+                 updates[`${statsField}.fouls`] = admin.firestore.FieldValue.increment(1);
+            } else if (action === 'steal') {
+                 updates[`${statsField}.steals`] = admin.firestore.FieldValue.increment(1);
+            }
+            if (Object.keys(updates).length > 0) {
+              transaction.update(gameRef, updates);
+            }
+        });
+        return { success: true };
+    } catch(error: any) {
+        console.error("Error recording game event:", error);
+        return { success: false, error: error.message };
+    }
+}
+
+export async function substitutePlayer(
+  gameId: string,
+  userId: string,
+  teamType: 'home' | 'away',
+  playerIn: { id: string; name: string },
+  playerOut: { id: string; name: string } | null,
+  period: number,
+  gameTimeSeconds: number
+): Promise<{ success: boolean; error?: string }> {
+  if (!adminDb) return { success: false, error: 'Database not initialized' };
+  const gameRef = adminDb.collection('games').doc(gameId);
+
+  try {
+    await adminDb.runTransaction(async (transaction) => {
+        const gameDoc = await transaction.get(gameRef);
+        if (!gameDoc.exists) throw new Error("Game not found.");
+
+        const gameData = gameDoc.data() as Game;
+        const onCourtField = teamType === 'home' ? 'homeTeamOnCourtPlayerIds' : 'awayTeamOnCourtPlayerIds';
+        let onCourtIds = gameData[onCourtField] || [];
+        
+        const serverTimestamp = admin.firestore.FieldValue.serverTimestamp();
+        const baseEventPayload = { gameId, teamId: teamType, period, gameTimeSeconds, createdAt: serverTimestamp, createdBy: userId };
+
+        if (playerOut) {
+            onCourtIds = onCourtIds.filter(id => id !== playerOut.id);
+            const eventOutRef = gameRef.collection('events').doc();
+            transaction.set(eventOutRef, { ...baseEventPayload, action: 'substitution_out', playerId: playerOut.id, playerName: playerOut.name, playerOut });
+        }
+
+        if (!onCourtIds.includes(playerIn.id)) {
+            if (onCourtIds.length >= 5) {
+                if (!playerOut) throw new Error("Court is full (5 players). You must select a player to substitute out.");
+            }
+            onCourtIds.push(playerIn.id);
+            const eventInRef = gameRef.collection('events').doc();
+            transaction.set(eventInRef, { ...baseEventPayload, action: 'substitution_in', playerId: playerIn.id, playerName: playerIn.name, playerIn });
+        } else {
+            throw new Error("Player is already on court.");
+        }
+
+        transaction.update(gameRef, { [onCourtField]: onCourtIds });
+    });
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
+export async function getPlayerStatsForGame(gameId: string): Promise<PlayerGameStats[]> {
+    if (!adminDb) return [];
+
+    try {
+        const eventsRef = adminDb.collection('games').doc(gameId).collection('events');
+        const eventsSnap = await eventsRef.orderBy('createdAt', 'asc').get();
+
+        const playerStatsMap = new Map<string, Partial<PlayerGameStats> & { playerName: string }>();
+
+        const getOrCreateStats = (playerId: string, playerName: string) => {
+            if (!playerStatsMap.has(playerId)) {
+                playerStatsMap.set(playerId, {
+                    playerId, playerName, points: 0, shots_made_1p: 0, shots_attempted_1p: 0,
+                    shots_made_2p: 0, shots_attempted_2p: 0, shots_made_3p: 0, shots_attempted_3p: 0,
+                    reb_def: 0, reb_off: 0, assists: 0, steals: 0, blocks: 0, turnovers: 0,
+                    fouls: 0, blocks_against: 0, fouls_received: 0, timePlayedSeconds: 0, periodsPlayed: 0
+                });
+            }
+            return playerStatsMap.get(playerId)!;
+        };
+
+        eventsSnap.docs.forEach(doc => {
+            const event = doc.data() as GameEvent;
+            if (!event.playerId || event.playerId === 'SYSTEM') return;
+
+            const stats = getOrCreateStats(event.playerId, event.playerName);
+
+            switch (event.action) {
+                case 'shot_made_1p': stats.points! += 1; stats.shots_made_1p! += 1; stats.shots_attempted_1p! += 1; break;
+                case 'shot_miss_1p': stats.shots_attempted_1p! += 1; break;
+                case 'shot_made_2p': stats.points! += 2; stats.shots_made_2p! += 1; stats.shots_attempted_2p! += 1; break;
+                case 'shot_miss_2p': stats.shots_attempted_2p! += 1; break;
+                case 'shot_made_3p': stats.points! += 3; stats.shots_made_3p! += 1; stats.shots_attempted_3p! += 1; break;
+                case 'shot_miss_3p': stats.shots_attempted_3p! += 1; break;
+                case 'rebound_defensive': stats.reb_def! += 1; break;
+                case 'rebound_offensive': stats.reb_off! += 1; break;
+                case 'assist': stats.assists! += 1; break;
+                case 'steal': stats.steals! += 1; break;
+                case 'block': stats.blocks! += 1; break;
+                case 'block_against': stats.blocks_against! += 1; break;
+                case 'turnover': stats.turnovers! += 1; break;
+                case 'foul': stats.fouls! += 1; break;
+                case 'foul_received': stats.fouls_received! += 1; break;
+            }
+        });
+
+        const finalStats: PlayerGameStats[] = Array.from(playerStatsMap.values()).map(s => {
+            const made_shots = (s.shots_made_1p || 0) + (s.shots_made_2p || 0) + (s.shots_made_3p || 0);
+            const attempted_shots = (s.shots_attempted_1p || 0) + (s.shots_attempted_2p || 0) + (s.shots_attempted_3p || 0);
+            const missed_shots = attempted_shots - made_shots;
+
+            const pir = ((s.points || 0) + (s.reb_def || 0) + (s.reb_off || 0) + (s.assists || 0) + (s.steals || 0) + (s.blocks || 0) + (s.fouls_received || 0)) - 
+                        (missed_shots + (s.turnovers || 0) + (s.blocks_against || 0) + (s.fouls || 0));
+            
+            const defaultFullStats: PlayerGameStats = {
+                playerId: s.playerId || '', playerName: s.playerName || 'N/A', points: 0, shots_made_1p: 0, shots_attempted_1p: 0,
+                shots_made_2p: 0, shots_attempted_2p: 0, shots_made_3p: 0, shots_attempted_3p: 0, reb_def: 0, reb_off: 0,
+                assists: 0, steals: 0, blocks: 0, turnovers: 0, fouls: 0, blocks_against: 0, fouls_received: 0,
+                timePlayedSeconds: 0, periodsPlayed: 0, pir: 0
+            };
+
+            return { ...defaultFullStats, ...s, pir };
+        });
+
+        return finalStats;
+
+    } catch (err) {
+        console.error("Error calculating player stats:", err);
+        return [];
     }
 }

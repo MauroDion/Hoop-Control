@@ -247,6 +247,10 @@ export interface GameEvent {
     period: number;
     gameTimeSeconds: number; // Time remaining in period when event happened
     createdAt: string; // ISO string for server timestamp
+    createdBy: string;
+    // For substitutions
+    playerIn?: { id: string, name: string };
+    playerOut?: { id: string, name: string };
 }
 
 export interface Game {
