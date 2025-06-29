@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useAuth } from '@/hooks/useAuth';
@@ -29,7 +30,7 @@ const apiSampleData: ApiData[] = [
 
 
 export default function DashboardPage() {
-  const { user, profile, loading } = useAuth();
+  const { user, profile, loading, branding } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
   const [isCreatingTestGame, setIsCreatingTestGame] = useState(false);
@@ -126,7 +127,7 @@ export default function DashboardPage() {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 p-6 bg-card rounded-lg shadow-lg">
         <div>
           <h1 className="text-4xl font-headline font-bold text-primary">¡Bienvenido, {user.displayName || user.email}!</h1>
-          <p className="text-lg text-muted-foreground mt-1">Este es un resumen de tu espacio de trabajo en Hoop Control.</p>
+          <p className="text-lg text-muted-foreground mt-1">Este es un resumen de tu espacio de trabajo en {branding.appName || 'Hoop Control'}.</p>
         </div>
          <Image 
             src={"https://placehold.co/150x150.png"} 
