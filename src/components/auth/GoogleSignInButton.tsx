@@ -21,7 +21,7 @@ export function GoogleSignInButton() {
   const router = useRouter();
   const { toast } = useToast();
   const searchParams = useSearchParams();
-  const redirectUrl = searchParams.get("redirect") || "/dashboard";
+  const redirectUrl = searchParams.get("redirect") || "/games";
 
   const handleSignIn = async () => {
     const provider = new GoogleAuthProvider();

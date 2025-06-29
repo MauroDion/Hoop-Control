@@ -32,7 +32,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import Image from 'next/image';
-import { getBrandingSettings } from '@/app/admin/settings/actions';
 import { UserNav } from './UserNav';
 import {
   Sheet,
@@ -41,13 +40,8 @@ import {
 } from "@/components/ui/sheet";
 
 export default function Header() {
-  const { user, loading, profile } = useAuth();
-  const [branding, setBranding] = useState<BrandingSettings>({});
+  const { user, loading, profile, branding } = useAuth();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-
-  useEffect(() => {
-    getBrandingSettings().then(setBranding);
-  }, []);
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 shadow-sm">
@@ -69,17 +63,14 @@ export default function Header() {
         <nav className="hidden md:flex items-center space-x-6 text-sm font-medium">
           {!loading && user && (
             <>
-              <Link href="/dashboard" className="transition-colors hover:text-primary flex items-center">
-                <LayoutDashboard className="mr-2 h-4 w-4" /> Panel
-              </Link>
-              <Link href="/tasks" className="transition-colors hover:text-primary flex items-center">
-                <ListChecks className="mr-2 h-4 w-4" /> Tareas
-              </Link>
               <Link href="/games" className="transition-colors hover:text-primary flex items-center">
                 <CalendarClock className="mr-2 h-4 w-4" /> Partidos
               </Link>
               <Link href="/analysis" className="transition-colors hover:text-primary flex items-center">
                 <BarChart2 className="mr-2 h-4 w-4" /> Análisis
+              </Link>
+              <Link href="/tasks" className="transition-colors hover:text-primary flex items-center">
+                <ListChecks className="mr-2 h-4 w-4" /> Tareas
               </Link>
               <Link href="/api-data" className="transition-colors hover:text-primary flex items-center">
                 <BarChart3 className="mr-2 h-4 w-4" /> Datos API
@@ -138,10 +129,9 @@ export default function Header() {
                         )}
                     </Link>
                     <nav className="flex flex-col space-y-2">
-                        <Button variant="ghost" asChild className="justify-start"><Link href="/dashboard" onClick={() => setIsMobileMenuOpen(false)}><LayoutDashboard className="mr-2 h-4 w-4" /> Panel</Link></Button>
-                        <Button variant="ghost" asChild className="justify-start"><Link href="/tasks" onClick={() => setIsMobileMenuOpen(false)}><ListChecks className="mr-2 h-4 w-4" /> Tareas</Link></Button>
                         <Button variant="ghost" asChild className="justify-start"><Link href="/games" onClick={() => setIsMobileMenuOpen(false)}><CalendarClock className="mr-2 h-4 w-4" /> Partidos</Link></Button>
                         <Button variant="ghost" asChild className="justify-start"><Link href="/analysis" onClick={() => setIsMobileMenuOpen(false)}><BarChart2 className="mr-2 h-4 w-4" /> Análisis</Link></Button>
+                        <Button variant="ghost" asChild className="justify-start"><Link href="/tasks" onClick={() => setIsMobileMenuOpen(false)}><ListChecks className="mr-2 h-4 w-4" /> Tareas</Link></Button>
                         <Button variant="ghost" asChild className="justify-start"><Link href="/api-data" onClick={() => setIsMobileMenuOpen(false)}><BarChart3 className="mr-2 h-4 w-4" /> Datos API</Link></Button>
                     </nav>
                     {profile?.profileTypeId === 'super_admin' && (

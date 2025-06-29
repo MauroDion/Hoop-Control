@@ -42,7 +42,6 @@ export default function UserManagementPage() {
   const [error, setError] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
-    // No establecer 'loading' aquí si ya estamos cargando desde el efecto principal
     try {
       const [fetchedProfiles, fetchedClubs, fetchedProfileTypes] = await Promise.all([
         getAllUserProfiles(),
@@ -91,7 +90,7 @@ export default function UserManagementPage() {
     const result = await updateUserProfileStatus(uid, newStatus);
     if (result.success) {
       toast({ title: "Estado Actualizado", description: `El estado del usuario ${displayName || uid} cambió a ${newStatus}.` });
-      loadData(); // Recargar todos los datos para mantener consistencia
+      loadData();
     } else {
       toast({ variant: "destructive", title: "Fallo al Actualizar", description: result.error });
     }
@@ -125,7 +124,7 @@ export default function UserManagementPage() {
         <AlertTriangle className="h-12 w-12 text-destructive mb-4" />
         <h1 className="text-2xl font-headline font-semibold text-destructive">Error</h1>
         <p className="text-muted-foreground mb-4">{error}</p>
-         <Button onClick={() => router.push('/dashboard')}>Ir al Panel</Button>
+         <Button onClick={() => router.push('/games')}>Ir a Partidos</Button>
       </div>
     );
   }

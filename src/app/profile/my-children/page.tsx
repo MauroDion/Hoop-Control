@@ -114,7 +114,7 @@ export default function MyChildrenPage() {
         
         if (result.success) {
             toast({ title: "Información Guardada", description: "La información de tus hijos/as ha sido actualizada." });
-            router.push('/dashboard');
+            router.push('/games');
         } else {
             toast({ variant: 'destructive', title: 'Error al Guardar', description: result.error });
         }
@@ -134,7 +134,7 @@ export default function MyChildrenPage() {
                 <AlertTriangle className="h-12 w-12 text-destructive mb-4" />
                 <h1 className="text-2xl font-semibold text-destructive">Error</h1>
                 <p className="text-muted-foreground mb-4">{error}</p>
-                <Button onClick={() => router.push('/dashboard')} className="mt-4">Ir al Panel</Button>
+                <Button onClick={() => router.push('/games')} className="mt-4">Ir a Partidos</Button>
             </div>
         );
     }
@@ -235,7 +235,7 @@ export default function MyChildrenPage() {
                             <Button type="submit" disabled={form.formState.isSubmitting}>
                                 {form.formState.isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
                                 <Save className="mr-2 h-4 w-4" />
-                                {isOnboarding ? 'Guardar y Continuar al Panel' : 'Guardar Cambios'}
+                                {isOnboarding ? 'Guardar y Continuar' : 'Guardar Cambios'}
                             </Button>
                         </div>
                     </form>

@@ -12,7 +12,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Loader2, AlertTriangle, ListOrdered, PlusCircle, Edit, Trash2 } from 'lucide-react';
 import { GameFormatForm } from '@/components/game-formats/GameFormatForm';
 import { useToast } from '@/hooks/use-toast';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 
 
@@ -93,7 +93,7 @@ export default function ManageGameFormatsPage() {
         <AlertTriangle className="h-12 w-12 text-destructive mb-4" />
         <h1 className="text-2xl font-semibold text-destructive">Error</h1>
         <p className="text-muted-foreground mb-4">{error}</p>
-        <Button onClick={() => router.push('/dashboard')} className="mt-4">Ir al Panel</Button>
+        <Button onClick={() => router.push('/games')} className="mt-4">Ir a Partidos</Button>
       </div>
     );
   }

@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { signInWithEmailAndPassword, setPersistence, browserSessionPersistence, signOut } from "firebase/auth";
+import { signInWithEmailAndPassword, setPersistence, browserSessionPersistence } from "firebase/auth";
 import { auth } from "@/lib/firebase/client";
 import { useRouter, useSearchParams } from "next/navigation";
 import React from "react";
@@ -30,7 +30,7 @@ export function LoginForm() {
   const { toast } = useToast();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const redirectUrl = searchParams.get("redirect") || "/dashboard";
+  const redirectUrl = searchParams.get("redirect") || "/games";
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -42,7 +42,6 @@ export function LoginForm() {
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     try {
-      // Force session persistence for this sign-in attempt
       await setPersistence(auth, browserSessionPersistence);
       
       const userCredential = await signInWithEmailAndPassword(auth, values.email, values.password);
@@ -61,7 +60,7 @@ export function LoginForm() {
       const responseData = await response.json();
 
       if (!response.ok) {
-        await signOut(auth);
+        await auth.signOut();
         if (responseData.reason) {
           router.push(`/login?status=${responseData.reason}`);
           return;

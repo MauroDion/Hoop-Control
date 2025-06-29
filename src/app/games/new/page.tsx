@@ -1,4 +1,3 @@
-
 "use client";
 
 import { GameForm } from "@/components/games/GameForm";
@@ -90,7 +89,7 @@ export default function NewGamePage() {
         <AlertTriangle className="h-12 w-12 text-destructive mb-4" />
         <h1 className="text-2xl font-semibold text-destructive">Error</h1>
         <p className="text-muted-foreground mb-4">{error}</p>
-        <Button onClick={() => router.push('/dashboard')} className="mt-4">Ir al Panel</Button>
+        <Button onClick={() => router.push('/games')} className="mt-4">Ir a Partidos</Button>
       </div>
     );
   }
@@ -125,5 +124,3 @@ export default function NewGamePage() {
     </div>
   );
 }
-
-    

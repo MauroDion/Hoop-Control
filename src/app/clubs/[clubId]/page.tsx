@@ -103,7 +103,7 @@ export default function ClubManagementPage() {
                 <h1 className="text-2xl font-headline font-semibold text-destructive">Error</h1>
                 <p className="text-muted-foreground mb-4">{error || "An unknown error occurred."}</p>
                  <Button asChild variant="outline">
-                    <Link href="/dashboard">Back to Dashboard</Link>
+                    <Link href="/games">Volver a Partidos</Link>
                 </Button>
             </div>
         );
