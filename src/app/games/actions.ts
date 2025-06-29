@@ -1,3 +1,4 @@
+
 'use server';
 import { adminDb } from '@/lib/firebase/admin';
 import admin from 'firebase-admin';
@@ -151,21 +152,16 @@ export async function createTestGame(userId: string): Promise<{ success: boolean
         let teamsForTest: Team[];
         if (['club_admin', 'coordinator'].includes(profile.profileTypeId)) {
             teamsForTest = await getTeamsFromClub(profile.clubId);
-            if (teamsForTest.length < 2) {
-                return { success: false, error: 'Se necesitan al menos dos equipos en tu club para crear un partido de prueba.' };
-            }
         } else if (profile.profileTypeId === 'coach') {
              teamsForTest = await getCoachTeams(profile.uid);
-             const otherTeams = await getAllTeams();
-             teamsForTest = [...teamsForTest, ...otherTeams.filter(t => !teamsForTest.some(tt => tt.id === t.id))];
-             if (teamsForTest.length < 2) {
-                return { success: false, error: 'Se necesitan al menos dos equipos en el sistema para crear un partido de prueba.' };
-            }
+             const otherTeams = (await getAllTeams()).filter(t => t.clubId !== profile.clubId);
+             teamsForTest = [...teamsForTest, ...otherTeams];
         } else {
             teamsForTest = await getAllTeams();
-            if (teamsForTest.length < 2) {
-                return { success: false, error: 'Se necesitan al menos dos equipos en el sistema para crear un partido de prueba. Ejecuta primero el poblador de datos (seeder).' };
-            }
+        }
+        
+        if (teamsForTest.length < 2) {
+            return { success: false, error: 'Se necesitan al menos dos equipos en el sistema para crear un partido de prueba. Ejecuta primero el poblador de datos (seeder).' };
         }
         
         const homeTeam = teamsForTest[0];
@@ -181,7 +177,7 @@ export async function createTestGame(userId: string): Promise<{ success: boolean
         const category = allCategories[0];
         if (!category) return { success: false, error: 'No se encontraron categorías de competición.' };
         
-        const gameFormat = allFormats[0];
+        const gameFormat = allFormats.find(f => f.id === category.gameFormatId) || allFormats[0];
         if (!gameFormat) return { success: false, error: 'No se encontraron formatos de partido.' };
         
         const [homePlayers, awayPlayers] = await Promise.all([
@@ -609,23 +605,10 @@ export async function recordGameEvent(
     const isSuperAdmin = profile.profileTypeId === 'super_admin';
     const actionCategory = getCategoryForAction(event.action);
     
-    // **Primary Gate: Scorer Assignment Check**
-    if (actionCategory) {
-        const assignment = game.scorerAssignments?.[actionCategory];
-        if (assignment && assignment.uid !== userId && !isSuperAdmin) {
-            return { success: false, error: `El rol de anotador para '${actionCategory}' está asignado a ${assignment.displayName}.` };
-        }
-    }
+    const assignment = actionCategory ? game.scorerAssignments?.[actionCategory] : null;
 
-    // **Secondary Gate: Role-based Permissions**
-    const coachTeams = await getCoachTeams(userId);
-    const isCoachOfGame = profile.profileTypeId === 'coach' && coachTeams.some(t => t.id === game.homeTeamId || t.id === game.awayTeamId);
-    const isClubAdminForGame = ['club_admin', 'coordinator'].includes(profile.profileTypeId) && (profile.clubId === game.homeTeamClubId || profile.clubId === game.awayTeamClubId);
-    const childrenPlayerIds = new Set(profile.children?.map(c => c.playerId) || []);
-    const isParentScoringForChild = profile.profileTypeId === 'parent_guardian' && childrenPlayerIds.has(event.playerId);
-
-    if (!isSuperAdmin && !isClubAdminForGame && !isCoachOfGame && !isParentScoringForChild) {
-      return { success: false, error: 'No tienes permiso para registrar acciones para este jugador.' };
+    if (assignment && assignment.uid !== userId && !isSuperAdmin) {
+        return { success: false, error: `El rol de anotador para '${actionCategory}' está asignado a ${assignment.displayName}.` };
     }
   
     await adminDb.runTransaction(async (transaction) => {
@@ -750,3 +733,5 @@ export async function assignScorer(
     return { success: false, error: error.message };
   }
 }
+
+    
