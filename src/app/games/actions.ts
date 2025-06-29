@@ -1,4 +1,3 @@
-
 'use server';
 import { adminDb } from '@/lib/firebase/admin';
 import admin from 'firebase-admin';
@@ -558,13 +557,13 @@ export async function updateLiveGameState(
             awayPlayers.forEach(p => transaction.set(eventsRef.doc(), { ...baseEvent, teamId: 'away', playerId: p.id, playerName: `${p.firstName} ${p.lastName}`, action: 'substitution_in', period: 1, gameTimeSeconds: updates.periodTimeRemainingSeconds || 0 }));
         }
 
-        if (updates.isTimerRunning === true) {
+        if (updates.isTimerRunning === true && gameData.isTimerRunning === false) {
             transaction.set(gameRef.collection('events').doc(), { ...baseEvent, action: 'timer_start', period: gameData.currentPeriod, gameTimeSeconds: updates.periodTimeRemainingSeconds });
-        } else if (updates.isTimerRunning === false) {
+        } else if (updates.isTimerRunning === false && gameData.isTimerRunning === true) {
              transaction.set(gameRef.collection('events').doc(), { ...baseEvent, action: 'timer_pause', period: gameData.currentPeriod, gameTimeSeconds: updates.periodTimeRemainingSeconds });
         }
         
-        if (updates.status === 'completed') {
+        if (updates.status === 'completed' && gameData.status === 'inprogress') {
              transaction.set(gameRef.collection('events').doc(), { ...baseEvent, action: 'period_end', period: gameData.currentPeriod, gameTimeSeconds: 0 });
         }
         
@@ -608,25 +607,27 @@ export async function recordGameEvent(
     if (!game) return { success: false, error: "Partido no encontrado." };
 
     const isSuperAdmin = profile.profileTypeId === 'super_admin';
-    const isClubAdmin = ['club_admin', 'coordinator'].includes(profile.profileTypeId) && (profile.clubId === game.homeTeamClubId || profile.clubId === game.awayTeamClubId);
-    const coachTeams = await getCoachTeams(userId);
-    const isCoachOfGame = profile.profileTypeId === 'coach' && coachTeams.some(t => t.id === game.homeTeamId || t.id === game.awayTeamId);
-  
-    const childrenPlayerIds = new Set(profile.children?.map(c => c.playerId) || []);
-    const isParentScoringForChild = profile.profileTypeId === 'parent_guardian' && childrenPlayerIds.has(event.playerId);
-
-    if (!isSuperAdmin && !isClubAdmin && !isCoachOfGame && !isParentScoringForChild) {
-      return { success: false, error: 'No tienes permiso para registrar acciones en este partido.' };
-    }
-  
     const actionCategory = getCategoryForAction(event.action);
+    
+    // **Primary Gate: Scorer Assignment Check**
     if (actionCategory) {
         const assignment = game.scorerAssignments?.[actionCategory];
-        if (assignment && assignment.uid !== userId && !isSuperAdmin && !isParentScoringForChild) {
-            return { success: false, error: `No tienes asignado el rol de anotación para esta acción. Lo tiene ${assignment.displayName}.` };
+        if (assignment && assignment.uid !== userId && !isSuperAdmin) {
+            return { success: false, error: `El rol de anotador para '${actionCategory}' está asignado a ${assignment.displayName}.` };
         }
     }
 
+    // **Secondary Gate: Role-based Permissions**
+    const coachTeams = await getCoachTeams(userId);
+    const isCoachOfGame = profile.profileTypeId === 'coach' && coachTeams.some(t => t.id === game.homeTeamId || t.id === game.awayTeamId);
+    const isClubAdminForGame = ['club_admin', 'coordinator'].includes(profile.profileTypeId) && (profile.clubId === game.homeTeamClubId || profile.clubId === game.awayTeamClubId);
+    const childrenPlayerIds = new Set(profile.children?.map(c => c.playerId) || []);
+    const isParentScoringForChild = profile.profileTypeId === 'parent_guardian' && childrenPlayerIds.has(event.playerId);
+
+    if (!isSuperAdmin && !isClubAdminForGame && !isCoachOfGame && !isParentScoringForChild) {
+      return { success: false, error: 'No tienes permiso para registrar acciones para este jugador.' };
+    }
+  
     await adminDb.runTransaction(async (transaction) => {
       const updates: { [key: string]: any } = { updatedAt: admin.firestore.FieldValue.serverTimestamp() };
       
@@ -706,4 +707,46 @@ export async function substitutePlayer(
         console.error("Error al sustituir jugador:", error);
         return { success: false, error: error.message };
     }
+}
+
+
+export async function assignScorer(
+  gameId: string,
+  userId: string,
+  displayName: string,
+  category: StatCategory,
+  release: boolean = false
+): Promise<{ success: boolean; error?: string }> {
+  if (!adminDb) return { success: false, error: 'Database not initialized.' };
+
+  const gameRef = adminDb.collection('games').doc(gameId);
+
+  try {
+    await adminDb.runTransaction(async (transaction) => {
+      const gameDoc = await transaction.get(gameRef);
+      if (!gameDoc.exists) throw new Error("Game not found.");
+      
+      const gameData = gameDoc.data() as Game;
+      const assignments = gameData.scorerAssignments || {};
+      
+      const currentAssignment = assignments[category];
+
+      if (release) {
+        if (currentAssignment?.uid !== userId) {
+          throw new Error("No puedes liberar un rol que no te pertenece.");
+        }
+        transaction.update(gameRef, { [`scorerAssignments.${category}`]: null });
+      } else {
+        if (currentAssignment && currentAssignment.uid !== userId) {
+          throw new Error(`El rol de ${category} ya está asignado a ${currentAssignment.displayName}.`);
+        }
+        transaction.update(gameRef, { [`scorerAssignments.${category}`]: { uid: userId, displayName } });
+      }
+    });
+
+    return { success: true };
+  } catch (error: any) {
+    console.error(`Error assigning scorer for ${category}:`, error);
+    return { success: false, error: error.message };
+  }
 }
