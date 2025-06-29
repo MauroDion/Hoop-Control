@@ -2,8 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import { auth } from "@/lib/firebase/client";
-import { GoogleAuthProvider, signInWithPopup, UserCredential, signOut } from "firebase/auth";
-import { useRouter, useSearchParams } from "next/navigation";
+import { GoogleAuthProvider, signInWithPopup } from "firebase/auth";
 import { useToast } from "@/hooks/use-toast";
 
 const GoogleIcon = () => (
@@ -18,45 +17,14 @@ const GoogleIcon = () => (
 
 
 export function GoogleSignInButton() {
-  const router = useRouter();
   const { toast } = useToast();
-  const searchParams = useSearchParams();
-  const redirectUrl = searchParams.get("redirect") || "/games";
 
   const handleSignIn = async () => {
     const provider = new GoogleAuthProvider();
     try {
-      const result: UserCredential = await signInWithPopup(auth, provider);
-      
-      if (!result.user) {
-        throw new Error("El inicio de sesión con Google falló, no se encontró el objeto de usuario.");
-      }
-
-      const idToken = await result.user.getIdToken();
-      const response = await fetch('/api/auth/session-login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ idToken }),
-      });
-
-      const responseData = await response.json();
-
-      if (!response.ok) {
-        // If server rejects session, sign out client-side
-        await signOut(auth);
-
-        if (responseData.reason) {
-          router.push(`/login?status=${responseData.reason}`);
-          return;
-        }
-        throw new Error(responseData.error || 'El inicio de sesión con Google falló.');
-      }
-
+      const result = await signInWithPopup(auth, provider);
+      // The onIdTokenChanged listener in AuthContext will handle everything else.
       toast({ title: "Sesión iniciada con Google", description: `¡Bienvenido, ${result.user.displayName}!` });
-      router.push(redirectUrl);
-      router.refresh(); 
     } catch (error: any) {
       console.error("Error de inicio de sesión con Google: ", error);
       toast({

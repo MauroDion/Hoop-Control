@@ -18,7 +18,7 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { signInWithEmailAndPassword, setPersistence, browserSessionPersistence } from "firebase/auth";
 import { auth } from "@/lib/firebase/client";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import React from "react";
 
 const formSchema = z.object({
@@ -29,8 +29,6 @@ const formSchema = z.object({
 export function LoginForm() {
   const { toast } = useToast();
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const redirectUrl = searchParams.get("redirect") || "/games";
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -42,38 +40,17 @@ export function LoginForm() {
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     try {
+      // Set session persistence before signing in.
       await setPersistence(auth, browserSessionPersistence);
-      
-      const userCredential = await signInWithEmailAndPassword(auth, values.email, values.password);
-      
-      if (!userCredential.user) {
-        throw new Error("El inicio de sesión falló, no se encontró el objeto de usuario.");
-      }
-
-      const idToken = await userCredential.user.getIdToken();
-      const response = await fetch('/api/auth/session-login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ idToken }),
-      });
-
-      const responseData = await response.json();
-
-      if (!response.ok) {
-        await auth.signOut();
-        if (responseData.reason) {
-          router.push(`/login?status=${responseData.reason}`);
-          return;
-        }
-        throw new Error(responseData.error || 'El inicio de sesión falló.');
-      }
-      
+      await signInWithEmailAndPassword(auth, values.email, values.password);
+      // The onIdTokenChanged listener in AuthContext will handle the rest:
+      // - creating the server session cookie
+      // - fetching the profile
+      // - redirecting to the correct page
       toast({
         title: "Inicio de Sesión Exitoso",
         description: "¡Bienvenido de nuevo!",
       });
-      router.push(redirectUrl);
-      router.refresh(); 
     } catch (error: any) {
       console.error("Error de inicio de sesión: ", error);
       toast({
