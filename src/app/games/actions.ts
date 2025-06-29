@@ -354,137 +354,6 @@ export async function getGameById(gameId: string): Promise<Game | null> {
     }
 }
 
-export async function getGameEvents(gameId: string): Promise<GameEvent[]> {
-  if (!adminDb) return [];
-  try {
-    const eventsRef = adminDb.collection('games').doc(gameId).collection('events');
-    const snapshot = await eventsRef.orderBy('createdAt', 'desc').limit(20).get();
-    return snapshot.docs.map(doc => {
-      const data = doc.data();
-      return {
-        id: doc.id,
-        ...data,
-        createdAt: (data.createdAt as admin.firestore.Timestamp).toDate().toISOString(),
-      } as GameEvent;
-    });
-  } catch (error) {
-    console.error("Error fetching game events:", error);
-    return [];
-  }
-}
-
-export async function getPlayerStatsForGame(gameId: string): Promise<PlayerGameStats[]> {
-    if (!adminDb) return [];
-
-    const gameRef = adminDb.collection('games').doc(gameId);
-    const eventsSnap = await gameRef.collection('events').orderBy('createdAt', 'asc').orderBy(admin.firestore.FieldPath.documentId(), 'asc').get();
-
-    const gameDoc = await gameRef.get();
-    if (!gameDoc.exists) return [];
-    const gameData = gameDoc.data() as Game;
-    
-    const allPlayerIds = [...new Set([...(gameData.homeTeamPlayerIds || []), ...(gameData.awayTeamPlayerIds || [])])];
-    if (allPlayerIds.length === 0) return [];
-    
-    const playerMap = new Map((await getPlayersFromIds(allPlayerIds)).map(p => [p.id, p]));
-    const stats: { [playerId: string]: Omit<PlayerGameStats, 'pir'> & { timeByPeriod: { [period: number]: number } } } = {};
-
-    allPlayerIds.forEach(playerId => {
-        const player = playerMap.get(playerId);
-        stats[playerId] = {
-            playerId,
-            playerName: player ? `${player.firstName} ${player.lastName}` : 'Desconocido',
-            timePlayedSeconds: 0, periodsPlayed: 0, points: 0, shots_made_1p: 0, shots_attempted_1p: 0,
-            shots_made_2p: 0, shots_attempted_2p: 0, shots_made_3p: 0, shots_attempted_3p: 0,
-            reb_def: 0, reb_off: 0, assists: 0, steals: 0, blocks: 0, turnovers: 0, fouls: 0,
-            blocks_against: 0, fouls_received: 0, timeByPeriod: {}
-        };
-    });
-
-    const state = {
-        onCourt: new Set<string>(),
-        isClockRunning: false,
-        currentPeriod: 1,
-    };
-    let lastTimestamp: number | null = null;
-
-    const events = eventsSnap.docs.map(doc => ({ ...doc.data(), createdAt: (doc.data().createdAt as admin.firestore.Timestamp).toMillis() }) as unknown as GameEvent & { createdAt: number });
-
-    for (const event of events) {
-        const eventTimestamp = event.createdAt;
-
-        if (lastTimestamp !== null) {
-            const timeDelta = (eventTimestamp - lastTimestamp) / 1000.0;
-            if (state.isClockRunning && timeDelta > 0) {
-                state.onCourt.forEach(playerId => {
-                    if (stats[playerId]) {
-                        stats[playerId].timePlayedSeconds += timeDelta;
-                        stats[playerId].timeByPeriod[state.currentPeriod] = (stats[playerId].timeByPeriod[state.currentPeriod] || 0) + timeDelta;
-                    }
-                });
-            }
-        }
-        lastTimestamp = eventTimestamp;
-        
-        if (event.playerId && stats[event.playerId]) {
-             switch (event.action) {
-                case 'shot_made_1p': stats[event.playerId].points++; stats[event.playerId].shots_made_1p++; stats[event.playerId].shots_attempted_1p++; break;
-                case 'shot_miss_1p': stats[event.playerId].shots_attempted_1p++; break;
-                case 'shot_made_2p': stats[event.playerId].points += 2; stats[event.playerId].shots_made_2p++; stats[event.playerId].shots_attempted_2p++; break;
-                case 'shot_miss_2p': stats[event.playerId].shots_attempted_2p++; break;
-                case 'shot_made_3p': stats[event.playerId].points += 3; stats[event.playerId].shots_made_3p++; stats[event.playerId].shots_attempted_3p++; break;
-                case 'shot_miss_3p': stats[event.playerId].shots_attempted_3p++; break;
-                case 'rebound_defensive': stats[event.playerId].reb_def++; break;
-                case 'rebound_offensive': stats[event.playerId].reb_off++; break;
-                case 'assist': stats[event.playerId].assists++; break;
-                case 'steal': stats[event.playerId].steals++; break;
-                case 'block': stats[event.playerId].blocks++; break;
-                case 'turnover': stats[event.playerId].turnovers++; break;
-                case 'foul': stats[event.playerId].fouls++; break;
-                case 'block_against': stats[event.playerId].blocks_against++; break;
-                case 'foul_received': stats[event.playerId].fouls_received++; break;
-            }
-        }
-        
-        switch (event.action) {
-            case 'period_start': state.currentPeriod = event.period; state.isClockRunning = false; break;
-            case 'timer_start': state.isClockRunning = true; break;
-            case 'timer_pause': case 'period_end': state.isClockRunning = false; break;
-            case 'substitution_in': state.onCourt.add(event.playerId); break;
-            case 'substitution_out': state.onCourt.delete(event.playerId); break;
-        }
-    }
-    
-    if (state.isClockRunning && lastTimestamp && gameData.status === 'inprogress') {
-        const timeDelta = (Date.now() - lastTimestamp) / 1000.0;
-        state.onCourt.forEach(playerId => {
-            if (stats[playerId]) {
-                stats[playerId].timePlayedSeconds += timeDelta;
-                stats[playerId].timeByPeriod[state.currentPeriod] = (stats[playerId].timeByPeriod[state.currentPeriod] || 0) + timeDelta;
-            }
-        });
-    }
-
-    return Object.values(stats).map(s => {
-        const totalRebounds = s.reb_def + s.reb_off;
-        const fieldGoalsMade = s.shots_made_2p + s.shots_made_3p;
-        const fieldGoalsAttempted = s.shots_attempted_2p + s.shots_attempted_3p;
-        const missedFieldGoals = fieldGoalsAttempted - fieldGoalsMade;
-        const missedFreeThrows = s.shots_attempted_1p - s.shots_made_1p;
-        
-        const pir = (s.points + totalRebounds + s.assists + s.steals + s.blocks + s.fouls_received) - (missedFieldGoals + missedFreeThrows + s.turnovers + s.fouls + s.blocks_against);
-        const periodsPlayed = Object.keys(s.timeByPeriod).filter(p => s.timeByPeriod[parseInt(p)] > 0.1).length;
-
-        return {
-            ...s,
-            timePlayedSeconds: Math.round(s.timePlayedSeconds),
-            periodsPlayed,
-            pir: isNaN(pir) ? 0 : Math.round(pir)
-        };
-    });
-}
-
-
 export async function updateGameRoster(
     gameId: string,
     playerIds: string[],
@@ -579,158 +448,77 @@ export async function updateLiveGameState(
   }
 }
 
-const getCategoryForAction = (action: GameEventAction): StatCategory | null => {
-    if (action.startsWith('shot_')) return 'shots';
-    if (action.startsWith('foul')) return 'fouls';
-    if (['steal', 'turnover', 'block', 'block_against', 'rebound_defensive', 'rebound_offensive', 'assist'].includes(action)) return 'turnovers';
-    return null;
-};
-
-
-export async function recordGameEvent(
-  gameId: string,
-  userId: string,
-  event: Omit<GameEvent, 'id' | 'createdAt' | 'gameId'>
-): Promise<{ success: boolean; error?: string }> {
-  if (!adminDb) return { success: false, error: 'Database not initialized' };
-
-  const gameRef = adminDb.collection('games').doc(gameId);
-  const eventRef = gameRef.collection('events').doc();
-  
-  try {
-    const [profile, game] = await Promise.all([ getUserProfileById(userId), getGameById(gameId) ]);
+export async function finishAllTestGames(userId: string): Promise<{ success: boolean; error?: string; count?: number }> {
+    if (!adminDb) return { success: false, error: 'Database not initialized.' };
+    if (!userId) return { success: false, error: 'User not authenticated.' };
     
-    if (!profile) return { success: false, error: "Usuario no encontrado." };
-    if (!game) return { success: false, error: "Partido no encontrado." };
-
-    const isSuperAdmin = profile.profileTypeId === 'super_admin';
-    const actionCategory = getCategoryForAction(event.action);
-    
-    const assignment = actionCategory ? game.scorerAssignments?.[actionCategory] : null;
-
-    if (assignment && assignment.uid !== userId && !isSuperAdmin) {
-        return { success: false, error: `El rol de anotador para '${actionCategory}' está asignado a ${assignment.displayName}.` };
+    const profile = await getUserProfileById(userId);
+    if (!profile || profile.profileTypeId !== 'super_admin') {
+        return { success: false, error: 'Permission denied.' };
     }
-  
-    await adminDb.runTransaction(async (transaction) => {
-      const updates: { [key: string]: any } = { updatedAt: admin.firestore.FieldValue.serverTimestamp() };
-      
-      const pointMapping: { [key: string]: number } = { 'shot_made_1p': 1, 'shot_made_2p': 2, 'shot_made_3p': 3 };
-      if (pointMapping[event.action]) {
-        const points = pointMapping[event.action];
-        const scoreField = event.teamId === 'home' ? 'homeTeamScore' : 'awayTeamScore';
-        updates[scoreField] = admin.firestore.FieldValue.increment(points);
-      }
-
-      transaction.set(eventRef, { ...event, gameId, createdAt: admin.firestore.FieldValue.serverTimestamp(), createdBy: userId });
-      transaction.update(gameRef, updates);
-    });
-
-    return { success: true };
-  } catch (error: any) {
-    console.error("Error recording game event:", error);
-    return { success: false, error: error.message };
-  }
-}
-
-export async function substitutePlayer(
-    gameId: string, 
-    userId: string,
-    teamId: 'home' | 'away', 
-    playerIn: { id: string, name: string },
-    playerOut: { id: string, name: string } | null,
-    period: number,
-    gameTimeSeconds: number
-): Promise<{ success: boolean; error?: string }> {
-    if (!adminDb) return { success: false, error: 'La base de datos no está inicializada.' };
 
     try {
-        const profile = await getUserProfileById(userId);
-        if (!profile) return { success: false, error: "Usuario no encontrado." };
-        if (!['super_admin', 'club_admin', 'coordinator', 'coach'].includes(profile.profileTypeId)) {
-          return { success: false, error: 'No tienes permiso para realizar sustituciones.' };
+        const gamesRef = adminDb.collection('games');
+        const query = gamesRef.where('location', '==', 'Pista de Pruebas').where('status', 'in', ['inprogress', 'scheduled']);
+        const snapshot = await query.get();
+
+        if (snapshot.empty) {
+            return { success: true, count: 0 };
         }
 
-        const gameRef = adminDb.collection('games').doc(gameId);
-        const eventsRef = gameRef.collection('events');
-        
-        await adminDb.runTransaction(async (transaction) => {
-            const gameDoc = await transaction.get(gameRef);
-            if (!gameDoc.exists) throw new Error("Partido no encontrado.");
-
-            const gameData = gameDoc.data() as Game;
-            const onCourtField = teamId === 'home' ? 'homeTeamOnCourtPlayerIds' : 'awayTeamOnCourtPlayerIds';
-            
-            let onCourtIds: string[] = gameData[onCourtField] || [];
-            
-            if (playerOut) {
-                const index = onCourtIds.indexOf(playerOut.id);
-                if (index > -1) {
-                    onCourtIds.splice(index, 1, playerIn.id);
-                    const outEvent: Omit<GameEvent, 'id' | 'createdAt'> = { gameId, teamId, playerId: playerOut.id, playerName: playerOut.name, action: 'substitution_out', period, gameTimeSeconds, createdBy: userId };
-                    transaction.set(eventsRef.doc(), { ...outEvent, createdAt: admin.firestore.FieldValue.serverTimestamp() });
-                } else {
-                    throw new Error("El jugador a sustituir no está en la pista.");
-                }
-            } else {
-                if (onCourtIds.length >= 5) {
-                    throw new Error("No puede haber más de 5 jugadores en pista.");
-                }
-                if (!onCourtIds.includes(playerIn.id)) {
-                    onCourtIds.push(playerIn.id);
-                }
-            }
-            
-            const inEvent: Omit<GameEvent, 'id' | 'createdAt'> = { gameId, teamId, playerId: playerIn.id, playerName: playerIn.name, action: 'substitution_in', period, gameTimeSeconds, createdBy: userId };
-            transaction.set(eventsRef.doc(), { ...inEvent, createdAt: admin.firestore.FieldValue.serverTimestamp() });
-            
-            transaction.update(gameRef, { [onCourtField]: onCourtIds });
+        const batch = adminDb.batch();
+        snapshot.docs.forEach(doc => {
+            batch.update(doc.ref, { 
+                status: 'completed',
+                isTimerRunning: false,
+                updatedAt: admin.firestore.FieldValue.serverTimestamp()
+            });
         });
-        return { success: true };
+        await batch.commit();
+        
+        revalidatePath('/games');
+        revalidatePath('/dashboard');
+        return { success: true, count: snapshot.size };
     } catch (error: any) {
-        console.error("Error al sustituir jugador:", error);
+        console.error("Error finishing test games:", error);
         return { success: false, error: error.message };
     }
 }
 
 
-export async function assignScorer(
-  gameId: string,
-  userId: string,
-  displayName: string,
-  category: StatCategory,
-  release: boolean = false
-): Promise<{ success: boolean; error?: string }> {
-  if (!adminDb) return { success: false, error: 'Database not initialized.' };
+export async function finishAllInProgressGames(userId: string): Promise<{ success: boolean; error?: string; count?: number }> {
+    if (!adminDb) return { success: false, error: 'Database not initialized.' };
+    if (!userId) return { success: false, error: 'User not authenticated.' };
+    
+    const profile = await getUserProfileById(userId);
+    if (!profile || profile.profileTypeId !== 'super_admin') {
+        return { success: false, error: 'Permission denied.' };
+    }
 
-  const gameRef = adminDb.collection('games').doc(gameId);
+    try {
+        const gamesRef = adminDb.collection('games');
+        const query = gamesRef.where('status', '==', 'inprogress');
+        const snapshot = await query.get();
 
-  try {
-    await adminDb.runTransaction(async (transaction) => {
-      const gameDoc = await transaction.get(gameRef);
-      if (!gameDoc.exists) throw new Error("Game not found.");
-      
-      const gameData = gameDoc.data() as Game;
-      const assignments = gameData.scorerAssignments || {};
-      
-      const currentAssignment = assignments[category];
-
-      if (release) {
-        if (currentAssignment?.uid !== userId) {
-          throw new Error("No puedes liberar un rol que no te pertenece.");
+        if (snapshot.empty) {
+            return { success: true, count: 0 };
         }
-        transaction.update(gameRef, { [`scorerAssignments.${category}`]: null });
-      } else {
-        if (currentAssignment && currentAssignment.uid !== userId) {
-          throw new Error(`El rol de ${category} ya está asignado a ${currentAssignment.displayName}.`);
-        }
-        transaction.update(gameRef, { [`scorerAssignments.${category}`]: { uid: userId, displayName } });
-      }
-    });
 
-    return { success: true };
-  } catch (error: any) {
-    console.error(`Error assigning scorer for ${category}:`, error);
-    return { success: false, error: error.message };
-  }
+        const batch = adminDb.batch();
+        snapshot.docs.forEach(doc => {
+            batch.update(doc.ref, { 
+                status: 'completed', 
+                isTimerRunning: false,
+                updatedAt: admin.firestore.FieldValue.serverTimestamp()
+            });
+        });
+        await batch.commit();
+
+        revalidatePath('/games');
+        revalidatePath('/dashboard');
+        return { success: true, count: snapshot.size };
+    } catch (error: any) {
+        console.error("Error finishing all in-progress games:", error);
+        return { success: false, error: error.message };
+    }
 }

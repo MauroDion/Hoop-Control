@@ -3,14 +3,25 @@
 
 import { useAuth } from '@/hooks/useAuth';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { BarChart, Building, CheckSquare, Users, AlertTriangle, Loader2, TestTube2 } from 'lucide-react';
+import { BarChart, Building, CheckSquare, Users, AlertTriangle, Loader2, TestTube2, Flag } from 'lucide-react';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
-import { createTestGame } from '@/app/games/actions';
+import { createTestGame, finishAllTestGames, finishAllInProgressGames } from '@/app/games/actions';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 const summaryData = {
   activeProjects: 5,
@@ -34,6 +45,8 @@ export default function DashboardPage() {
   const router = useRouter();
   const { toast } = useToast();
   const [isCreatingTestGame, setIsCreatingTestGame] = useState(false);
+  const [isFinishingTestGames, setIsFinishingTestGames] = useState(false);
+  const [isFinishingAllGames, setIsFinishingAllGames] = useState(false);
 
   const handleCreateTestGame = async () => {
     if (!user) return;
@@ -54,6 +67,44 @@ export default function DashboardPage() {
     }
     setIsCreatingTestGame(false);
   }
+  
+  const handleFinishTestGames = async () => {
+      if (!user) return;
+      setIsFinishingTestGames(true);
+      const result = await finishAllTestGames(user.uid);
+      if (result.success) {
+          toast({
+              title: "Operación Completada",
+              description: `${result.count ?? 0} partidos de prueba han sido finalizados.`,
+          });
+      } else {
+          toast({
+              variant: "destructive",
+              title: "Error",
+              description: result.error || "No se pudieron finalizar los partidos de prueba.",
+          });
+      }
+      setIsFinishingTestGames(false);
+  };
+
+  const handleFinishAllGames = async () => {
+      if (!user) return;
+      setIsFinishingAllGames(true);
+      const result = await finishAllInProgressGames(user.uid);
+      if (result.success) {
+          toast({
+              title: "Operación Completada",
+              description: `${result.count ?? 0} partidos en progreso han sido finalizados.`,
+          });
+      } else {
+          toast({
+              variant: "destructive",
+              title: "Error",
+              description: result.error || "No se pudieron finalizar los partidos.",
+          });
+      }
+      setIsFinishingAllGames(false);
+  };
   
   if (loading || !user || !profile) {
     return (
@@ -215,6 +266,62 @@ export default function DashboardPage() {
                     )}
                     {isCreatingTestGame ? 'Creando partido...' : 'Generar Partido de Prueba'}
                 </Button>
+            </CardContent>
+        </Card>
+      )}
+
+      {profile?.profileTypeId === 'super_admin' && (
+        <Card className="shadow-lg border-destructive/50">
+            <CardHeader>
+                <CardTitle className="text-2xl font-headline flex items-center text-destructive">
+                    <AlertTriangle className="mr-3 h-6 w-6" />
+                    Acciones de Administrador
+                </CardTitle>
+                <CardDescription>
+                    Estas acciones afectan a todos los partidos. Úsalas con precaución.
+                </CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-col sm:flex-row gap-4">
+                <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                        <Button variant="destructive" className="w-full sm:w-auto" disabled={isFinishingTestGames}>
+                            {isFinishingTestGames ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Flag className="mr-2 h-4 w-4"/>}
+                            Finalizar Partidos de Prueba
+                        </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                        <AlertDialogHeader>
+                            <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                                Esta acción finalizará todos los partidos de prueba que estén programados o en progreso.
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                            <AlertDialogAction onClick={handleFinishTestGames} className="bg-destructive hover:bg-destructive/80">Finalizar</AlertDialogAction>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
+                 <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                        <Button variant="destructive" className="w-full sm:w-auto" disabled={isFinishingAllGames}>
+                            {isFinishingAllGames ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Flag className="mr-2 h-4 w-4"/>}
+                            Finalizar TODOS los Partidos Abiertos
+                        </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                        <AlertDialogHeader>
+                            <AlertDialogTitle>¡Acción Irreversible!</AlertDialogTitle>
+                            <AlertDialogDescription>
+                                Esta acción finalizará TODOS los partidos que estén actualmente "en progreso" en toda la plataforma. ¿Estás seguro de que quieres continuar?
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                            <AlertDialogAction onClick={handleFinishAllGames} className="bg-destructive hover:bg-destructive/80">Sí, Finalizar Todos</AlertDialogAction>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
             </CardContent>
         </Card>
       )}
