@@ -1,16 +1,16 @@
-
 "use client";
 
 import { useAuth } from '@/hooks/useAuth';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { BarChart, Building, CheckSquare, Users, AlertTriangle, Loader2, TestTube2, Flag } from 'lucide-react';
+import { BarChart, Building, CheckSquare, Users, AlertTriangle, Loader2, Globe, Smartphone, TestTube2, Flag } from 'lucide-react';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 import { createTestGame, finishAllTestGames, finishAllInProgressGames } from '@/app/games/actions';
+import { Capacitor } from '@capacitor/core';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -47,6 +47,13 @@ export default function DashboardPage() {
   const [isCreatingTestGame, setIsCreatingTestGame] = useState(false);
   const [isFinishingTestGames, setIsFinishingTestGames] = useState(false);
   const [isFinishingAllGames, setIsFinishingAllGames] = useState(false);
+  const [platform, setPlatform] = useState('web');
+
+  useEffect(() => {
+    if (Capacitor.isNativePlatform()) {
+      setPlatform(Capacitor.getPlatform());
+    }
+  }, []);
 
   const handleCreateTestGame = async () => {
     if (!user) return;
@@ -188,15 +195,15 @@ export default function DashboardPage() {
           />
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
         <Card className="shadow-md hover:shadow-lg transition-shadow">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Proyectos Activos</CardTitle>
-            <Building className="h-5 w-5 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Plataforma Actual</CardTitle>
+            {platform === 'web' ? <Globe className="h-5 w-5 text-muted-foreground"/> : <Smartphone className="h-5 w-5 text-muted-foreground"/>}
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-primary">{summaryData.activeProjects}</div>
-            <p className="text-xs text-muted-foreground">+2 desde el mes pasado</p>
+            <div className="text-3xl font-bold capitalize">{platform}</div>
+            <p className="text-xs text-muted-foreground">Detectado usando Capacitor</p>
           </CardContent>
         </Card>
         <Card className="shadow-md hover:shadow-lg transition-shadow">
