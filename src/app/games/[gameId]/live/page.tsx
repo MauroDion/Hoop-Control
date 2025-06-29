@@ -133,6 +133,7 @@ export default function LiveGamePage() {
     const [homePlayers, setHomePlayers] = useState<Player[]>([]);
     const [awayPlayers, setAwayPlayers] = useState<Player[]>([]);
     const [playerStats, setPlayerStats] = useState<PlayerGameStats[]>([]);
+    
     const [displayTime, setDisplayTime] = useState(0);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -380,6 +381,7 @@ export default function LiveGamePage() {
     if (error || !hasPermission) return <div className="text-center p-6"><AlertTriangle className="mx-auto h-12 w-12 text-destructive mb-4" /><h1 className="text-2xl text-destructive">Error</h1><p>{error || "No tienes permiso para ver esta página."}</p></div>;
     if (!game || !profile) return null;
 
+    const isSuperAdmin = profile.profileTypeId === 'super_admin';
     const canManageControls = profile && ['super_admin', 'club_admin', 'coordinator', 'coach'].includes(profile.profileTypeId);
     
     const canRecordShots = myAssignments.has('shots') || isSuperAdmin;
@@ -498,3 +500,5 @@ export default function LiveGamePage() {
         </div>
     )
 }
+
+    
