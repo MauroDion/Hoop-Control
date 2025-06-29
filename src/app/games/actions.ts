@@ -108,6 +108,7 @@ export async function createGame(formData: GameFormData, userId: string): Promis
             currentPeriod: 1,
             isTimerRunning: false,
             periodTimeRemainingSeconds: 0,
+            timerStartedAt: null,
             homeTeamPlayerIds: [],
             awayTeamPlayerIds: [],
             homeTeamOnCourtPlayerIds: [],
@@ -225,6 +226,7 @@ export async function createTestGame(userId: string): Promise<{ success: boolean
             currentPeriod: 1,
             isTimerRunning: false,
             periodTimeRemainingSeconds: 0,
+            timerStartedAt: null,
             homeTeamPlayerIds,
             awayTeamPlayerIds,
             homeTeamOnCourtPlayerIds: homeTeamPlayerIds.slice(0, 5),
@@ -345,6 +347,7 @@ export async function getGameById(gameId: string): Promise<Game | null> {
             date: (data.date as admin.firestore.Timestamp).toDate().toISOString(),
             createdAt: data.createdAt ? (data.createdAt as admin.firestore.Timestamp).toDate().toISOString() : undefined,
             updatedAt: data.updatedAt ? (data.updatedAt as admin.firestore.Timestamp).toDate().toISOString() : undefined,
+            timerStartedAt: data.timerStartedAt ? (data.timerStartedAt as admin.firestore.Timestamp).toDate().toISOString() : null,
         } as Game;
     } catch (error: any) {
         return null;
@@ -523,11 +526,6 @@ export async function updateLiveGameState(
 
     const gameRef = adminDb.collection('games').doc(gameId);
     
-    const updateData: { [key: string]: any } = { 
-        ...updates,
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-    };
-
     await adminDb.runTransaction(async (transaction) => {
         const gameDoc = await transaction.get(gameRef);
         if (!gameDoc.exists) throw new Error("El partido no existe.");
@@ -536,38 +534,21 @@ export async function updateLiveGameState(
         const serverTimestamp = admin.firestore.FieldValue.serverTimestamp();
         const baseEvent = { gameId, teamId: 'system' as const, playerId: 'SYSTEM', playerName: 'System', createdAt: serverTimestamp, createdBy: userId };
 
-        if (updates.status === 'inprogress' && gameData.status === 'scheduled') {
-            const homeRoster = gameData.homeTeamPlayerIds || [];
-            const awayRoster = gameData.awayTeamPlayerIds || [];
-            if (homeRoster.length < 5 || awayRoster.length < 5) throw new Error(`No se puede iniciar el partido. Se requieren al menos 5 jugadores por equipo. Local: ${homeRoster.length}, Visitante: ${awayRoster.length}.`);
-            
-            const startingHome = homeRoster.slice(0, 5);
-            const startingAway = awayRoster.slice(0, 5);
-            updateData.homeTeamOnCourtPlayerIds = startingHome;
-            updateData.awayTeamOnCourtPlayerIds = startingAway;
+        const updateData: { [key: string]: any } = { 
+            ...updates,
+            updatedAt: serverTimestamp,
+        };
 
-            const [homePlayers, awayPlayers] = await Promise.all([ getPlayersFromIds(startingHome), getPlayersFromIds(startingAway) ]);
-            const eventsRef = gameRef.collection('events');
-            transaction.set(eventsRef.doc(), { ...baseEvent, action: 'period_start', period: 1, gameTimeSeconds: updates.periodTimeRemainingSeconds || 0 });
-            homePlayers.forEach(p => transaction.set(eventsRef.doc(), { ...baseEvent, teamId: 'home', playerId: p.id, playerName: `${p.firstName} ${p.lastName}`, action: 'substitution_in', period: 1, gameTimeSeconds: updates.periodTimeRemainingSeconds || 0 }));
-            awayPlayers.forEach(p => transaction.set(eventsRef.doc(), { ...baseEvent, teamId: 'away', playerId: p.id, playerName: `${p.firstName} ${p.lastName}`, action: 'substitution_in', period: 1, gameTimeSeconds: updates.periodTimeRemainingSeconds || 0 }));
-        }
-
-        if (updates.isTimerRunning === true && gameData.isTimerRunning === false) {
-            transaction.set(gameRef.collection('events').doc(), { ...baseEvent, action: 'timer_start', period: gameData.currentPeriod, gameTimeSeconds: updates.periodTimeRemainingSeconds });
-        } else if (updates.isTimerRunning === false && gameData.isTimerRunning === true) {
-             transaction.set(gameRef.collection('events').doc(), { ...baseEvent, action: 'timer_pause', period: gameData.currentPeriod, gameTimeSeconds: updates.periodTimeRemainingSeconds });
+        if (updates.isTimerRunning === true && !gameData.isTimerRunning) {
+            updateData.timerStartedAt = serverTimestamp;
+        } else if (updates.isTimerRunning === false && gameData.isTimerRunning) {
+            const lastStartedMillis = gameData.timerStartedAt ? new Date(gameData.timerStartedAt).getTime() : Date.now();
+            const timeElapsedSeconds = Math.round((Date.now() - lastStartedMillis) / 1000);
+            const newRemainingTime = Math.max(0, (gameData.periodTimeRemainingSeconds || 0) - timeElapsedSeconds);
+            updateData.periodTimeRemainingSeconds = newRemainingTime;
+            updateData.timerStartedAt = null;
         }
         
-        if (updates.status === 'completed' && gameData.status === 'inprogress') {
-             transaction.set(gameRef.collection('events').doc(), { ...baseEvent, action: 'period_end', period: gameData.currentPeriod, gameTimeSeconds: 0 });
-        }
-        
-        if (updates.currentPeriod && updates.currentPeriod > (gameData.currentPeriod || 1)) {
-             transaction.set(gameRef.collection('events').doc(), { ...baseEvent, action: 'period_end', period: gameData.currentPeriod, gameTimeSeconds: 0 });
-             transaction.set(gameRef.collection('events').doc(), { ...baseEvent, action: 'period_start', period: updates.currentPeriod, gameTimeSeconds: updates.periodTimeRemainingSeconds || 0 });
-        }
-
         transaction.update(gameRef, updateData);
     });
     
@@ -733,5 +714,3 @@ export async function assignScorer(
     return { success: false, error: error.message };
   }
 }
-
-    

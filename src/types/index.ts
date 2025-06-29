@@ -55,6 +55,7 @@ export interface UserFirestoreProfile {
   status: UserProfileStatus;
   createdAt: string;
   updatedAt: string;
+  isSeeded?: boolean;
   onboardingCompleted?: boolean;
   children?: Child[];
 }
@@ -275,6 +276,7 @@ export interface Game {
     currentPeriod?: number;
     periodTimeRemainingSeconds?: number;
     isTimerRunning?: boolean;
+    timerStartedAt?: string | null; // ISO String of when timer was last started
     scorerAssignments?: {
       [key in StatCategory]?: {
         uid: string;

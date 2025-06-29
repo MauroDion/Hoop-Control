@@ -155,8 +155,9 @@ export default function LiveGamePage() {
         const assignments = new Set<StatCategory>();
         if (!game || !user) return assignments;
         for (const key in game.scorerAssignments) {
-            if (game.scorerAssignments[key as StatCategory]?.uid === user.uid) {
-                assignments.add(key as StatCategory);
+            const assignmentKey = key as StatCategory;
+            if (game.scorerAssignments[assignmentKey]?.uid === user.uid) {
+                assignments.add(assignmentKey);
             }
         }
         return assignments;
@@ -223,25 +224,37 @@ export default function LiveGamePage() {
     }, [gameId, user, profile, authLoading, gameFormat, homePlayers.length, awayPlayers.length]);
 
 
+    // Effect to synchronize local display time with server state
+    useEffect(() => {
+        if (game) {
+            if (game.isTimerRunning && game.timerStartedAt) {
+                const serverStartTime = new Date(game.timerStartedAt).getTime();
+                const now = Date.now();
+                const elapsedSeconds = Math.round((now - serverStartTime) / 1000);
+                const newDisplayTime = Math.max(0, (game.periodTimeRemainingSeconds || 0) - elapsedSeconds);
+                setDisplayTime(newDisplayTime);
+            } else {
+                setDisplayTime(game.periodTimeRemainingSeconds || 0);
+            }
+        }
+    }, [game]);
+    
+    // Effect for local countdown timer tick
     useEffect(() => {
         let timerId: NodeJS.Timeout | null = null;
         if (game?.isTimerRunning && displayTime > 0) {
             timerId = setInterval(() => {
-                setDisplayTime(prevTime => prevTime > 0 ? prevTime - 1 : 0);
+                setDisplayTime(prev => prev - 1);
             }, 1000);
         } else if (game?.isTimerRunning && displayTime <= 0) {
+            // Timer ran out on this client, tell the server to stop it definitively.
             handleUpdate({ isTimerRunning: false });
         }
         return () => {
             if (timerId) clearInterval(timerId);
         };
     }, [game?.isTimerRunning, displayTime, handleUpdate]);
-    
-    useEffect(() => {
-        if (game?.periodTimeRemainingSeconds !== undefined) {
-            setDisplayTime(game.periodTimeRemainingSeconds);
-        }
-    }, [game?.periodTimeRemainingSeconds]);
+
 
     const handleGameEvent = async (teamType: 'home' | 'away', playerId: string, playerName: string, action: GameEventAction) => {
         if (!game || game.status !== 'inprogress' || !user) return;
@@ -291,11 +304,9 @@ export default function LiveGamePage() {
 
     const handleToggleTimer = useCallback(() => {
         if (!game) return;
-        handleUpdate({
-            isTimerRunning: !game.isTimerRunning,
-            periodTimeRemainingSeconds: displayTime,
-        });
-    }, [game, displayTime, handleUpdate]);
+        // The server will calculate the definitive remaining time when pausing.
+        handleUpdate({ isTimerRunning: !game.isTimerRunning });
+    }, [game, handleUpdate]);
     
     const handleNextPeriod = useCallback(() => {
         if (!game || !gameFormat) return;
@@ -325,7 +336,6 @@ export default function LiveGamePage() {
         }
         if (status === 'completed') {
             updates.isTimerRunning = false;
-            updates.periodTimeRemainingSeconds = 0;
         }
         handleUpdate(updates);
     }
@@ -381,7 +391,9 @@ export default function LiveGamePage() {
     const isShotCategoryAssigned = myAssignments.has('shots');
     const isFoulCategoryAssigned = myAssignments.has('fouls');
     const isOtherCategoryAssigned = myAssignments.has('turnovers');
-    const isClickableForScoring = myAssignments.size > 0 || profile.profileTypeId === 'super_admin';
+
+    const canRecordAnyStat = myAssignments.size > 0 || profile.profileTypeId === 'super_admin';
+    const isParentWithChildInGame = parentChildInfo.childIds.size > 0;
 
     const TeamPanel = ({ teamType, playersList }: { teamType: 'home' | 'away', playersList: Player[] }) => {
         const teamName = teamType === 'home' ? game.homeTeamName : game.awayTeamName;
@@ -402,7 +414,8 @@ export default function LiveGamePage() {
                         {onCourtPlayers.length > 0 ? onCourtPlayers.map(p => {
                              const stats = playerStats.find(s => s.playerId === p.id) || { ...defaultStats, playerId: p.id, playerName: `${p.firstName} ${p.lastName}`, pir: 0 };
                              const isChild = parentChildInfo.childIds.has(p.id);
-                             return <PlayerStatCard key={p.id} player={p} stats={stats} onClick={() => setActionPlayerInfo({ player: p, teamType })} userProfileType={profile.profileTypeId} isChild={isChild} onCourt={true} isClickableForScoring={isClickableForScoring}/>
+                             const isClickable = canRecordAnyStat || (isParentWithChildInGame && isChild);
+                             return <PlayerStatCard key={p.id} player={p} stats={stats} onClick={() => setActionPlayerInfo({ player: p, teamType })} userProfileType={profile.profileTypeId} isChild={isChild} onCourt={true} isClickableForScoring={isClickable}/>
                         }) : <p className="text-sm text-muted-foreground text-center italic col-span-full">Sin jugadores en pista</p>}
                     </div>
                     <Separator/>
@@ -494,6 +507,3 @@ export default function LiveGamePage() {
         </div>
     )
 }
-
-
-    
