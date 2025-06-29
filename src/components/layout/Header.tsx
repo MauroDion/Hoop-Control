@@ -19,7 +19,7 @@ import {
     BarChart2,
     Settings as SettingsIcon,
     Dribbble,
-    Menu // ADDED
+    Menu
 } from 'lucide-react';
 import { useEffect, useState } from 'react'; 
 import type { BrandingSettings } from '@/types';
