@@ -127,19 +127,7 @@ export default function LiveGamePage() {
     const { toast } = useToast();
     const gameId = typeof params.gameId === 'string' ? params.gameId : '';
     const { user, profile, loading: authLoading } = useAuth();
-
-    const myAssignments = useMemo(() => {
-        const assignments = new Set<StatCategory>();
-        if (!game || !user) return assignments;
-        for (const key in game.scorerAssignments) {
-            const assignmentKey = key as StatCategory;
-            if (game.scorerAssignments[assignmentKey]?.uid === user.uid) {
-                assignments.add(assignmentKey);
-            }
-        }
-        return assignments;
-    }, [game, user]);
-
+    
     const [game, setGame] = useState<Game | null>(null);
     const [gameFormat, setGameFormat] = useState<GameFormat | null>(null);
     const [homePlayers, setHomePlayers] = useState<Player[]>([]);
@@ -154,6 +142,18 @@ export default function LiveGamePage() {
     const [actionPlayerInfo, setActionPlayerInfo] = useState<{player: Player, teamType: 'home' | 'away'} | null>(null);
     const [subPlayerInfo, setSubPlayerInfo] = useState<{player: Player, teamType: 'home' | 'away'} | null>(null);
     const [isAssignmentDialogOpen, setIsAssignmentDialogOpen] = useState(false);
+
+    const myAssignments = useMemo(() => {
+        const assignments = new Set<StatCategory>();
+        if (!game || !user) return assignments;
+        for (const key in game.scorerAssignments) {
+            const assignmentKey = key as StatCategory;
+            if (game.scorerAssignments[assignmentKey]?.uid === user.uid) {
+                assignments.add(assignmentKey);
+            }
+        }
+        return assignments;
+    }, [game, user]);
     
     const defaultStats: Omit<PlayerGameStats, 'pir'> & { timeByPeriod: { [period: number]: number } } = {
         playerId: '', playerName: '', timePlayedSeconds: 0, periodsPlayed: 0,
@@ -429,7 +429,7 @@ export default function LiveGamePage() {
                         {onCourtPlayers.length > 0 ? onCourtPlayers.map(p => {
                              const stats = playerStats.find(s => s.playerId === p.id) || { ...defaultStats, playerId: p.id, playerName: `${p.firstName} ${p.lastName}`, pir: 0 };
                              const isChild = parentChildInfo.childIds.has(p.id);
-                             const isClickable = canRecordAnyStat || (isParentWithChildInGame && isChild);
+                             const isClickable = canRecordAnyStat;
                              return <PlayerStatCard key={p.id} player={p} stats={stats} onClick={() => setActionPlayerInfo({ player: p, teamType })} userProfileType={profile.profileTypeId} isChild={isChild} onCourt={true} isClickableForScoring={isClickable}/>
                         }) : <p className="text-sm text-muted-foreground text-center italic col-span-full">Sin jugadores en pista</p>}
                     </div>
@@ -488,7 +488,7 @@ export default function LiveGamePage() {
             <Card>
                 <CardHeader className="text-center"><CardTitle className="text-2xl">Control del Partido</CardTitle></CardHeader>
                 <CardContent className="flex flex-col gap-2">
-                    <Button size="lg" onClick={() => setIsAssignmentDialogOpen(true)}><UserCheck className="mr-2 h-5 w-5"/>Asignar Anotadores</Button>
+                    {canManageControls && <Button size="lg" onClick={() => setIsAssignmentDialogOpen(true)}><UserCheck className="mr-2 h-5 w-5"/>Asignar Anotadores</Button> }
                     {game.status === 'scheduled' && canManageControls && <Button size="lg" className="bg-green-600 hover:bg-green-700" onClick={() => handleGameStatusChange('inprogress')}><Play className="mr-2 h-5 w-5"/> Empezar Partido</Button>}
                     {game.status === 'inprogress' && canManageControls && <Button size="lg" variant="destructive" className="w-full" onClick={() => handleGameStatusChange('completed')}><Flag className="mr-2 h-5 w-5"/> Finalizar Partido</Button>}
                     {game.status === 'completed' && <p className="text-center font-bold text-lg text-green-700">Partido Finalizado</p>}
