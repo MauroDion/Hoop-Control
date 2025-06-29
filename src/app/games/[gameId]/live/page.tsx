@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
@@ -11,7 +12,7 @@ import { db } from '@/lib/firebase/client';
 import { updateLiveGameState, recordGameEvent, substitutePlayer, getPlayerStatsForGame, assignScorer, getTeamsByCoach, getGameById } from '@/app/games/actions';
 import { getGameFormatById } from '@/app/game-formats/actions';
 import { getPlayersByTeamId } from '@/app/players/actions';
-import type { Game, GameFormat, Player, GameEventAction, PlayerGameStats, UserFirestoreProfile, ProfileType, StatCategory } from '@/types';
+import type { Game, GameFormat, Player, GameEventAction, PlayerGameStats, UserFirestoreProfile, ProfileType, StatCategory, GameEvent } from '@/types';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -132,7 +133,7 @@ export default function LiveGamePage() {
     const [game, setGame] = useState<Game | null>(null);
     const [gameFormat, setGameFormat] = useState<GameFormat | null>(null);
     const [homePlayers, setHomePlayers] = useState<Player[]>([]);
-    const [awayPlayers, setAwayPlayers] = useState<Player[]>(([]);
+    const [awayPlayers, setAwayPlayers] = useState<Player[]>([]);
     const [playerStats, setPlayerStats] = useState<PlayerGameStats[]>([]);
 
     const [displayTime, setDisplayTime] = useState(0);
@@ -176,7 +177,7 @@ export default function LiveGamePage() {
                 
                 const isSuperAdmin = profile.profileTypeId === 'super_admin';
                 const isClubAdmin = ['club_admin', 'coordinator'].includes(profile.profileTypeId) && (profile.clubId === gameData.homeTeamClubId || profile.clubId === gameData.awayTeamClubId);
-                const isParentOfPlayer = profile.profileTypeId === 'parent_guardian' && (profile.children || []).some(child => 
+                const isParentOfPlayerInGame = profile.profileTypeId === 'parent_guardian' && (profile.children || []).some(child => 
                     (gameData.homeTeamPlayerIds || []).includes(child.playerId) || 
                     (gameData.awayTeamPlayerIds || []).includes(child.playerId)
                 );
@@ -187,7 +188,7 @@ export default function LiveGamePage() {
                     isCoachOfGame = coachTeams.some(t => t.id === gameData.homeTeamId || t.id === gameData.awayTeamId);
                 }
 
-                if (isSuperAdmin || isClubAdmin || isCoachOfGame || isParentOfPlayer) {
+                if (isSuperAdmin || isClubAdmin || isCoachOfGame || isParentOfPlayerInGame) {
                     setHasPermission(true);
                 } else {
                     setError("No tienes permiso para ver este partido en vivo.");
@@ -384,8 +385,6 @@ export default function LiveGamePage() {
         const onCourtPlayers = playersList.filter(p => gameRosterIds.has(p.id) && onCourtIds.has(p.id));
         const onBenchPlayers = playersList.filter(p => gameRosterIds.has(p.id) && !onCourtIds.has(p.id));
         
-        const isParentsTeam = profile.profileTypeId === 'parent_guardian' && parentChildInfo.teamType === teamType;
-        
         return (
             <Card className="shadow-lg">
                 <CardHeader><CardTitle className="truncate">{teamName}</CardTitle><CardDescription>Equipo {teamType === 'home' ? 'Local' : 'Visitante'}</CardDescription></CardHeader>
@@ -415,39 +414,13 @@ export default function LiveGamePage() {
     };
     
     const canManageControls = profile && ['super_admin', 'club_admin', 'coordinator', 'coach'].includes(profile.profileTypeId);
-    
-    const shotsDisabled = useMemo(() => {
-        if (!game || !user || !profile || !actionPlayerInfo) return true;
-        if (profile.profileTypeId === 'super_admin') return false;
-        
-        const assignment = game.scorerAssignments?.shots;
-        if (assignment && assignment.uid !== user.uid) return true;
-
-        const isParentForThisPlayer = profile.profileTypeId === 'parent_guardian' && parentChildInfo.childIds.has(actionPlayerInfo.player.id);
-        return !canManageControls && !isParentForThisPlayer;
-    }, [game, user, profile, actionPlayerInfo, canManageControls, parentChildInfo.childIds]);
-
-    const foulsDisabled = useMemo(() => {
-        if (!game || !user || !profile || !actionPlayerInfo) return true;
-        if (profile.profileTypeId === 'super_admin') return false;
-        
-        const assignment = game.scorerAssignments?.fouls;
-        if (assignment && assignment.uid !== user.uid) return true;
-
-        const isParentForThisPlayer = profile.profileTypeId === 'parent_guardian' && parentChildInfo.childIds.has(actionPlayerInfo.player.id);
-        return !canManageControls && !isParentForThisPlayer;
-    }, [game, user, profile, actionPlayerInfo, canManageControls, parentChildInfo.childIds]);
-
-    const turnoversDisabled = useMemo(() => {
-        if (!game || !user || !profile || !actionPlayerInfo) return true;
-        if (profile.profileTypeId === 'super_admin') return false;
-        
-        const assignment = game.scorerAssignments?.turnovers;
-        if (assignment && assignment.uid !== user.uid) return true;
-
-        const isParentForThisPlayer = profile.profileTypeId === 'parent_guardian' && parentChildInfo.childIds.has(actionPlayerInfo.player.id);
-        return !canManageControls && !isParentForThisPlayer;
-    }, [game, user, profile, actionPlayerInfo, canManageControls, parentChildInfo.childIds]);
+    const actionDisabled = !actionPlayerInfo || (
+        profile.profileTypeId !== 'super_admin' && 
+        !myAssignments.has('shots') &&
+        !myAssignments.has('fouls') &&
+        !myAssignments.has('turnovers') &&
+        !(profile.profileTypeId === 'parent_guardian' && parentChildInfo.childIds.has(actionPlayerInfo.player.id))
+    );
 
     return (
         <div className="space-y-6">
@@ -457,12 +430,13 @@ export default function LiveGamePage() {
 
             <Dialog open={!!actionPlayerInfo} onOpenChange={(isOpen) => !isOpen && setActionPlayerInfo(null)}>
                 <DialogContent className="max-w-3xl">
-                    {actionPlayerInfo && <><DialogHeader><DialogTitle className="text-2xl">{actionPlayerInfo.player.firstName} {actionPlayerInfo.player.lastName} (#{actionPlayerInfo.player.jerseyNumber || 'S/N'})</DialogTitle><DialogDescription>{actionPlayerInfo.teamType === 'home' ? game.homeTeamName : game.awayTeamName}</DialogDescription></DialogHeader>
+                    {actionPlayerInfo && <>
+                        <DialogHeader><DialogTitle className="text-2xl">{actionPlayerInfo.player.firstName} {actionPlayerInfo.player.lastName} (#{actionPlayerInfo.player.jerseyNumber || 'S/N'})</DialogTitle><DialogDescription>{actionPlayerInfo.teamType === 'home' ? game.homeTeamName : game.awayTeamName}</DialogDescription></DialogHeader>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 py-4">
-                            <ShotActionButtons onAction={(action) => handleGameEvent(actionPlayerInfo.teamType, actionPlayerInfo.player.id, `${actionPlayerInfo.player.firstName} ${actionPlayerInfo.player.lastName}`, action)} disabled={shotsDisabled} />
-                            <OtherActionButtons onAction={(action) => handleGameEvent(actionPlayerInfo.teamType, actionPlayerInfo.player.id, `${actionPlayerInfo.player.firstName} ${actionPlayerInfo.player.lastName}`, action)} disabledFouls={foulsDisabled} disabledTurnovers={turnoversDisabled} />
-                        </div></>
-                    }
+                            <ShotActionButtons onAction={(action) => handleGameEvent(actionPlayerInfo.teamType, actionPlayerInfo.player.id, `${actionPlayerInfo.player.firstName} ${actionPlayerInfo.player.lastName}`, action)} disabled={actionDisabled || !myAssignments.has('shots')} />
+                            <OtherActionButtons onAction={(action) => handleGameEvent(actionPlayerInfo.teamType, actionPlayerInfo.player.id, `${actionPlayerInfo.player.firstName} ${actionPlayerInfo.player.lastName}`, action)} disabledFouls={actionDisabled || !myAssignments.has('fouls')} disabledTurnovers={actionDisabled || !myAssignments.has('turnovers')} />
+                        </div>
+                    </>}
                 </DialogContent>
             </Dialog>
 
@@ -523,3 +497,5 @@ export default function LiveGamePage() {
         </div>
     )
 }
+
+    
