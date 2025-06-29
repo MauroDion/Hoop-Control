@@ -19,6 +19,8 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+const PUBLIC_PATHS = ['/', '/login', '/register', '/reset-password'];
+
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<FirebaseUser | null>(null);
   const [profile, setProfile] = useState<UserFirestoreProfile | null>(null);
@@ -28,72 +30,58 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const logout = useCallback(async (showToast = true) => {
     console.log("AuthContext: Logout initiated.");
-    setProfile(null);
-    setUser(null);
     try {
       await fetch('/api/auth/session-logout', { method: 'POST' });
-    } catch (error) {
-       console.error("Logout API call failed, proceeding with client-side cleanup:", error);
-    } finally {
-      await signOut(auth);
+      await signOut(auth); // This will trigger the onAuthStateChanged listener below
       if (showToast) {
         toast({ title: "Sesión Cerrada", description: "Has cerrado sesión correctamente." });
       }
-      router.push('/login');
-      router.refresh();
+    } catch (error) {
+       console.error("Logout API call or sign out failed:", error);
+       toast({ variant: 'destructive', title: 'Error al cerrar sesión', description: 'Ocurrió un error.' });
     }
-  }, [router, toast]);
+  }, [toast]);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
-        setUser(firebaseUser);
-        getUserProfileById(firebaseUser.uid)
-          .then(userProfile => {
-            if (userProfile) {
-              setProfile(userProfile);
-              if (userProfile.profileTypeId === 'parent_guardian' && !userProfile.onboardingCompleted) {
-                  const currentPath = window.location.pathname;
-                  if (currentPath !== '/profile/my-children') {
-                    router.replace('/profile/my-children');
-                  }
+        try {
+          const userProfile = await getUserProfileById(firebaseUser.uid);
+          if (userProfile) {
+            setUser(firebaseUser);
+            setProfile(userProfile);
+            if (userProfile.profileTypeId === 'parent_guardian' && !userProfile.onboardingCompleted) {
+              const currentPath = window.location.pathname;
+              if (currentPath !== '/profile/my-children') {
+                router.replace('/profile/my-children');
               }
-            } else {
-              console.error(`Auth Error: No profile found for UID ${firebaseUser.uid}. Forcing logout.`);
-              toast({
-                variant: 'destructive',
-                title: 'Error de Cuenta',
-                description: 'No se encontró tu perfil de usuario. Se cerrará la sesión.'
-              });
-              logout(false);
             }
-          })
-          .catch((err) => {
-            console.error("Auth Error: Failed to fetch user profile.", err);
-            toast({
-              variant: 'destructive',
-              title: 'Error de Red',
-              description: 'No se pudo cargar tu perfil. Se cerrará la sesión.'
-            });
-            logout(false);
-          })
-          .finally(() => {
-            setLoading(false);
-          });
+          } else {
+            console.error(`Auth Error: No profile found for UID ${firebaseUser.uid}. Forcing logout.`);
+            await logout(false);
+          }
+        } catch (err) {
+          console.error("Auth Error: Failed to fetch user profile.", err);
+          await logout(false);
+        } finally {
+          setLoading(false);
+        }
       } else {
+        // No firebase user
         setUser(null);
         setProfile(null);
         setLoading(false);
+        const currentPath = window.location.pathname;
+        if (!PUBLIC_PATHS.some(path => currentPath.startsWith(path) && (path === '/' || currentPath.length === path.length || currentPath.startsWith(path + '/')))) {
+            console.warn(`AuthContext: Unauthenticated user on protected route ${currentPath}. Redirecting.`);
+            router.push('/login');
+        }
       }
-    }, (error) => {
-      console.error("Auth state change error:", error);
-      setUser(null);
-      setProfile(null);
-      setLoading(false);
     });
 
     return () => unsubscribe();
-  }, [logout, router, toast]);
+  }, [router, logout]);
+
 
   if (loading) {
     return (

@@ -54,23 +54,15 @@ export default function DashboardPage() {
     setIsCreatingTestGame(false);
   }
   
-  if (loading) {
+  // The AuthContext now handles the primary loading and redirection logic.
+  // This component will only render when loading is false and user/profile are available.
+  if (loading || !user || !profile) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)]">
         <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
         <p className="text-lg text-muted-foreground">Cargando información del panel...</p>
       </div>
     );
-  }
-
-  if (!user || !profile) {
-    // This case should be handled by the AuthContext redirecting, but as a fallback:
-    return (
-       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)]">
-        <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-        <p className="text-lg text-muted-foreground">Verificando sesión...</p>
-      </div>
-    )
   }
 
   const renderClubManagement = () => {
