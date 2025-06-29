@@ -218,7 +218,7 @@ export interface TeamStats {
     foulsReceived: number;
 }
 
-export type StatCategory = 'shots' | 'fouls' | 'timeouts' | 'steals';
+export type StatCategory = 'shots' | 'fouls' | 'turnovers';
 
 export type GameEventAction = 
   | 'shot_made_1p' | 'shot_miss_1p'

@@ -3,7 +3,7 @@
 import { adminDb } from '@/lib/firebase/admin';
 import admin from 'firebase-admin';
 import { revalidatePath } from 'next/cache';
-import type { Game, GameFormData, Team, TeamStats, Player, GameEvent, GameEventAction, UserFirestoreProfile } from '@/types';
+import type { Game, GameFormData, Team, TeamStats, Player, GameEvent, GameEventAction, UserFirestoreProfile, StatCategory } from '@/types';
 import { getTeamsByCoach as getCoachTeams, getAllTeams, getTeamsByClubId as getTeamsFromClub } from '@/app/teams/actions';
 import { getUserProfileById } from '@/app/users/actions';
 import { getSeasons } from '@/app/seasons/actions';
@@ -115,8 +115,7 @@ export async function createGame(formData: GameFormData, userId: string): Promis
             scorerAssignments: {
                 shots: null,
                 fouls: null,
-                timeouts: null,
-                steals: null
+                turnovers: null,
             },
         };
 
@@ -540,7 +539,7 @@ export async function updateLiveGameState(
         
         const gameData = gameDoc.data() as Game;
         const serverTimestamp = admin.firestore.FieldValue.serverTimestamp();
-        const baseEvent = { gameId, teamId: 'system' as const, playerId: 'SYSTEM', playerName: 'System', createdAt: serverTimestamp };
+        const baseEvent = { gameId, teamId: 'system' as const, playerId: 'SYSTEM', playerName: 'System', createdAt: serverTimestamp, createdBy: userId };
 
         if (updates.status === 'inprogress' && gameData.status === 'scheduled') {
             const homeRoster = gameData.homeTeamPlayerIds || [];
@@ -559,6 +558,21 @@ export async function updateLiveGameState(
             awayPlayers.forEach(p => transaction.set(eventsRef.doc(), { ...baseEvent, teamId: 'away', playerId: p.id, playerName: `${p.firstName} ${p.lastName}`, action: 'substitution_in', period: 1, gameTimeSeconds: updates.periodTimeRemainingSeconds || 0 }));
         }
 
+        if (updates.isTimerRunning === true) {
+            transaction.set(gameRef.collection('events').doc(), { ...baseEvent, action: 'timer_start', period: gameData.currentPeriod, gameTimeSeconds: updates.periodTimeRemainingSeconds });
+        } else if (updates.isTimerRunning === false) {
+             transaction.set(gameRef.collection('events').doc(), { ...baseEvent, action: 'timer_pause', period: gameData.currentPeriod, gameTimeSeconds: updates.periodTimeRemainingSeconds });
+        }
+        
+        if (updates.status === 'completed') {
+             transaction.set(gameRef.collection('events').doc(), { ...baseEvent, action: 'period_end', period: gameData.currentPeriod, gameTimeSeconds: 0 });
+        }
+        
+        if (updates.currentPeriod && updates.currentPeriod > (gameData.currentPeriod || 1)) {
+             transaction.set(gameRef.collection('events').doc(), { ...baseEvent, action: 'period_end', period: gameData.currentPeriod, gameTimeSeconds: 0 });
+             transaction.set(gameRef.collection('events').doc(), { ...baseEvent, action: 'period_start', period: updates.currentPeriod, gameTimeSeconds: updates.periodTimeRemainingSeconds || 0 });
+        }
+
         transaction.update(gameRef, updateData);
     });
     
@@ -568,6 +582,14 @@ export async function updateLiveGameState(
     return { success: false, error: error.message || "No se pudo actualizar el estado del partido." };
   }
 }
+
+const getCategoryForAction = (action: GameEventAction): StatCategory | null => {
+    if (action.startsWith('shot_')) return 'shots';
+    if (action.startsWith('foul')) return 'fouls';
+    if (['steal', 'turnover', 'block', 'block_against', 'rebound_defensive', 'rebound_offensive', 'assist'].includes(action)) return 'turnovers';
+    return null;
+};
+
 
 export async function recordGameEvent(
   gameId: string,
@@ -580,10 +602,9 @@ export async function recordGameEvent(
   const eventRef = gameRef.collection('events').doc();
   
   try {
-    const profile = await getUserProfileById(userId);
+    const [profile, game] = await Promise.all([ getUserProfileById(userId), getGameById(gameId) ]);
+    
     if (!profile) return { success: false, error: "Usuario no encontrado." };
-  
-    const game = await getGameById(gameId);
     if (!game) return { success: false, error: "Partido no encontrado." };
 
     const isSuperAdmin = profile.profileTypeId === 'super_admin';
@@ -598,8 +619,12 @@ export async function recordGameEvent(
       return { success: false, error: 'No tienes permiso para registrar acciones en este partido.' };
     }
   
-    if (profile.profileTypeId === 'parent_guardian' && !isParentScoringForChild) {
-        return { success: false, error: 'Solo puedes registrar acciones para tu hijo/a.' };
+    const actionCategory = getCategoryForAction(event.action);
+    if (actionCategory) {
+        const assignment = game.scorerAssignments?.[actionCategory];
+        if (assignment && assignment.uid !== userId && !isSuperAdmin && !isParentScoringForChild) {
+            return { success: false, error: `No tienes asignado el rol de anotación para esta acción. Lo tiene ${assignment.displayName}.` };
+        }
     }
 
     await adminDb.runTransaction(async (transaction) => {
@@ -612,7 +637,7 @@ export async function recordGameEvent(
         updates[scoreField] = admin.firestore.FieldValue.increment(points);
       }
 
-      transaction.set(eventRef, { ...event, gameId, createdAt: admin.firestore.FieldValue.serverTimestamp() });
+      transaction.set(eventRef, { ...event, gameId, createdAt: admin.firestore.FieldValue.serverTimestamp(), createdBy: userId });
       transaction.update(gameRef, updates);
     });
 
@@ -657,7 +682,7 @@ export async function substitutePlayer(
                 const index = onCourtIds.indexOf(playerOut.id);
                 if (index > -1) {
                     onCourtIds.splice(index, 1, playerIn.id);
-                    const outEvent: Omit<GameEvent, 'id' | 'createdAt'> = { gameId, teamId, playerId: playerOut.id, playerName: playerOut.name, action: 'substitution_out', period, gameTimeSeconds };
+                    const outEvent: Omit<GameEvent, 'id' | 'createdAt'> = { gameId, teamId, playerId: playerOut.id, playerName: playerOut.name, action: 'substitution_out', period, gameTimeSeconds, createdBy: userId };
                     transaction.set(eventsRef.doc(), { ...outEvent, createdAt: admin.firestore.FieldValue.serverTimestamp() });
                 } else {
                     throw new Error("El jugador a sustituir no está en la pista.");
@@ -671,7 +696,7 @@ export async function substitutePlayer(
                 }
             }
             
-            const inEvent: Omit<GameEvent, 'id' | 'createdAt'> = { gameId, teamId, playerId: playerIn.id, playerName: playerIn.name, action: 'substitution_in', period, gameTimeSeconds };
+            const inEvent: Omit<GameEvent, 'id' | 'createdAt'> = { gameId, teamId, playerId: playerIn.id, playerName: playerIn.name, action: 'substitution_in', period, gameTimeSeconds, createdBy: userId };
             transaction.set(eventsRef.doc(), { ...inEvent, createdAt: admin.firestore.FieldValue.serverTimestamp() });
             
             transaction.update(gameRef, { [onCourtField]: onCourtIds });
