@@ -169,7 +169,6 @@ export default function LiveGamePage() {
         }
     }, [gameId, toast, user]);
 
-    // This effect is for the visual countdown timer, synchronized with the server's start time
     useEffect(() => {
         let timerId: NodeJS.Timeout;
 
@@ -201,7 +200,16 @@ export default function LiveGamePage() {
         const unsubscribe = onSnapshot(gameRef, async (docSnap) => {
             if (docSnap.exists()) {
                 const data = docSnap.data();
-                const gameData = { id: docSnap.id, ...data, date: (data.date as any).toDate().toISOString() } as Game;
+                
+                // Convert all Firestore Timestamps to ISO strings for client-side consistency
+                const gameData = {
+                    ...data,
+                    id: docSnap.id,
+                    date: (data.date as any).toDate().toISOString(),
+                    createdAt: data.createdAt?.toDate().toISOString(),
+                    updatedAt: data.updatedAt?.toDate().toISOString(),
+                    timerStartedAt: data.timerStartedAt?.toDate().toISOString() || null,
+                } as Game;
                 setGame(gameData);
                 
                 const isSuperAdmin = profile.profileTypeId === 'super_admin';
@@ -384,8 +392,7 @@ export default function LiveGamePage() {
     const canManageControls = profile && ['super_admin', 'club_admin', 'coordinator', 'coach'].includes(profile.profileTypeId);
     
     const canRecordShots = myAssignments.has('shots') || isSuperAdmin;
-    const canRecordFouls = myAssignments.has('fouls') || isSuperAdmin;
-    const canRecordOther = myAssignments.has('turnovers') || isSuperAdmin;
+    const canRecordOther = myAssignments.has('turnovers') || myAssignments.has('fouls') || isSuperAdmin;
     const canRecordAnyStat = myAssignments.size > 0 || isSuperAdmin;
 
     const TeamPanel = ({ teamType, playersList }: { teamType: 'home' | 'away', playersList: Player[] }) => {

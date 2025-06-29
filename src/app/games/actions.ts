@@ -399,7 +399,9 @@ export async function updateLiveGameState(
         const gameDoc = await transaction.get(gameRef);
         if (!gameDoc.exists) throw new Error("El partido no existe.");
         
-        const gameData = gameDoc.data() as Game;
+        const gameData = gameDoc.data();
+        if(!gameData) throw new Error("No se encontraron datos del partido.");
+
         const serverTimestamp = admin.firestore.FieldValue.serverTimestamp();
         const baseEventPayload = { gameId, teamId: 'system' as const, playerId: 'SYSTEM', playerName: 'System', createdAt: serverTimestamp, createdBy: userId };
 
@@ -418,7 +420,8 @@ export async function updateLiveGameState(
             const timerStartEventRef = gameRef.collection('events').doc();
             transaction.set(timerStartEventRef, { ...baseEventPayload, action: 'timer_start', period: gameData.currentPeriod || 1, gameTimeSeconds: gameData.periodTimeRemainingSeconds || 0 });
         } else if (updates.isTimerRunning === false && gameData.isTimerRunning) {
-            const lastStartedMillis = gameData.timerStartedAt ? new Date(gameData.timerStartedAt).getTime() : Date.now();
+            const lastStartedTimestamp = gameData.timerStartedAt as admin.firestore.Timestamp | undefined;
+            const lastStartedMillis = lastStartedTimestamp ? lastStartedTimestamp.toMillis() : Date.now();
             const timeElapsedSeconds = Math.round((Date.now() - lastStartedMillis) / 1000);
             const newRemainingTime = Math.max(0, (gameData.periodTimeRemainingSeconds || 0) - timeElapsedSeconds);
             updateData.periodTimeRemainingSeconds = newRemainingTime;
@@ -545,7 +548,6 @@ export async function assignScorer(
                 if (assignments[category]?.uid === userId) {
                     transaction.update(gameRef, { [`scorerAssignments.${category}`]: null });
                 } else {
-                    // This can happen in a race condition, but it's not a critical failure.
                     console.warn(`User ${userId} tried to release a category not assigned to them.`);
                 }
             } else {
@@ -596,7 +598,7 @@ export async function recordGameEvent(
                 ...eventData,
                 gameId,
                 createdBy: userId,
-                createdAt: admin.firestore.FieldValue.serverTimestamp() as any, // Cast for transaction
+                createdAt: admin.firestore.FieldValue.serverTimestamp() as any,
             };
             transaction.set(eventRef, newEvent);
 
