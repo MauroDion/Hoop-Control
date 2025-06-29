@@ -2,16 +2,15 @@
 "use client";
 
 import type { User as FirebaseUser } from 'firebase/auth';
-import { auth, db } from '@/lib/firebase/client';
-import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { useRouter } from 'next/navigation';
+import { auth } from '@/lib/firebase/client';
+import { signOut } from 'firebase/auth';
+import { useRouter, usePathname } from 'next/navigation';
 import React, { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
 import { getUserProfileById } from '@/app/users/actions';
-import type { UserFirestoreProfile } from '@/types';
+import type { UserFirestoreProfile, BrandingSettings } from '@/types';
 import { getBrandingSettings } from '@/app/admin/settings/actions';
-import type { BrandingSettings } from '@/types';
 
 interface AuthContextType {
   user: FirebaseUser | null;
@@ -31,6 +30,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [branding, setBranding] = useState<BrandingSettings>({});
   const [loading, setLoading] = useState(true);
   const router = useRouter();
+  const pathname = usePathname();
   const { toast } = useToast();
 
   const logout = useCallback(async (showToast = true) => {
@@ -45,59 +45,71 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
        console.error("Logout API call or sign out failed:", error);
        toast({ variant: 'destructive', title: 'Error al cerrar sesión', description: 'Ocurrió un error.' });
     } finally {
+        setUser(null);
+        setProfile(null);
         router.push('/login');
+        router.refresh();
     }
   }, [router, toast]);
   
   useEffect(() => {
     getBrandingSettings().then(setBranding);
-  }, [])
+  }, []);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+    const verifySession = async () => {
       setLoading(true);
-      if (firebaseUser) {
-        try {
-          const userProfile = await getUserProfileById(firebaseUser.uid);
+      try {
+        const res = await fetch('/api/auth/verify-session', { method: 'POST' });
+        
+        if (!res.ok) {
+           throw new Error("Session invalid or server error");
+        }
+
+        const data = await res.json();
+        
+        if (data.isAuthenticated) {
+          const userProfile = await getUserProfileById(data.uid);
           if (userProfile) {
-            setUser(firebaseUser);
+            setUser(data as FirebaseUser);
             setProfile(userProfile);
-             if (userProfile.profileTypeId === 'parent_guardian' && !userProfile.onboardingCompleted) {
-              const currentPath = window.location.pathname;
-              if (currentPath !== '/profile/my-children') {
-                router.replace('/profile/my-children');
-              }
+            
+            if (userProfile.profileTypeId === 'parent_guardian' && !userProfile.onboardingCompleted && !pathname.startsWith('/profile/my-children')) {
+              router.replace('/profile/my-children');
             }
           } else {
-            console.error(`Auth Error: No profile found for UID ${firebaseUser.uid}. Forcing logout.`);
+            console.error("Inconsistent state: Valid auth but no profile. Forcing logout.");
             await logout(false);
           }
-        } catch (err) {
-          console.error("Auth Error: Failed to fetch user profile.", err);
-          await logout(false);
-        } finally {
-          setLoading(false);
+        } else {
+            throw new Error("Session not authenticated");
         }
-      } else {
+      } catch (error) {
         setUser(null);
         setProfile(null);
+        const isPublicPath = PUBLIC_PATHS.some(p => pathname.startsWith(p) && (p !== '/' || pathname === '/'));
+        if (!isPublicPath) {
+            console.log(`Redirecting from protected path "${pathname}" to login.`);
+            router.replace('/login');
+        }
+      } finally {
         setLoading(false);
       }
-    });
+    };
 
-    return () => unsubscribe();
-  }, [router, logout]);
-
+    verifySession();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname]); // Re-verify only when the path changes
 
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-background">
           <Loader2 className="h-12 w-12 animate-spin text-primary" />
-          <p className="text-lg text-muted-foreground mt-4">Cargando...</p>
+          <p className="text-lg text-muted-foreground mt-4">Verificando sesión...</p>
       </div>
     );
   }
-
+  
   return (
     <AuthContext.Provider value={{ user, profile, loading, logout, branding }}>
       {children}
@@ -105,10 +117,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   );
 };
 
-export const useAuthContext = () => {
+export const useAuth = () => {
   const context = useContext(AuthContext);
   if (context === undefined) {
-    throw new Error('useAuthContext must be used within an AuthProvider');
+    throw new Error('useAuth must be used within an AuthProvider');
   }
   return context;
 };

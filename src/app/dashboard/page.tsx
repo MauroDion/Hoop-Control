@@ -55,8 +55,6 @@ export default function DashboardPage() {
     setIsCreatingTestGame(false);
   }
   
-  // The AuthContext now handles the primary loading and redirection logic.
-  // This component will only render when loading is false and user/profile are available.
   if (loading || !user || !profile) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)]">
@@ -67,7 +65,7 @@ export default function DashboardPage() {
   }
 
   const renderClubManagement = () => {
-    if (profile?.profileTypeId === 'super_admin') {
+    if (profile.profileTypeId === 'super_admin') {
       return (
         <>
           <p className="text-sm text-muted-foreground">
@@ -84,7 +82,7 @@ export default function DashboardPage() {
       );
     }
     
-    if (profile?.clubId && profile.profileTypeId !== 'parent_guardian') {
+    if (profile.clubId && profile.profileTypeId !== 'parent_guardian') {
        return (
         <>
           <p className="text-sm text-muted-foreground">
@@ -99,7 +97,7 @@ export default function DashboardPage() {
       );
     }
 
-    if (profile?.profileTypeId === 'parent_guardian') {
+    if (profile.profileTypeId === 'parent_guardian') {
        return (
         <>
           <p className="text-sm text-muted-foreground">
