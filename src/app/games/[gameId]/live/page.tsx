@@ -133,7 +133,6 @@ export default function LiveGamePage() {
     const [homePlayers, setHomePlayers] = useState<Player[]>([]);
     const [awayPlayers, setAwayPlayers] = useState<Player[]>([]);
     const [playerStats, setPlayerStats] = useState<PlayerGameStats[]>([]);
-
     const [displayTime, setDisplayTime] = useState(0);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -170,32 +169,25 @@ export default function LiveGamePage() {
         }
     }, [gameId, toast, user]);
 
-    // Sync with server state
+    // This effect is for the visual countdown timer, synchronized with the server's start time
     useEffect(() => {
-        if (game) {
-            setDisplayTime(game.periodTimeRemainingSeconds ?? 0);
-        }
-    }, [game?.periodTimeRemainingSeconds]);
+        let timerId: NodeJS.Timeout;
 
-    // Manage local countdown
-    useEffect(() => {
-        if (!game?.isTimerRunning) {
-            return;
+        if (game?.isTimerRunning && game.timerStartedAt) {
+            const updateDisplay = () => {
+                const serverStartTime = new Date(game!.timerStartedAt!).getTime();
+                const elapsedSeconds = Math.floor((Date.now() - serverStartTime) / 1000);
+                const newDisplayTime = Math.max(0, (game!.periodTimeRemainingSeconds || 0) - elapsedSeconds);
+                setDisplayTime(newDisplayTime);
+            };
+            updateDisplay();
+            timerId = setInterval(updateDisplay, 1000);
+        } else {
+            setDisplayTime(game?.periodTimeRemainingSeconds || 0);
         }
-
-        const timerId = setInterval(() => {
-            setDisplayTime(prev => {
-                if (prev <= 1) {
-                    clearInterval(timerId);
-                    handleUpdate({ isTimerRunning: false, periodTimeRemainingSeconds: 0 });
-                    return 0;
-                }
-                return prev - 1;
-            });
-        }, 1000);
 
         return () => clearInterval(timerId);
-    }, [game?.isTimerRunning, handleUpdate]);
+    }, [game?.isTimerRunning, game?.timerStartedAt, game?.periodTimeRemainingSeconds]);
 
     useEffect(() => {
         if (authLoading) return;
@@ -323,7 +315,6 @@ export default function LiveGamePage() {
     
     const handleGameStatusChange = async (status: 'inprogress' | 'completed') => {
         if (!game) return;
-
         let updates: Partial<Game> = { status };
         if (status === 'inprogress') {
             let format = gameFormat;
@@ -331,15 +322,12 @@ export default function LiveGamePage() {
                 format = await getGameFormatById(game.gameFormatId);
                 if (format) setGameFormat(format);
             }
-
             updates.periodTimeRemainingSeconds = (format?.periodDurationMinutes || 10) * 60;
             updates.isTimerRunning = true;
         }
-        
         if (status === 'completed') {
             updates.isTimerRunning = false;
         }
-
         await handleUpdate(updates);
     }
 
@@ -394,12 +382,10 @@ export default function LiveGamePage() {
 
     const canManageControls = profile && ['super_admin', 'club_admin', 'coordinator', 'coach'].includes(profile.profileTypeId);
     
-    const isShotCategoryAssigned = myAssignments.has('shots');
-    const isFoulCategoryAssigned = myAssignments.has('fouls');
-    const isOtherCategoryAssigned = myAssignments.has('turnovers');
-
-    const canRecordAnyStat = myAssignments.size > 0 || profile.profileTypeId === 'super_admin';
-    const isParentWithChildInGame = parentChildInfo.childIds.size > 0;
+    const canRecordShots = myAssignments.has('shots') || isSuperAdmin;
+    const canRecordFouls = myAssignments.has('fouls') || isSuperAdmin;
+    const canRecordOther = myAssignments.has('turnovers') || isSuperAdmin;
+    const canRecordAnyStat = myAssignments.size > 0 || isSuperAdmin;
 
     const TeamPanel = ({ teamType, playersList }: { teamType: 'home' | 'away', playersList: Player[] }) => {
         const teamName = teamType === 'home' ? game.homeTeamName : game.awayTeamName;
@@ -420,8 +406,7 @@ export default function LiveGamePage() {
                         {onCourtPlayers.length > 0 ? onCourtPlayers.map(p => {
                              const stats = playerStats.find(s => s.playerId === p.id) || { ...defaultStats, playerId: p.id, playerName: `${p.firstName} ${p.lastName}`, pir: 0 };
                              const isChild = parentChildInfo.childIds.has(p.id);
-                             const isClickable = canRecordAnyStat || (profile.profileTypeId === 'parent_guardian' && isChild);
-                             return <PlayerStatCard key={p.id} player={p} stats={stats} onClick={() => setActionPlayerInfo({ player: p, teamType })} userProfileType={profile.profileTypeId} isChild={isChild} onCourt={true} isClickableForScoring={isClickable}/>
+                             return <PlayerStatCard key={p.id} player={p} stats={stats} onClick={() => setActionPlayerInfo({ player: p, teamType })} userProfileType={profile.profileTypeId} isChild={isChild} onCourt={true} isClickableForScoring={canRecordAnyStat}/>
                         }) : <p className="text-sm text-muted-foreground text-center italic col-span-full">Sin jugadores en pista</p>}
                     </div>
                     <Separator/>
@@ -449,8 +434,8 @@ export default function LiveGamePage() {
                     {actionPlayerInfo && <>
                         <DialogHeader><DialogTitle className="text-2xl">{actionPlayerInfo.player.firstName} {actionPlayerInfo.player.lastName} (#{actionPlayerInfo.player.jerseyNumber || 'S/N'})</DialogTitle><DialogDescription>{actionPlayerInfo.teamType === 'home' ? game.homeTeamName : game.awayTeamName}</DialogDescription></DialogHeader>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 py-4">
-                            <ShotActionButtons onAction={(action) => handleGameEvent(actionPlayerInfo.teamType, actionPlayerInfo.player.id, `${actionPlayerInfo.player.firstName} ${actionPlayerInfo.player.lastName}`, action)} disabled={!isShotCategoryAssigned && profile.profileTypeId !== 'super_admin'} />
-                            <OtherActionButtons onAction={(action) => handleGameEvent(actionPlayerInfo.teamType, actionPlayerInfo.player.id, `${actionPlayerInfo.player.firstName} ${actionPlayerInfo.player.lastName}`, action)} disabled={!isFoulCategoryAssigned && !isOtherCategoryAssigned && profile.profileTypeId !== 'super_admin'} />
+                            <ShotActionButtons onAction={(action) => handleGameEvent(actionPlayerInfo.teamType, actionPlayerInfo.player.id, `${actionPlayerInfo.player.firstName} ${actionPlayerInfo.player.lastName}`, action)} disabled={!canRecordShots} />
+                            <OtherActionButtons onAction={(action) => handleGameEvent(actionPlayerInfo.teamType, actionPlayerInfo.player.id, `${actionPlayerInfo.player.firstName} ${actionPlayerInfo.player.lastName}`, action)} disabled={!canRecordFouls && !canRecordOther} />
                         </div>
                     </>}
                 </DialogContent>
@@ -513,5 +498,3 @@ export default function LiveGamePage() {
         </div>
     )
 }
-
-    

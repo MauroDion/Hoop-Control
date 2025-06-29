@@ -532,23 +532,43 @@ export async function updateLiveGameState(
         
         const gameData = gameDoc.data() as Game;
         const serverTimestamp = admin.firestore.FieldValue.serverTimestamp();
-        const baseEvent = { gameId, teamId: 'system' as const, playerId: 'SYSTEM', playerName: 'System', createdAt: serverTimestamp, createdBy: userId };
+        const baseEventPayload = { gameId, teamId: 'system' as const, playerId: 'SYSTEM', playerName: 'System', createdAt: serverTimestamp, createdBy: userId };
 
-        const updateData: { [key: string]: any } = { 
-            ...updates,
-            updatedAt: serverTimestamp,
-        };
+        const updateData: { [key: string]: any } = { ...updates, updatedAt: serverTimestamp };
 
+        // Game starting for the first time
+        if (updates.status === 'inprogress' && gameData.status === 'scheduled') {
+            const startPeriodEventRef = gameRef.collection('events').doc();
+            transaction.set(startPeriodEventRef, { ...baseEventPayload, action: 'period_start', period: 1, gameTimeSeconds: updates.periodTimeRemainingSeconds || 0 });
+            updateData.currentPeriod = 1;
+        }
+
+        // Timer control
         if (updates.isTimerRunning === true && !gameData.isTimerRunning) {
             updateData.timerStartedAt = serverTimestamp;
+            const timerStartEventRef = gameRef.collection('events').doc();
+            transaction.set(timerStartEventRef, { ...baseEventPayload, action: 'timer_start', period: gameData.currentPeriod || 1, gameTimeSeconds: gameData.periodTimeRemainingSeconds || 0 });
         } else if (updates.isTimerRunning === false && gameData.isTimerRunning) {
             const lastStartedMillis = gameData.timerStartedAt ? new Date(gameData.timerStartedAt).getTime() : Date.now();
             const timeElapsedSeconds = Math.round((Date.now() - lastStartedMillis) / 1000);
             const newRemainingTime = Math.max(0, (gameData.periodTimeRemainingSeconds || 0) - timeElapsedSeconds);
             updateData.periodTimeRemainingSeconds = newRemainingTime;
             updateData.timerStartedAt = null;
+            const timerPauseEventRef = gameRef.collection('events').doc();
+            transaction.set(timerPauseEventRef, { ...baseEventPayload, action: 'timer_pause', period: gameData.currentPeriod || 1, gameTimeSeconds: newRemainingTime });
         }
         
+        // Period changing
+        if (updates.currentPeriod && updates.currentPeriod > (gameData.currentPeriod || 0)) {
+            const oldPeriod = gameData.currentPeriod || 1;
+            // End old period
+            const periodEndEventRef = gameRef.collection('events').doc();
+            transaction.set(periodEndEventRef, { ...baseEventPayload, action: 'period_end', period: oldPeriod, gameTimeSeconds: 0 });
+            // Start new period
+            const periodStartEventRef = gameRef.collection('events').doc();
+            transaction.set(periodStartEventRef, { ...baseEventPayload, action: 'period_start', period: updates.currentPeriod, gameTimeSeconds: updates.periodTimeRemainingSeconds || 0 });
+        }
+
         transaction.update(gameRef, updateData);
     });
     
