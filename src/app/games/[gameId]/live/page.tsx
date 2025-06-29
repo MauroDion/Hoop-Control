@@ -170,6 +170,33 @@ export default function LiveGamePage() {
         }
     }, [gameId, toast, user]);
 
+    // Sync with server state
+    useEffect(() => {
+        if (game) {
+            setDisplayTime(game.periodTimeRemainingSeconds ?? 0);
+        }
+    }, [game?.periodTimeRemainingSeconds]);
+
+    // Manage local countdown
+    useEffect(() => {
+        if (!game?.isTimerRunning) {
+            return;
+        }
+
+        const timerId = setInterval(() => {
+            setDisplayTime(prev => {
+                if (prev <= 1) {
+                    clearInterval(timerId);
+                    handleUpdate({ isTimerRunning: false, periodTimeRemainingSeconds: 0 });
+                    return 0;
+                }
+                return prev - 1;
+            });
+        }, 1000);
+
+        return () => clearInterval(timerId);
+    }, [game?.isTimerRunning, handleUpdate]);
+
     useEffect(() => {
         if (authLoading) return;
         if (!user || !profile) {
@@ -221,38 +248,6 @@ export default function LiveGamePage() {
         });
         return () => unsubscribe();
     }, [gameId, user, profile, authLoading, gameFormat, homePlayers.length, awayPlayers.length]);
-
-
-    // Effect to synchronize local display time with server state
-    useEffect(() => {
-        if (game) {
-            if (game.isTimerRunning && game.timerStartedAt) {
-                const serverStartTime = new Date(game.timerStartedAt).getTime();
-                const now = Date.now();
-                const elapsedSeconds = Math.round((now - serverStartTime) / 1000);
-                const newDisplayTime = Math.max(0, (game.periodTimeRemainingSeconds || 0) - elapsedSeconds);
-                setDisplayTime(newDisplayTime);
-            } else {
-                setDisplayTime(game.periodTimeRemainingSeconds || 0);
-            }
-        }
-    }, [game]);
-    
-    // Effect for local countdown timer tick
-    useEffect(() => {
-        let timerId: NodeJS.Timeout | null = null;
-        if (game?.isTimerRunning && displayTime > 0) {
-            timerId = setInterval(() => {
-                setDisplayTime(prev => prev - 1);
-            }, 1000);
-        } else if (game?.isTimerRunning && displayTime <= 0) {
-            handleUpdate({ isTimerRunning: false });
-        }
-        return () => {
-            if (timerId) clearInterval(timerId);
-        };
-    }, [game?.isTimerRunning, displayTime, handleUpdate]);
-
 
     const handleGameEvent = async (teamType: 'home' | 'away', playerId: string, playerName: string, action: GameEventAction) => {
         if (!game || game.status !== 'inprogress' || !user) return;
@@ -337,12 +332,8 @@ export default function LiveGamePage() {
                 if (format) setGameFormat(format);
             }
 
-            if (format) {
-                updates.periodTimeRemainingSeconds = (format.periodDurationMinutes || 10) * 60;
-            } else {
-                updates.periodTimeRemainingSeconds = 600; // Default to 10 minutes
-                toast({ variant: 'destructive', title: 'Advertencia', description: 'Formato de partido no encontrado. Usando 10 minutos por defecto.' });
-            }
+            updates.periodTimeRemainingSeconds = (format?.periodDurationMinutes || 10) * 60;
+            updates.isTimerRunning = true;
         }
         
         if (status === 'completed') {
@@ -370,7 +361,7 @@ export default function LiveGamePage() {
 
     const formatTime = (totalSeconds: number) => {
         if (isNaN(totalSeconds) || totalSeconds < 0) {
-            totalSeconds = 0;
+            return '00:00';
         }
         const minutes = Math.floor(totalSeconds / 60);
         const seconds = totalSeconds % 60;
@@ -429,7 +420,7 @@ export default function LiveGamePage() {
                         {onCourtPlayers.length > 0 ? onCourtPlayers.map(p => {
                              const stats = playerStats.find(s => s.playerId === p.id) || { ...defaultStats, playerId: p.id, playerName: `${p.firstName} ${p.lastName}`, pir: 0 };
                              const isChild = parentChildInfo.childIds.has(p.id);
-                             const isClickable = canRecordAnyStat;
+                             const isClickable = canRecordAnyStat || (profile.profileTypeId === 'parent_guardian' && isChild);
                              return <PlayerStatCard key={p.id} player={p} stats={stats} onClick={() => setActionPlayerInfo({ player: p, teamType })} userProfileType={profile.profileTypeId} isChild={isChild} onCourt={true} isClickableForScoring={isClickable}/>
                         }) : <p className="text-sm text-muted-foreground text-center italic col-span-full">Sin jugadores en pista</p>}
                     </div>
@@ -522,3 +513,5 @@ export default function LiveGamePage() {
         </div>
     )
 }
+
+    
