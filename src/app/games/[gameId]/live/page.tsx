@@ -22,12 +22,12 @@ import { Separator } from '@/components/ui/separator';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import Image from 'next/image';
 
-const PlayerStatCard = ({ player, stats, onClick, userProfileType, isChild, onCourt }: { player: Player; stats: PlayerGameStats; onClick?: () => void, userProfileType?: ProfileType, isChild: boolean, onCourt: boolean }) => {
+const PlayerStatCard = ({ player, stats, onClick, userProfileType, isChild, onCourt, isClickableForScoring }: { player: Player; stats: PlayerGameStats; onClick?: () => void, userProfileType?: ProfileType, isChild: boolean, onCourt: boolean, isClickableForScoring: boolean }) => {
     
     const isTeammate = !isChild && userProfileType === 'parent_guardian';
     const canSeeAdvancedStats = !isTeammate;
 
-    const isClickable = (userProfileType !== 'parent_guardian' || isChild) && onCourt;
+    const isClickable = isClickableForScoring && onCourt;
 
     const formatTime = (seconds: number) => {
         const mins = Math.floor(seconds / 60);
@@ -150,6 +150,17 @@ export default function LiveGamePage() {
         reb_def: 0, reb_off: 0, assists: 0, steals: 0, blocks: 0, turnovers: 0, fouls: 0,
         blocks_against: 0, fouls_received: 0, timeByPeriod: {}
     };
+
+    const myAssignments = useMemo(() => {
+        const assignments = new Set<StatCategory>();
+        if (!game || !user) return assignments;
+        for (const key in game.scorerAssignments) {
+            if (game.scorerAssignments[key as StatCategory]?.uid === user.uid) {
+                assignments.add(key as StatCategory);
+            }
+        }
+        return assignments;
+    }, [game, user]);
 
     const handleUpdate = useCallback(async (updates: Partial<Game>) => {
         if (!user) return;
@@ -361,17 +372,6 @@ export default function LiveGamePage() {
         return { teamType, childIds };
     }, [profile, game]);
     
-    const myAssignments = useMemo(() => {
-        const assignments = new Set<StatCategory>();
-        if (!game || !user) return assignments;
-        for (const key in game.scorerAssignments) {
-            if (game.scorerAssignments[key as StatCategory]?.uid === user.uid) {
-                assignments.add(key as StatCategory);
-            }
-        }
-        return assignments;
-    }, [game, user]);
-    
     if (loading || authLoading) return <div className="flex justify-center items-center h-screen"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>;
     if (error || !hasPermission) return <div className="text-center p-6"><AlertTriangle className="mx-auto h-12 w-12 text-destructive mb-4" /><h1 className="text-2xl text-destructive">Error</h1><p>{error || "No tienes permiso para ver esta página."}</p></div>;
     if (!game || !profile) return null;
@@ -381,6 +381,7 @@ export default function LiveGamePage() {
     const isShotCategoryAssigned = myAssignments.has('shots');
     const isFoulCategoryAssigned = myAssignments.has('fouls');
     const isOtherCategoryAssigned = myAssignments.has('turnovers');
+    const isClickableForScoring = myAssignments.size > 0 || profile.profileTypeId === 'super_admin';
 
     const TeamPanel = ({ teamType, playersList }: { teamType: 'home' | 'away', playersList: Player[] }) => {
         const teamName = teamType === 'home' ? game.homeTeamName : game.awayTeamName;
@@ -401,7 +402,7 @@ export default function LiveGamePage() {
                         {onCourtPlayers.length > 0 ? onCourtPlayers.map(p => {
                              const stats = playerStats.find(s => s.playerId === p.id) || { ...defaultStats, playerId: p.id, playerName: `${p.firstName} ${p.lastName}`, pir: 0 };
                              const isChild = parentChildInfo.childIds.has(p.id);
-                             return <PlayerStatCard key={p.id} player={p} stats={stats} onClick={() => setActionPlayerInfo({ player: p, teamType })} userProfileType={profile.profileTypeId} isChild={isChild} onCourt={true} />
+                             return <PlayerStatCard key={p.id} player={p} stats={stats} onClick={() => setActionPlayerInfo({ player: p, teamType })} userProfileType={profile.profileTypeId} isChild={isChild} onCourt={true} isClickableForScoring={isClickableForScoring}/>
                         }) : <p className="text-sm text-muted-foreground text-center italic col-span-full">Sin jugadores en pista</p>}
                     </div>
                     <Separator/>
@@ -410,7 +411,7 @@ export default function LiveGamePage() {
                        {onBenchPlayers.length > 0 ? onBenchPlayers.map(p => {
                            const stats = playerStats.find(s => s.playerId === p.id) || { ...defaultStats, playerId: p.id, playerName: `${p.firstName} ${p.lastName}`, pir: 0 };
                            const isChild = parentChildInfo.childIds.has(p.id);
-                           return <PlayerStatCard key={p.id} player={p} stats={stats} onClick={() => handleBenchPlayerClick(p, teamType)} userProfileType={profile.profileTypeId} isChild={isChild} onCourt={false} />
+                           return <PlayerStatCard key={p.id} player={p} stats={stats} onClick={() => handleBenchPlayerClick(p, teamType)} userProfileType={profile.profileTypeId} isChild={isChild} onCourt={false} isClickableForScoring={false}/>
                        }) : <p className="text-sm text-muted-foreground text-center italic col-span-full">Banquillo vacío</p>}
                     </div>
                 </CardContent>
@@ -445,7 +446,7 @@ export default function LiveGamePage() {
                                 .map(player => {
                                     const stats = playerStats.find(s => s.playerId === player.id) || { ...defaultStats, playerId: player.id, playerName: `${player.firstName} ${player.lastName}`, pir: 0 };
                                     const isChild = parentChildInfo.childIds.has(player.id);
-                                    return <PlayerStatCard key={player.id} player={player} stats={stats} onClick={() => handleCourtPlayerClickInSubDialog(player)} userProfileType={profile.profileTypeId} isChild={isChild} onCourt={true} />
+                                    return <PlayerStatCard key={player.id} player={player} stats={stats} onClick={() => handleCourtPlayerClickInSubDialog(player)} userProfileType={profile.profileTypeId} isChild={isChild} onCourt={true} isClickableForScoring={true}/>
                                 })
                             }
                         </div>
@@ -459,7 +460,7 @@ export default function LiveGamePage() {
             <Card>
                 <CardHeader className="text-center"><CardTitle className="text-2xl">Control del Partido</CardTitle></CardHeader>
                 <CardContent className="flex flex-col gap-2">
-                    {canManageControls && <Button size="lg" onClick={() => setIsAssignmentDialogOpen(true)}><UserCheck className="mr-2 h-5 w-5"/>Asignar Anotadores</Button>}
+                    <Button size="lg" onClick={() => setIsAssignmentDialogOpen(true)}><UserCheck className="mr-2 h-5 w-5"/>Asignar Anotadores</Button>
                     {game.status === 'scheduled' && canManageControls && <Button size="lg" className="bg-green-600 hover:bg-green-700" onClick={() => handleGameStatusChange('inprogress')}><Play className="mr-2 h-5 w-5"/> Empezar Partido</Button>}
                     {game.status === 'inprogress' && canManageControls && <Button size="lg" variant="destructive" className="w-full" onClick={() => handleGameStatusChange('completed')}><Flag className="mr-2 h-5 w-5"/> Finalizar Partido</Button>}
                     {game.status === 'completed' && <p className="text-center font-bold text-lg text-green-700">Partido Finalizado</p>}
@@ -493,3 +494,6 @@ export default function LiveGamePage() {
         </div>
     )
 }
+
+
+    
