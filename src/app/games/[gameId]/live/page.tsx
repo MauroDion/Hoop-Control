@@ -24,9 +24,8 @@ import Image from 'next/image';
 
 const PlayerStatCard = ({ player, stats, onClick, userProfileType, isChild, onCourt }: { player: Player; stats: PlayerGameStats; onClick?: () => void, userProfileType?: ProfileType, isChild: boolean, onCourt: boolean }) => {
     
-    // Un padre puede ver todo excepto el PIR de otros jugadores de su equipo.
     const isTeammate = !isChild && userProfileType === 'parent_guardian';
-    const canSeeAdvancedStats = userProfileType !== 'parent_guardian' || isChild || !isTeammate;
+    const canSeeAdvancedStats = !isTeammate;
 
     const isClickable = (userProfileType !== 'parent_guardian' || isChild) && onCourt;
 
@@ -64,19 +63,19 @@ const ShotActionButtons = ({ onAction, disabled }: { onAction: (action: GameEven
     </div>
 );
 
-const OtherActionButtons = ({ onAction, disabled }: { onAction: (action: GameEventAction) => void, disabled: boolean }) => (
+const OtherActionButtons = ({ onAction, disabledFouls, disabledTurnovers }: { onAction: (action: GameEventAction) => void, disabledFouls: boolean, disabledTurnovers: boolean }) => (
     <div className="space-y-2">
         <h4 className="font-medium text-center">Otras Jugadas</h4>
         <div className="grid grid-cols-2 gap-2">
-            <Button disabled={disabled} className="justify-start" variant="outline" onClick={() => onAction('rebound_defensive')}>Rebote Defensivo</Button>
-            <Button disabled={disabled} className="justify-start" variant="outline" onClick={() => onAction('rebound_offensive')}>Rebote Ofensivo</Button>
-            <Button disabled={disabled} className="justify-start" variant="outline" onClick={() => onAction('assist')}>Asistencia</Button>
-            <Button disabled={disabled} className="justify-start" variant="outline" onClick={() => onAction('steal')}>Robo</Button>
-            <Button disabled={disabled} className="justify-start" variant="outline" onClick={() => onAction('block')}>Tapón a Favor</Button>
-            <Button disabled={disabled} className="justify-start" variant="destructive" onClick={() => onAction('block_against')}>Tapón Sufrido</Button>
-            <Button disabled={disabled} className="justify-start" variant="destructive" onClick={() => onAction('turnover')}>Pérdida</Button>
-            <Button disabled={disabled} className="justify-start" variant="destructive" onClick={() => onAction('foul')}>Falta Personal</Button>
-            <Button disabled={disabled} className="justify-start" variant="outline" onClick={() => onAction('foul_received')}>Falta Recibida</Button>
+            <Button disabled={disabledTurnovers} className="justify-start" variant="outline" onClick={() => onAction('rebound_defensive')}>Rebote Defensivo</Button>
+            <Button disabled={disabledTurnovers} className="justify-start" variant="outline" onClick={() => onAction('rebound_offensive')}>Rebote Ofensivo</Button>
+            <Button disabled={disabledTurnovers} className="justify-start" variant="outline" onClick={() => onAction('assist')}>Asistencia</Button>
+            <Button disabled={disabledTurnovers} className="justify-start" variant="outline" onClick={() => onAction('steal')}>Robo</Button>
+            <Button disabled={disabledTurnovers} className="justify-start" variant="outline" onClick={() => onAction('block')}>Tapón a Favor</Button>
+            <Button disabled={disabledTurnovers} className="justify-start" variant="destructive" onClick={() => onAction('block_against')}>Tapón Sufrido</Button>
+            <Button disabled={disabledTurnovers} className="justify-start" variant="destructive" onClick={() => onAction('turnover')}>Pérdida</Button>
+            <Button disabled={disabledFouls} className="justify-start" variant="destructive" onClick={() => onAction('foul')}>Falta Personal</Button>
+            <Button disabled={disabledFouls} className="justify-start" variant="outline" onClick={() => onAction('foul_received')}>Falta Recibida</Button>
         </div>
     </div>
 );
@@ -310,8 +309,8 @@ export default function LiveGamePage() {
     
     const handleGameStatusChange = (status: 'inprogress' | 'completed') => {
         let updates: Partial<Game> = { status };
-        if (status === 'inprogress') {
-             updates.periodTimeRemainingSeconds = (gameFormat?.periodDurationMinutes || 10) * 60;
+        if (status === 'inprogress' && gameFormat) {
+             updates.periodTimeRemainingSeconds = (gameFormat.periodDurationMinutes || 10) * 60;
         }
         if (status === 'completed') {
             updates.isTimerRunning = false;
@@ -362,10 +361,6 @@ export default function LiveGamePage() {
         return { teamType, childIds };
     }, [profile, game]);
     
-    if (loading || authLoading) return <div className="flex justify-center items-center h-screen"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>;
-    if (error || !hasPermission) return <div className="text-center p-6"><AlertTriangle className="mx-auto h-12 w-12 text-destructive mb-4" /><h1 className="text-2xl text-destructive">Error</h1><p>{error || "No tienes permiso para ver esta página."}</p></div>;
-    if (!game || !profile) return null;
-
     const myAssignments = useMemo(() => {
         const assignments = new Set<StatCategory>();
         if (!game || !user) return assignments;
@@ -376,6 +371,16 @@ export default function LiveGamePage() {
         }
         return assignments;
     }, [game, user]);
+    
+    if (loading || authLoading) return <div className="flex justify-center items-center h-screen"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>;
+    if (error || !hasPermission) return <div className="text-center p-6"><AlertTriangle className="mx-auto h-12 w-12 text-destructive mb-4" /><h1 className="text-2xl text-destructive">Error</h1><p>{error || "No tienes permiso para ver esta página."}</p></div>;
+    if (!game || !profile) return null;
+
+    const canManageControls = profile && ['super_admin', 'club_admin', 'coordinator', 'coach'].includes(profile.profileTypeId);
+    
+    const isShotCategoryAssigned = myAssignments.has('shots');
+    const isFoulCategoryAssigned = myAssignments.has('fouls');
+    const isOtherCategoryAssigned = myAssignments.has('turnovers');
 
     const TeamPanel = ({ teamType, playersList }: { teamType: 'home' | 'away', playersList: Player[] }) => {
         const teamName = teamType === 'home' ? game.homeTeamName : game.awayTeamName;
@@ -413,15 +418,6 @@ export default function LiveGamePage() {
         );
     };
     
-    const canManageControls = profile && ['super_admin', 'club_admin', 'coordinator', 'coach'].includes(profile.profileTypeId);
-    const actionDisabled = !actionPlayerInfo || (
-        profile.profileTypeId !== 'super_admin' && 
-        !myAssignments.has('shots') &&
-        !myAssignments.has('fouls') &&
-        !myAssignments.has('turnovers') &&
-        !(profile.profileTypeId === 'parent_guardian' && parentChildInfo.childIds.has(actionPlayerInfo.player.id))
-    );
-
     return (
         <div className="space-y-6">
             <Dialog open={isAssignmentDialogOpen} onOpenChange={setIsAssignmentDialogOpen}>
@@ -433,8 +429,8 @@ export default function LiveGamePage() {
                     {actionPlayerInfo && <>
                         <DialogHeader><DialogTitle className="text-2xl">{actionPlayerInfo.player.firstName} {actionPlayerInfo.player.lastName} (#{actionPlayerInfo.player.jerseyNumber || 'S/N'})</DialogTitle><DialogDescription>{actionPlayerInfo.teamType === 'home' ? game.homeTeamName : game.awayTeamName}</DialogDescription></DialogHeader>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 py-4">
-                            <ShotActionButtons onAction={(action) => handleGameEvent(actionPlayerInfo.teamType, actionPlayerInfo.player.id, `${actionPlayerInfo.player.firstName} ${actionPlayerInfo.player.lastName}`, action)} disabled={actionDisabled || !myAssignments.has('shots')} />
-                            <OtherActionButtons onAction={(action) => handleGameEvent(actionPlayerInfo.teamType, actionPlayerInfo.player.id, `${actionPlayerInfo.player.firstName} ${actionPlayerInfo.player.lastName}`, action)} disabledFouls={actionDisabled || !myAssignments.has('fouls')} disabledTurnovers={actionDisabled || !myAssignments.has('turnovers')} />
+                            <ShotActionButtons onAction={(action) => handleGameEvent(actionPlayerInfo.teamType, actionPlayerInfo.player.id, `${actionPlayerInfo.player.firstName} ${actionPlayerInfo.player.lastName}`, action)} disabled={!isShotCategoryAssigned} />
+                            <OtherActionButtons onAction={(action) => handleGameEvent(actionPlayerInfo.teamType, actionPlayerInfo.player.id, `${actionPlayerInfo.player.firstName} ${actionPlayerInfo.player.lastName}`, action)} disabledFouls={!isFoulCategoryAssigned} disabledTurnovers={!isOtherCategoryAssigned} />
                         </div>
                     </>}
                 </DialogContent>
@@ -497,5 +493,3 @@ export default function LiveGamePage() {
         </div>
     )
 }
-
-    
