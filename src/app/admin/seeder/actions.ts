@@ -1,9 +1,10 @@
+
 'use server';
 
 import { adminDb } from '@/lib/firebase/admin';
 import admin from 'firebase-admin';
 
-// Helper to delete all documents in a collection.
+// Helper function to delete all documents in a collection
 async function deleteCollection(collectionPath: string, batchSize: number = 100) {
     if (!adminDb) return;
     const collectionRef = adminDb.collection(collectionPath);
@@ -51,7 +52,6 @@ async function deleteDocumentsByQuery(query: admin.firestore.Query, batchSize: n
     });
     await batch.commit();
     
-    // Recurse on the next process tick, to avoid hitting stack limits.
     if (snapshot.size === batchSize) {
         process.nextTick(() => {
             deleteDocumentsByQuery(query, batchSize);
@@ -85,6 +85,7 @@ export async function seedDatabase(): Promise<{ success: boolean; error?: string
 
     try {
         console.log('Iniciando el proceso de borrado de datos de prueba...');
+        
         // Collections to be completely wiped out.
         const collectionsToDelete = ['gameFormats', 'competitionCategories', 'clubs', 'teams', 'players', 'seasons', 'games'];
         for (const collection of collectionsToDelete) {
@@ -93,7 +94,7 @@ export async function seedDatabase(): Promise<{ success: boolean; error?: string
             console.log(`Colección ${collection} borrada.`);
         }
         
-        // ** SAFEGUARD ** Only delete users marked as seeded.
+        // ** SAFEGUARD ** Only delete users marked as seeded to preserve manual users.
         console.log("Borrando solo perfiles de usuario de prueba (seeded)...");
         const seederUsersQuery = adminDb.collection('user_profiles').where('isSeeded', '==', true);
         await deleteDocumentsByQuery(seederUsersQuery);
@@ -209,6 +210,7 @@ export async function seedDatabase(): Promise<{ success: boolean; error?: string
         }
 
         // --- 5. Season ---
+        const activeSeasonId = 'season-24-25';
         const season2425 = {
             name: 'Temporada 2024-2025',
             status: 'active',
@@ -219,7 +221,48 @@ export async function seedDatabase(): Promise<{ success: boolean; error?: string
                 }
             })
         };
-        batch.set(adminDb.collection('seasons').doc('season-24-25'), season2425);
+        batch.set(adminDb.collection('seasons').doc(activeSeasonId), season2425);
+        
+         // --- 6. Completed Games ---
+        console.log('Creando partidos de ejemplo...');
+        for (const category of categories) {
+            const teamsInCategory = allTeamsData.filter(t => t.competitionCategoryId === category.id);
+            if (teamsInCategory.length < 2) continue;
+
+            for (let i = 0; i < teamsInCategory.length; i += 2) {
+                if (i + 1 < teamsInCategory.length) {
+                    const homeTeam = teamsInCategory[i];
+                    const awayTeam = teamsInCategory[i + 1];
+
+                    const gameDate = new Date();
+                    gameDate.setDate(gameDate.getDate() - Math.floor(Math.random() * 30));
+                    
+                    const homeTeamScore = Math.floor(Math.random() * 40) + 50;
+                    const awayTeamScore = Math.floor(Math.random() * 40) + 50;
+
+                    const initialStats = {
+                        onePointAttempts: 10, onePointMade: 8, twoPointAttempts: 20, twoPointMade: 10,
+                        threePointAttempts: 15, threePointMade: 5, fouls: Math.floor(Math.random() * 10) + 5,
+                        timeouts: Math.floor(Math.random() * 4), reboundsOffensive: Math.floor(Math.random() * 10) + 5,
+                        reboundsDefensive: Math.floor(Math.random() * 20) + 10, assists: Math.floor(Math.random() * 15) + 5,
+                        steals: Math.floor(Math.random() * 10), blocks: Math.floor(Math.random() * 5),
+                        turnovers: Math.floor(Math.random() * 10) + 5, blocksAgainst: 0, foulsReceived: 0,
+                    };
+
+                    const gameData = {
+                        homeTeamId: homeTeam.id, homeTeamClubId: homeTeam.clubId, homeTeamName: homeTeam.name, homeTeamLogoUrl: null,
+                        awayTeamId: awayTeam.id, awayTeamClubId: awayTeam.clubId, awayTeamName: awayTeam.name, awayTeamLogoUrl: null,
+                        date: admin.firestore.Timestamp.fromDate(gameDate), location: `${homeTeam.clubId.split('-')[1]} Arena`,
+                        status: 'completed', seasonId: activeSeasonId, competitionCategoryId: category.id, gameFormatId: category.gameFormatId,
+                        homeTeamScore, awayTeamScore, homeTeamStats: initialStats, awayTeamStats: { ...initialStats },
+                        currentPeriod: gameFormat5v5.numPeriods, isTimerRunning: false, periodTimeRemainingSeconds: 0, timerStartedAt: null,
+                        createdBy: 'system-seeder', createdAt: serverTimestamp, updatedAt: serverTimestamp,
+                    };
+                    const gameRef = adminDb.collection('games').doc();
+                    batch.set(gameRef, gameData);
+                }
+            }
+        }
         
         await batch.commit();
 
