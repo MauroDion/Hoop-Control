@@ -595,15 +595,15 @@ export async function recordGameEvent(
                 shot_miss_2p: () => { updates[`${teamStatsField}.twoPointAttempts`] = increment(1); updates[`${playerStatsField}.shots_attempted_2p`] = increment(1); updates[`${playerStatsField}.pir`] = increment(-1); },
                 shot_made_3p: () => { updates[scoreField] = increment(3); updates[`${teamStatsField}.threePointMade`] = increment(1); updates[`${teamStatsField}.threePointAttempts`] = increment(1); updates[`${playerStatsField}.points`] = increment(3); updates[`${playerStatsField}.shots_made_3p`] = increment(1); updates[`${playerStatsField}.shots_attempted_3p`] = increment(1); updates[`${playerStatsField}.pir`] = increment(3); },
                 shot_miss_3p: () => { updates[`${teamStatsField}.threePointAttempts`] = increment(1); updates[`${playerStatsField}.shots_attempted_3p`] = increment(1); updates[`${playerStatsField}.pir`] = increment(-1); },
-                rebound_defensive: () => { updates[`${playerStatsField}.reb_def`] = increment(1); updates[`${playerStatsField}.pir`] = increment(1); },
-                rebound_offensive: () => { updates[`${playerStatsField}.reb_off`] = increment(1); updates[`${playerStatsField}.pir`] = increment(1); },
-                assist: () => { updates[`${playerStatsField}.assists`] = increment(1); updates[`${playerStatsField}.pir`] = increment(1); },
+                rebound_defensive: () => { updates[`${teamStatsField}.reboundsDefensive`] = increment(1); updates[`${playerStatsField}.reb_def`] = increment(1); updates[`${playerStatsField}.pir`] = increment(1); },
+                rebound_offensive: () => { updates[`${teamStatsField}.reboundsOffensive`] = increment(1); updates[`${playerStatsField}.reb_off`] = increment(1); updates[`${playerStatsField}.pir`] = increment(1); },
+                assist: () => { updates[`${teamStatsField}.assists`] = increment(1); updates[`${playerStatsField}.assists`] = increment(1); updates[`${playerStatsField}.pir`] = increment(1); },
                 steal: () => { updates[`${teamStatsField}.steals`] = increment(1); updates[`${playerStatsField}.steals`] = increment(1); updates[`${playerStatsField}.pir`] = increment(1); },
-                block: () => { updates[`${playerStatsField}.blocks`] = increment(1); updates[`${playerStatsField}.pir`] = increment(1); },
-                turnover: () => { updates[`${playerStatsField}.turnovers`] = increment(1); updates[`${playerStatsField}.pir`] = increment(-1); },
+                block: () => { updates[`${teamStatsField}.blocks`] = increment(1); updates[`${playerStatsField}.blocks`] = increment(1); updates[`${playerStatsField}.pir`] = increment(1); },
+                turnover: () => { updates[`${teamStatsField}.turnovers`] = increment(1); updates[`${playerStatsField}.turnovers`] = increment(1); updates[`${playerStatsField}.pir`] = increment(-1); },
                 foul: () => { updates[`${teamStatsField}.fouls`] = increment(1); updates[`${playerStatsField}.fouls`] = increment(1); updates[`${playerStatsField}.pir`] = increment(-1); },
                 block_against: () => { updates[`${playerStatsField}.blocks_against`] = increment(1); updates[`${playerStatsField}.pir`] = increment(-1); },
-                foul_received: () => { updates[`${playerStatsField}.fouls_received`] = increment(1); updates[`${playerStatsField}.pir`] = increment(1); },
+                foul_received: () => { updates[`${teamStatsField}.foulsReceived`] = increment(1); updates[`${playerStatsField}.fouls_received`] = increment(1); updates[`${playerStatsField}.pir`] = increment(1); },
                 substitution_in: undefined,
                 substitution_out: undefined,
                 period_start: undefined,
@@ -648,7 +648,7 @@ export async function substitutePlayer(
         const isSuperAdmin = profile?.profileTypeId === 'super_admin';
         const isClubAdmin = profile?.profileTypeId === 'club_admin' && profile.clubId === (teamType === 'home' ? gameData.homeTeamClubId : gameData.awayTeamClubId);
         const isCoordinator = profile?.profileTypeId === 'coordinator' && profile.clubId === (teamType === 'home' ? gameData.homeTeamClubId : gameData.awayTeamClubId);
-        const coachTeams = await getTeamsByCoach(userId);
+        const coachTeams = await getCoachTeams(userId);
         const isCoach = coachTeams.some(t => t.id === (teamType === 'home' ? gameData.homeTeamId : gameData.awayTeamId));
 
         if (!isSuperAdmin && !isClubAdmin && !isCoordinator && !isCoach) {
@@ -680,6 +680,8 @@ export async function substitutePlayer(
             const periodsPlayedSet = new Set(playerStats?.periodsPlayedSet || []);
             periodsPlayedSet.add(period);
             transaction.update(gameRef, {[`playerStats.${playerIn.id}.periodsPlayedSet`]: Array.from(periodsPlayedSet)});
+            transaction.update(gameRef, {[`playerStats.${playerIn.id}.periodsPlayed`]: periodsPlayedSet.size});
+
 
         } else {
             throw new Error("Player is already on court.");
@@ -689,6 +691,54 @@ export async function substitutePlayer(
     });
     return { success: true };
   } catch (error: any) {
+    console.error("Error substituting player:", error);
     return { success: false, error: error.message };
   }
+}
+
+export async function getPlayerStatsForGame(gameId: string): Promise<{ [playerId: string]: PlayerGameStats }> {
+    if (!adminDb) return {};
+    const eventsRef = adminDb.collection('games').doc(gameId).collection('events');
+    const snapshot = await eventsRef.orderBy('createdAt', 'asc').get();
+
+    const playerStats: { [playerId: string]: PlayerGameStats } = {};
+
+    snapshot.docs.forEach(doc => {
+        const event = doc.data() as GameEvent;
+        const { playerId, playerName, action } = event;
+
+        if (playerId === 'SYSTEM') return;
+
+        if (!playerStats[playerId]) {
+            playerStats[playerId] = {
+                playerId, playerName, timePlayedSeconds: 0, periodsPlayed: 0, periodsPlayedSet: [],
+                points: 0, shots_made_1p: 0, shots_attempted_1p: 0, shots_made_2p: 0,
+                shots_attempted_2p: 0, shots_made_3p: 0, shots_attempted_3p: 0,
+                reb_def: 0, reb_off: 0, assists: 0, steals: 0, blocks: 0, turnovers: 0,
+                fouls: 0, blocks_against: 0, fouls_received: 0, pir: 0
+            };
+        }
+
+        const stats = playerStats[playerId];
+        
+        switch (action) {
+            case 'shot_made_1p': stats.shots_made_1p++; stats.shots_attempted_1p++; stats.points += 1; stats.pir += 1; break;
+            case 'shot_miss_1p': stats.shots_attempted_1p++; stats.pir -= 1; break;
+            case 'shot_made_2p': stats.shots_made_2p++; stats.shots_attempted_2p++; stats.points += 2; stats.pir += 2; break;
+            case 'shot_miss_2p': stats.shots_attempted_2p++; stats.pir -= 1; break;
+            case 'shot_made_3p': stats.shots_made_3p++; stats.shots_attempted_3p++; stats.points += 3; stats.pir += 3; break;
+            case 'shot_miss_3p': stats.shots_attempted_3p++; stats.pir -= 1; break;
+            case 'rebound_defensive': stats.reb_def++; stats.pir++; break;
+            case 'rebound_offensive': stats.reb_off++; stats.pir++; break;
+            case 'assist': stats.assists++; stats.pir++; break;
+            case 'steal': stats.steals++; stats.pir++; break;
+            case 'block': stats.blocks++; stats.pir++; break;
+            case 'turnover': stats.turnovers++; stats.pir--; break;
+            case 'foul': stats.fouls++; stats.pir--; break;
+            case 'block_against': stats.blocks_against++; stats.pir--; break;
+            case 'foul_received': stats.fouls_received++; stats.pir++; break;
+        }
+    });
+
+    return playerStats;
 }
