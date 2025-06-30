@@ -1,4 +1,3 @@
-
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -16,7 +15,7 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { signInWithEmailAndPassword, setPersistence, browserSessionPersistence } from "firebase/auth";
+import { signInWithEmailAndPassword } from "firebase/auth";
 import { auth } from "@/lib/firebase/client";
 import { useRouter } from "next/navigation";
 import React from "react";
@@ -40,17 +39,14 @@ export function LoginForm() {
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     try {
-      // Set session persistence before signing in.
-      await setPersistence(auth, browserSessionPersistence);
       await signInWithEmailAndPassword(auth, values.email, values.password);
-      // The onIdTokenChanged listener in AuthContext will handle the rest:
-      // - creating the server session cookie
-      // - fetching the profile
-      // - redirecting to the correct page
+      // AuthContext's onIdTokenChanged will handle the redirection and session logic.
       toast({
         title: "Inicio de Sesión Exitoso",
         description: "¡Bienvenido de nuevo!",
       });
+      // A small delay to allow AuthContext to potentially redirect first.
+      setTimeout(() => router.push('/dashboard'), 100);
     } catch (error: any) {
       console.error("Error de inicio de sesión: ", error);
       toast({

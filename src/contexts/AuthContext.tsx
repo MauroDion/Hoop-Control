@@ -21,8 +21,9 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const PUBLIC_PATHS = ['/', '/login', '/register', '/reset-password'];
-const isPublicPath = (path: string) => PUBLIC_PATHS.some(p => path.startsWith(p) && (p !== '/' || path === '/'));
+const PUBLIC_PATHS = ['/', '/login', '/register', '/reset-password', '/profile/complete-registration'];
+const isPublicPath = (path: string) => PUBLIC_PATHS.some(p => path.startsWith(p));
+
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<FirebaseUser | null>(null);
@@ -36,15 +37,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const handleLogout = useCallback(async () => {
     console.log("AuthContext: Logout initiated.");
     try {
-      await signOut(auth); // This will trigger onIdTokenChanged, which handles the rest.
-      toast({ title: "Sesión Cerrada", description: "Has cerrado sesión correctamente." });
+      await signOut(auth); // This will trigger onIdTokenChanged which does the rest.
+      toast({ title: "Sesión Cerrada" });
     } catch (error) {
        console.error("Logout failed:", error);
-       toast({ variant: 'destructive', title: 'Error al cerrar sesión', description: 'Ocurrió un error.' });
-    } finally {
-        router.push('/login');
+       toast({ variant: 'destructive', title: 'Error al cerrar sesión' });
     }
-  }, [router, toast]);
+  }, [toast]);
 
   useEffect(() => {
     getBrandingSettings().then(setBranding);
@@ -54,7 +53,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const unsubscribe = onIdTokenChanged(auth, async (firebaseUser) => {
       setLoading(true);
       if (firebaseUser) {
-        // User is signed in.
         setUser(firebaseUser);
         
         try {
@@ -65,27 +63,38 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             body: JSON.stringify({ idToken }),
           });
           
-          if (!response.ok) throw new Error("Server session login failed.");
+          const responseData = await response.json();
 
-          const userProfile = await getUserProfileById(firebaseUser.uid);
-          if (userProfile) {
-            setProfile(userProfile);
-            if (userProfile.profileTypeId === 'parent_guardian' && !userProfile.onboardingCompleted && !pathname.startsWith('/profile/my-children')) {
-              router.replace('/profile/my-children');
-            }
+          if (response.ok) {
+              const userProfile = await getUserProfileById(firebaseUser.uid);
+              if (!userProfile) { // Should not happen if session-login was ok, but as a safeguard.
+                  throw new Error("Profile inconsistent with session.");
+              }
+              setProfile(userProfile);
+              if (userProfile.profileTypeId === 'parent_guardian' && !userProfile.onboardingCompleted && pathname !== '/profile/my-children') {
+                router.replace('/profile/my-children');
+              } else if (pathname === '/profile/complete-registration') {
+                router.replace('/dashboard');
+              }
           } else {
-            console.error("CRITICAL: Profile not found for authenticated user. Forcing logout.");
-            await handleLogout();
+              if (responseData.reason === 'not_found') {
+                  if (pathname !== '/profile/complete-registration') {
+                      router.replace('/profile/complete-registration');
+                  }
+              } else {
+                  await handleLogout();
+                  router.push(`/login?status=${responseData.reason || 'login_required'}`);
+                  return;
+              }
           }
-        } catch (error) {
-            console.error("Error during session sync or profile fetch:", error);
+        } catch (error: any) {
+            console.error("Error during authentication flow:", error);
             await handleLogout();
         }
       } else {
-        // User is signed out.
         setUser(null);
         setProfile(null);
-        await fetch('/api/auth/session-logout', { method: 'POST' });
+        fetch('/api/auth/session-logout', { method: 'POST' }); 
         if (!isPublicPath(pathname)) {
             router.push('/login');
         }
@@ -94,7 +103,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     });
 
     return () => unsubscribe();
-  }, [handleLogout, pathname, router]);
+  }, [pathname, router, handleLogout]);
 
   if (loading) {
     return (
@@ -112,10 +121,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   );
 };
 
-export const useAuthContext = () => {
+export const useAuth = () => {
   const context = useContext(AuthContext);
   if (context === undefined) {
-    throw new Error('useAuthContext must be used within an AuthProvider');
+    throw new Error('useAuth must be used within an AuthProvider');
   }
   return context;
 };

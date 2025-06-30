@@ -1,4 +1,3 @@
-
 "use client";
 
 import Link from 'next/link';
@@ -59,7 +58,7 @@ export function UserNav() {
               Perfil
             </Link>
           </DropdownMenuItem>
-          {profile?.profileTypeId === 'parent_guardian' && (
+           {profile?.profileTypeId === 'parent_guardian' && (
             <DropdownMenuItem asChild>
               <Link href="/profile/my-children" className="flex items-center cursor-pointer">
                 <Users className="mr-2 h-4 w-4" />
