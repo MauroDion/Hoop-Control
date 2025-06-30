@@ -156,11 +156,12 @@ export default function LiveGamePage() {
         return assignments;
     }, [game, user]);
     
-    const defaultStats: Omit<PlayerGameStats, 'pir'> & { timeByPeriod: { [period: number]: number } } = {
+    const defaultStats: PlayerGameStats = {
         playerId: '', playerName: '', timePlayedSeconds: 0, periodsPlayed: 0,
-        points: 0, shots_made_1p: 0, shots_attempted_1p: 0, shots_made_2p: 0, shots_attempted_2p: 0, shots_made_3p: 0, shots_attempted_3p: 0,
-        reb_def: 0, reb_off: 0, assists: 0, steals: 0, blocks: 0, turnovers: 0, fouls: 0,
-        blocks_against: 0, fouls_received: 0, timeByPeriod: {}
+        points: 0, shots_made_1p: 0, shots_attempted_1p: 0,
+        shots_made_2p: 0, shots_attempted_2p: 0, shots_made_3p: 0, shots_attempted_3p: 0,
+        reb_def: 0, reb_off: 0, assists: 0, steals: 0, blocks: 0, turnovers: 0,
+        fouls: 0, blocks_against: 0, fouls_received: 0, pir: 0
     };
 
     const handleUpdate = useCallback(async (updates: Partial<Game>) => {
@@ -191,6 +192,12 @@ export default function LiveGamePage() {
     }, [game?.isTimerRunning, game?.timerStartedAt, game?.periodTimeRemainingSeconds]);
 
     useEffect(() => {
+        if (game?.periodTimeRemainingSeconds !== undefined) {
+            setDisplayTime(game.periodTimeRemainingSeconds);
+        }
+    }, [game?.periodTimeRemainingSeconds]);
+
+    useEffect(() => {
         if (authLoading) return;
         if (!user || !profile) {
             setError("Debes iniciar sesión para ver esta página.");
@@ -203,7 +210,6 @@ export default function LiveGamePage() {
             if (docSnap.exists()) {
                 const data = docSnap.data();
                 
-                // Convert all Firestore Timestamps to ISO strings for client-side consistency
                 const gameData = {
                     ...data,
                     id: docSnap.id,
@@ -324,7 +330,7 @@ export default function LiveGamePage() {
     }, [game, gameFormat, handleUpdate]);
     
     const handleGameStatusChange = async (status: 'inprogress' | 'completed') => {
-        if (!game) return;
+        if (!game || !user) return;
         let updates: Partial<Game> = { status };
         if (status === 'inprogress') {
             let format = gameFormat;
@@ -338,7 +344,7 @@ export default function LiveGamePage() {
         if (status === 'completed') {
             updates.isTimerRunning = false;
         }
-        await handleUpdate(updates);
+        await updateLiveGameState(gameId, user.uid, updates);
     }
 
     const handleAssignScorer = async (category: StatCategory) => {
@@ -362,7 +368,7 @@ export default function LiveGamePage() {
             return '00:00';
         }
         const minutes = Math.floor(totalSeconds / 60);
-        const seconds = totalSeconds % 60;
+        const seconds = Math.floor(totalSeconds % 60);
         return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
     };
 
@@ -414,7 +420,7 @@ export default function LiveGamePage() {
                     <h4 className="font-semibold text-center">Jugadores en Pista</h4>
                     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
                         {onCourtPlayers.length > 0 ? onCourtPlayers.map(p => {
-                             const stats = playerStats.find(s => s.playerId === p.id) || { ...defaultStats, playerId: p.id, playerName: `${p.firstName} ${p.lastName}`, pir: 0 };
+                             const stats = playerStats.find(s => s.playerId === p.id) || { ...defaultStats, playerId: p.id, playerName: `${p.firstName} ${p.lastName}` };
                              const isChild = parentChildInfo.childIds.has(p.id);
                              return <PlayerStatCard key={p.id} player={p} stats={stats} onClick={() => setActionPlayerInfo({ player: p, teamType })} userProfileType={profile.profileTypeId} isChild={isChild} onCourt={true} isClickableForScoring={canRecordAnyStat}/>
                         }) : <p className="text-sm text-muted-foreground text-center italic col-span-full">Sin jugadores en pista</p>}
@@ -423,7 +429,7 @@ export default function LiveGamePage() {
                     <h4 className="font-semibold text-center">Banquillo</h4>
                     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
                        {onBenchPlayers.length > 0 ? onBenchPlayers.map(p => {
-                           const stats = playerStats.find(s => s.playerId === p.id) || { ...defaultStats, playerId: p.id, playerName: `${p.firstName} ${p.lastName}`, pir: 0 };
+                           const stats = playerStats.find(s => s.playerId === p.id) || { ...defaultStats, playerId: p.id, playerName: `${p.firstName} ${p.lastName}` };
                            const isChild = parentChildInfo.childIds.has(p.id);
                            return <PlayerStatCard key={p.id} player={p} stats={stats} onClick={() => handleBenchPlayerClick(p, teamType)} userProfileType={profile.profileTypeId} isChild={isChild} onCourt={false} isClickableForScoring={false}/>
                        }) : <p className="text-sm text-muted-foreground text-center italic col-span-full">Banquillo vacío</p>}
@@ -458,7 +464,7 @@ export default function LiveGamePage() {
                         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 pt-4">
                             {(subPlayerInfo.teamType === 'home' ? homePlayers : awayPlayers).filter(p => (game[subPlayerInfo!.teamType === 'home' ? 'homeTeamOnCourtPlayerIds' : 'awayTeamOnCourtPlayerIds'] || []).includes(p.id))
                                 .map(player => {
-                                    const stats = playerStats.find(s => s.playerId === player.id) || { ...defaultStats, playerId: player.id, playerName: `${player.firstName} ${player.lastName}`, pir: 0 };
+                                    const stats = playerStats.find(s => s.playerId === player.id) || { ...defaultStats, playerId: player.id, playerName: `${player.firstName} ${player.lastName}` };
                                     const isChild = parentChildInfo.childIds.has(player.id);
                                     return <PlayerStatCard key={player.id} player={player} stats={stats} onClick={() => handleCourtPlayerClickInSubDialog(player)} userProfileType={profile.profileTypeId} isChild={isChild} onCourt={true} isClickableForScoring={true}/>
                                 })
