@@ -4,7 +4,7 @@ import { adminDb } from '@/lib/firebase/admin';
 import admin from 'firebase-admin';
 import { revalidatePath } from 'next/cache';
 import type { Game, GameFormData, Team, TeamStats, Player, GameEvent, GameEventAction, UserFirestoreProfile, StatCategory, PlayerGameStats, Season, Child } from '@/types';
-import { getTeamsByCoach as getCoachTeams, getAllTeams as getAllTeamsFromDb } from '@/app/teams/actions';
+import { getTeamsByCoach as getCoachTeams } from '@/app/teams/actions';
 import { getUserProfileById } from '@/app/users/actions';
 import { getPlayersByTeamId, getPlayersFromIds } from '../players/actions';
 
@@ -268,10 +268,21 @@ export async function createTestGame(userId: string): Promise<{ success: boolean
     if (!adminDb) return { success: false, error: "Database not initialized." };
 
     try {
-        const seasonsSnapshot = await adminDb.collection('seasons').where('status', '==', 'active').limit(1).get();
+        let seasonsSnapshot = await adminDb.collection('seasons').where('status', '==', 'active').limit(1).get();
+
         if (seasonsSnapshot.empty) {
-            return { success: false, error: "No active season found. Please seed the database or create an active season." };
+            console.warn("No active season found via indexed query, attempting direct fetch...");
+            const allSeasonsSnapshot = await adminDb.collection('seasons').get();
+            const activeSeasons = allSeasonsSnapshot.docs.filter(doc => doc.data().status === 'active');
+            
+            if (activeSeasons.length > 0) {
+                seasonsSnapshot = { empty: false, docs: [activeSeasons[0]] } as unknown as admin.firestore.QuerySnapshot;
+                console.log("Found active season via direct fetch. Continuing.");
+            } else {
+                 return { success: false, error: "No active season found. Please seed the database or create an active season." };
+            }
         }
+        
         const seasonDoc = seasonsSnapshot.docs[0];
         const seasonId = seasonDoc.id;
         const season = seasonDoc.data() as Season;
@@ -299,7 +310,7 @@ export async function createTestGame(userId: string): Promise<{ success: boolean
         
         const homeTeamId = valenciaTeamIds[Math.floor(Math.random() * valenciaTeamIds.length)];
 
-        const opponentTeamIds = allEligibleTeamIds.filter(id => !id.startsWith('vbc-'));
+        const opponentTeamIds = allEligibleTeamIds.filter(id => id !== homeTeamId);
         if (opponentTeamIds.length === 0) {
             return { success: false, error: "Found an eligible Valencia team, but no eligible opponent teams (with >= 5 players) to play against." };
         }
