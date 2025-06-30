@@ -237,7 +237,7 @@ export async function createGame(formData: GameFormData, userId: string): Promis
             awayTeamScore: 0,
             homeTeamStats: initialStats,
             awayTeamStats: initialStats,
-            playerStats: {}, // Initialize player stats map
+            playerStats: {},
             currentPeriod: 1,
             isTimerRunning: false,
             periodTimeRemainingSeconds: 0,
@@ -276,37 +276,60 @@ export async function createTestGame(userId: string): Promise<{ success: boolean
         const seasonId = seasonDoc.id;
         const season = seasonDoc.data() as Season;
 
-        const suitableCompetition = season.competitions.find(c => c.teamIds && c.teamIds.length >= 2);
-        if (!suitableCompetition) {
-            return { success: false, error: "No competition with at least two teams found in the active season." };
+        // Find a competition with at least two teams that have at least 5 players each
+        let suitableCompetition: Season['competitions'][0] | undefined;
+        let eligibleTeamIds: string[] = [];
+
+        for (const comp of season.competitions) {
+            if (!comp.teamIds || comp.teamIds.length < 2) continue;
+
+            const playersSnapshot = await adminDb.collection('players').where('teamId', 'in', comp.teamIds).get();
+            const playersByTeam = new Map<string, Player[]>();
+            playersSnapshot.forEach(doc => {
+                const player = doc.data() as Player;
+                if (player.teamId) {
+                    if (!playersByTeam.has(player.teamId)) playersByTeam.set(player.teamId, []);
+                    playersByTeam.get(player.teamId)!.push(player);
+                }
+            });
+
+            const teamsWithEnoughPlayers = comp.teamIds.filter(teamId => (playersByTeam.get(teamId)?.length || 0) >= 5);
+            
+            if (teamsWithEnoughPlayers.length >= 2) {
+                suitableCompetition = comp;
+                eligibleTeamIds = teamsWithEnoughPlayers;
+                break;
+            }
+        }
+        
+        if (!suitableCompetition || eligibleTeamIds.length < 2) {
+            return { success: false, error: "Could not find at least two teams with 5 or more players in any active competition." };
         }
 
-        const teamIds = suitableCompetition.teamIds;
-        const homeTeamIndex = Math.floor(Math.random() * teamIds.length);
-        let awayTeamIndex = Math.floor(Math.random() * (teamIds.length - 1));
+        const homeTeamIndex = Math.floor(Math.random() * eligibleTeamIds.length);
+        let awayTeamIndex = Math.floor(Math.random() * (eligibleTeamIds.length - 1));
         if (awayTeamIndex >= homeTeamIndex) awayTeamIndex++;
         
-        const homeTeamId = teamIds[homeTeamIndex];
-        const awayTeamId = teamIds[awayTeamIndex];
+        const homeTeamId = eligibleTeamIds[homeTeamIndex];
+        const awayTeamId = eligibleTeamIds[awayTeamIndex];
 
-        const [homeTeamSnap, awayTeamSnap] = await Promise.all([
+        const [homeTeamSnap, awayTeamSnap, homePlayers, awayPlayers] = await Promise.all([
             adminDb.collection('teams').doc(homeTeamId).get(),
-            adminDb.collection('teams').doc(awayTeamId).get()
+            adminDb.collection('teams').doc(awayTeamId).get(),
+            getPlayersByTeamId(homeTeamId),
+            getPlayersByTeamId(awayTeamId),
         ]);
 
         if (!homeTeamSnap.exists || !awayTeamSnap.exists) {
             return { success: false, error: "Could not fetch team data for the selected test teams." };
         }
+        
         const homeTeamData = homeTeamSnap.data() as Team;
         const awayTeamData = awayTeamSnap.data() as Team;
 
         const competitionCategorySnap = await adminDb.collection('competitionCategories').doc(suitableCompetition.competitionCategoryId).get();
         const gameFormatId = competitionCategorySnap.data()?.gameFormatId || null;
-
-        const [homePlayers, awayPlayers] = await Promise.all([
-            getPlayersByTeamId(homeTeamId),
-            getPlayersByTeamId(awayTeamId)
-        ]);
+        
         const homeTeamPlayerIds = homePlayers.map(p => p.id);
         const awayTeamPlayerIds = awayPlayers.map(p => p.id);
         
@@ -314,62 +337,23 @@ export async function createTestGame(userId: string): Promise<{ success: boolean
         const awayTeamOnCourtPlayerIds = awayPlayers.slice(0, 5);
         
         const gameDateTime = new Date();
-        const initialTeamStats: TeamStats = {
-            onePointAttempts: 0, onePointMade: 0,
-            twoPointAttempts: 0, twoPointMade: 0,
-            threePointAttempts: 0, threePointMade: 0,
-            fouls: 0, timeouts: 0, reboundsOffensive: 0,
-            reboundsDefensive: 0, assists: 0, steals: 0, blocks: 0,
-            turnovers: 0, blocksAgainst: 0, foulsReceived: 0,
-        };
-
-        const initialPlayerStats: Omit<PlayerGameStats, 'playerId' | 'playerName'> = {
-            timePlayedSeconds: 0, periodsPlayed: 0, periodsPlayedSet: [], points: 0,
-            shots_made_1p: 0, shots_attempted_1p: 0, shots_made_2p: 0, shots_attempted_2p: 0,
-            shots_made_3p: 0, shots_attempted_3p: 0, reb_def: 0, reb_off: 0, assists: 0,
-            steals: 0, blocks: 0, turnovers: 0, fouls: 0, blocks_against: 0, fouls_received: 0, pir: 0
-        };
+        const initialTeamStats: TeamStats = { onePointAttempts: 0, onePointMade: 0, twoPointAttempts: 0, twoPointMade: 0, threePointAttempts: 0, threePointMade: 0, fouls: 0, timeouts: 0, reboundsOffensive: 0, reboundsDefensive: 0, assists: 0, steals: 0, blocks: 0, turnovers: 0, blocksAgainst: 0, foulsReceived: 0 };
+        const initialPlayerStats: Omit<PlayerGameStats, 'playerId' | 'playerName'> = { timePlayedSeconds: 0, periodsPlayed: 0, periodsPlayedSet: [], points: 0, shots_made_1p: 0, shots_attempted_1p: 0, shots_made_2p: 0, shots_attempted_2p: 0, shots_made_3p: 0, shots_attempted_3p: 0, reb_def: 0, reb_off: 0, assists: 0, steals: 0, blocks: 0, turnovers: 0, fouls: 0, blocks_against: 0, fouls_received: 0, pir: 0 };
 
         const playerStats: { [playerId: string]: Partial<PlayerGameStats> } = {};
         [...homePlayers, ...awayPlayers].forEach(player => {
-            playerStats[player.id] = {
-                ...initialPlayerStats,
-                playerId: player.id,
-                playerName: `${player.firstName} ${player.lastName}`
-            };
+            playerStats[player.id] = { ...initialPlayerStats, playerId: player.id, playerName: `${player.firstName} ${player.lastName}` };
         });
 
         const newGameData: Omit<Game, 'id'> = {
-            homeTeamId,
-            homeTeamClubId: homeTeamData.clubId,
-            homeTeamName: homeTeamData.name,
-            homeTeamLogoUrl: homeTeamData.logoUrl || null,
-            awayTeamId,
-            awayTeamClubId: awayTeamData.clubId,
-            awayTeamName: awayTeamData.name,
-            awayTeamLogoUrl: awayTeamData.logoUrl || null,
-            date: gameDateTime.toISOString(),
-            location: 'Pista de Pruebas',
-            status: 'scheduled',
-            seasonId,
-            competitionCategoryId: suitableCompetition.competitionCategoryId,
-            gameFormatId,
-            createdBy: userId,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-            homeTeamScore: 0,
-            awayTeamScore: 0,
-            homeTeamStats: initialTeamStats,
-            awayTeamStats: initialTeamStats,
-            playerStats,
-            currentPeriod: 1,
-            isTimerRunning: false,
-            periodTimeRemainingSeconds: 0,
-            timerStartedAt: null,
-            homeTeamPlayerIds,
-            awayTeamPlayerIds,
-            homeTeamOnCourtPlayerIds,
-            awayTeamOnCourtPlayerIds,
+            homeTeamId, homeTeamClubId: homeTeamData.clubId, homeTeamName: homeTeamData.name, homeTeamLogoUrl: homeTeamData.logoUrl || null,
+            awayTeamId, awayTeamClubId: awayTeamData.clubId, awayTeamName: awayTeamData.name, awayTeamLogoUrl: awayTeamData.logoUrl || null,
+            date: gameDateTime.toISOString(), location: 'Pista de Pruebas', status: 'scheduled',
+            seasonId, competitionCategoryId: suitableCompetition.competitionCategoryId, gameFormatId,
+            createdBy: userId, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+            homeTeamScore: 0, awayTeamScore: 0, homeTeamStats: initialTeamStats, awayTeamStats: initialTeamStats, playerStats,
+            currentPeriod: 1, isTimerRunning: false, periodTimeRemainingSeconds: 0, timerStartedAt: null,
+            homeTeamPlayerIds, awayTeamPlayerIds, homeTeamOnCourtPlayerIds, awayTeamOnCourtPlayerIds,
         };
         
         const gameRef = await adminDb.collection('games').add({
@@ -388,6 +372,7 @@ export async function createTestGame(userId: string): Promise<{ success: boolean
         return { success: false, error: error.message };
     }
 }
+
 
 export async function finishAllTestGames(userId: string): Promise<{ success: boolean; error?: string; count?: number }> {
     if (!adminDb) return { success: false, error: 'Database not initialized.' };
@@ -498,7 +483,6 @@ export async function updateLiveGameState(
             const newRemainingTime = Math.max(0, (gameData.periodTimeRemainingSeconds || 0) - timeElapsedSeconds);
             updateData.periodTimeRemainingSeconds = newRemainingTime;
             
-            // Increment time for players on court
             const onCourtIds = [...(gameData.homeTeamOnCourtPlayerIds || []), ...(gameData.awayTeamOnCourtPlayerIds || [])];
             onCourtIds.forEach(playerId => {
                 updateData[`playerStats.${playerId}.timePlayedSeconds`] = admin.firestore.FieldValue.increment(timeElapsedSeconds);

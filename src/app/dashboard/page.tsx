@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useAuth } from '@/hooks/useAuth';
@@ -5,8 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { useState } from 'react';
-import type { UserFirestoreProfile } from '@/types';
-import { Loader2, AlertTriangle, Users, PlusCircle, Building, BarChart2, Gamepad2, TestTube, Zap } from 'lucide-react';
+import { Loader2, AlertTriangle, Building, BarChart2, Gamepad2, TestTube, Zap } from 'lucide-react';
 import { createTestGame, finishAllTestGames } from '@/app/games/actions';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -31,6 +31,7 @@ export default function DashboardPage() {
   const [isFinishingGames, setIsFinishingGames] = useState(false);
 
   const canCreateTestGame = profile && ['super_admin', 'club_admin', 'coordinator', 'coach'].includes(profile.profileTypeId);
+  const canManageClubs = profile && ['super_admin', 'club_admin', 'coordinator'].includes(profile.profileTypeId);
 
   const handleCreateTestGame = async () => {
     if (!user) return;
@@ -67,7 +68,6 @@ export default function DashboardPage() {
   }
   
   if (!user || !profile) {
-      // This should theoretically not be hit due to the context handling, but it's a good fallback.
       return (
             <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)]">
                 <AlertTriangle className="h-12 w-12 text-destructive mb-4" />
@@ -98,7 +98,7 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
         
-        { (['club_admin', 'super_admin', 'coordinator'].includes(profile.profileTypeId)) && 
+        { canManageClubs && 
             <Card className="shadow-md hover:shadow-lg transition-shadow">
                 <CardHeader>
                     <CardTitle className="flex items-center"><Building className="mr-3 h-6 w-6 text-accent"/>Mi Club</CardTitle>
@@ -129,15 +129,15 @@ export default function DashboardPage() {
             </CardHeader>
             <CardContent className="flex flex-col sm:flex-row gap-4">
                 <Button variant="secondary" onClick={handleCreateTestGame} disabled={isCreatingTestGame}>
-                    {isCreatingTestGame ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <PlusCircle className="mr-2 h-4 w-4"/>}
-                    Generar Partido de Prueba
+                    {isCreatingTestGame ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Gamepad2 className="mr-2 h-4 w-4"/>}
+                    {isCreatingTestGame ? 'Generando...' : 'Generar Partido de Prueba'}
                 </Button>
                 {profile.profileTypeId === 'super_admin' && (
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
                          <Button variant="destructive" disabled={isFinishingGames}>
                             {isFinishingGames ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Zap className="mr-2 h-4 w-4"/>}
-                            Finalizar Partidos de Prueba
+                            {isFinishingGames ? 'Finalizando...' : 'Finalizar Partidos de Prueba'}
                         </Button>
                       </AlertDialogTrigger>
                       <AlertDialogContent>
