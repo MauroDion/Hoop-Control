@@ -1,3 +1,4 @@
+
 "use client";
 
 import type { User as FirebaseUser } from 'firebase/auth';
@@ -74,7 +75,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
               if (userProfile.profileTypeId === 'parent_guardian' && !userProfile.onboardingCompleted && pathname !== '/profile/my-children') {
                 router.replace('/profile/my-children');
               } else if (pathname === '/profile/complete-registration') {
-                router.replace('/dashboard');
+                router.replace('/games');
               }
           } else {
               if (responseData.reason === 'not_found') {
@@ -121,10 +122,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   );
 };
 
-export const useAuth = () => {
+export const useAuthContext = () => {
   const context = useContext(AuthContext);
   if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
+    throw new Error('useAuthContext must be used within an AuthProvider');
   }
   return context;
 };
