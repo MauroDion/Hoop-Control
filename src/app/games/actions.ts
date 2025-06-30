@@ -659,6 +659,18 @@ export async function substitutePlayer(
         if (!gameDoc.exists) throw new Error("Game not found.");
 
         const gameData = gameDoc.data() as Game;
+        const profile = await getUserProfileById(userId);
+
+        const isSuperAdmin = profile?.profileTypeId === 'super_admin';
+        const isClubAdmin = profile?.profileTypeId === 'club_admin' && profile.clubId === (teamType === 'home' ? gameData.homeTeamClubId : gameData.awayTeamClubId);
+        const isCoordinator = profile?.profileTypeId === 'coordinator' && profile.clubId === (teamType === 'home' ? gameData.homeTeamClubId : gameData.awayTeamClubId);
+        const coachTeams = await getTeamsByCoach(userId);
+        const isCoach = coachTeams.some(t => t.id === (teamType === 'home' ? gameData.homeTeamId : gameData.awayTeamId));
+
+        if (!isSuperAdmin && !isClubAdmin && !isCoordinator && !isCoach) {
+            throw new Error("No tienes permiso para realizar sustituciones en este equipo.");
+        }
+
         const onCourtField = teamType === 'home' ? 'homeTeamOnCourtPlayerIds' : 'awayTeamOnCourtPlayerIds';
         let onCourtIds = gameData[onCourtField] || [];
         
@@ -679,9 +691,7 @@ export async function substitutePlayer(
             const eventInRef = gameRef.collection('events').doc();
             transaction.set(eventInRef, { ...baseEventPayload, action: 'substitution_in', playerId: playerIn.id, playerName: playerIn.name });
 
-            // Increment periods played for player coming in
             const playerStatsField = `playerStats.${playerIn.id}.periodsPlayedSet`;
-            // Note: FieldValue.arrayUnion cannot be used in a transaction's read-set, so we read, modify, and write.
             const playerStats = gameData.playerStats?.[playerIn.id];
             const periodsPlayedSet = new Set(playerStats?.periodsPlayedSet || []);
             periodsPlayedSet.add(period);
@@ -698,5 +708,3 @@ export async function substitutePlayer(
     return { success: false, error: error.message };
   }
 }
-
-    

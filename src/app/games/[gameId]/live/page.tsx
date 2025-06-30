@@ -23,11 +23,9 @@ import { Separator } from '@/components/ui/separator';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import Image from 'next/image';
 
-const PlayerStatCard = ({ player, stats, onClick, userProfileType, isChild, onCourt, isClickableForScoring }: { player: Player; stats: PlayerGameStats; onClick?: () => void, userProfileType?: ProfileType, isChild: boolean, onCourt: boolean, isClickableForScoring: boolean }) => {
+const PlayerStatCard = ({ player, stats, onClick, userProfileType, isChild, onCourt }: { player: Player; stats: PlayerGameStats; onClick?: () => void, userProfileType?: ProfileType, isChild: boolean, onCourt: boolean }) => {
     
     const canSeeAdvancedStats = userProfileType !== 'parent_guardian' || isChild;
-
-    const isClickable = isClickableForScoring && onCourt;
 
     const formatTime = (seconds: number) => {
         const mins = Math.floor(seconds / 60);
@@ -36,7 +34,7 @@ const PlayerStatCard = ({ player, stats, onClick, userProfileType, isChild, onCo
     };
 
     return (
-        <Card onClick={isClickable ? onClick : undefined} className={`p-2 relative aspect-[3/4] flex flex-col items-center justify-center overflow-hidden transition-all duration-300 bg-card ${isClickable ? "hover:shadow-xl hover:scale-105 cursor-pointer" : "cursor-default"}`}>
+        <Card onClick={onClick} className={`p-2 relative aspect-[3/4] flex flex-col items-center justify-center overflow-hidden transition-all duration-300 bg-card ${onClick ? "hover:shadow-xl hover:scale-105 cursor-pointer" : "cursor-default"}`}>
             <div className='absolute top-2 left-2 text-2xl font-black text-green-600'>{stats.points}</div>
             {stats.fouls > 0 && <div className='absolute top-1/2 -translate-y-1/2 right-2 flex items-center justify-center px-2 h-7 bg-destructive border-2 border-white/70 rounded-sm shadow-lg z-20'><span className="text-yellow-300 text-xl font-extrabold" style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.5)' }}>{stats.fouls}</span></div>}
             <div className="absolute top-2 right-2 text-2xl font-black text-blue-600">{canSeeAdvancedStats ? stats.pir : '-'}</div>
@@ -397,9 +395,9 @@ export default function LiveGamePage() {
     const isSuperAdmin = profile.profileTypeId === 'super_admin';
     const canManageControls = profile && ['super_admin', 'club_admin', 'coordinator', 'coach'].includes(profile.profileTypeId);
     
+    const canRecordAnyStat = myAssignments.size > 0 || isSuperAdmin;
     const canRecordShots = myAssignments.has('shots') || isSuperAdmin;
     const canRecordOther = myAssignments.has('turnovers') || myAssignments.has('fouls') || isSuperAdmin;
-    const canRecordAnyStat = myAssignments.size > 0 || isSuperAdmin;
 
     const TeamPanel = ({ teamType, playersList }: { teamType: 'home' | 'away', playersList: Player[] }) => {
         const teamName = teamType === 'home' ? game.homeTeamName : game.awayTeamName;
@@ -420,7 +418,7 @@ export default function LiveGamePage() {
                         {onCourtPlayers.length > 0 ? onCourtPlayers.map(p => {
                              const stats = game.playerStats?.[p.id] || { ...defaultStats, playerId: p.id, playerName: `${p.firstName} ${p.lastName}` };
                              const isChild = parentChildInfo.childIds.has(p.id);
-                             return <PlayerStatCard key={p.id} player={p} stats={stats} onClick={() => setActionPlayerInfo({ player: p, teamType })} userProfileType={profile.profileTypeId} isChild={isChild} onCourt={true} isClickableForScoring={canRecordAnyStat}/>
+                             return <PlayerStatCard key={p.id} player={p} stats={stats} onClick={canRecordAnyStat ? () => setActionPlayerInfo({ player: p, teamType }) : undefined} userProfileType={profile.profileTypeId} isChild={isChild} onCourt={true} />
                         }) : <p className="text-sm text-muted-foreground text-center italic col-span-full">Sin jugadores en pista</p>}
                     </div>
                     <Separator/>
@@ -429,7 +427,7 @@ export default function LiveGamePage() {
                        {onBenchPlayers.length > 0 ? onBenchPlayers.map(p => {
                            const stats = game.playerStats?.[p.id] || { ...defaultStats, playerId: p.id, playerName: `${p.firstName} ${p.lastName}` };
                            const isChild = parentChildInfo.childIds.has(p.id);
-                           return <PlayerStatCard key={p.id} player={p} stats={stats} onClick={() => handleBenchPlayerClick(p, teamType)} userProfileType={profile.profileTypeId} isChild={isChild} onCourt={false} isClickableForScoring={false}/>
+                           return <PlayerStatCard key={p.id} player={p} stats={stats} onClick={canManageControls ? () => handleBenchPlayerClick(p, teamType) : undefined} userProfileType={profile.profileTypeId} isChild={isChild} onCourt={false} />
                        }) : <p className="text-sm text-muted-foreground text-center italic col-span-full">Banquillo vacío</p>}
                     </div>
                 </CardContent>
@@ -464,7 +462,7 @@ export default function LiveGamePage() {
                                 .map(player => {
                                     const stats = game.playerStats?.[player.id] || { ...defaultStats, playerId: player.id, playerName: `${player.firstName} ${player.lastName}` };
                                     const isChild = parentChildInfo.childIds.has(player.id);
-                                    return <PlayerStatCard key={player.id} player={player} stats={stats} onClick={() => handleCourtPlayerClickInSubDialog(player)} userProfileType={profile.profileTypeId} isChild={isChild} onCourt={true} isClickableForScoring={true}/>
+                                    return <PlayerStatCard key={player.id} player={player} stats={stats} onClick={() => handleCourtPlayerClickInSubDialog(player)} userProfileType={profile.profileTypeId} isChild={isChild} onCourt={true}/>
                                 })
                             }
                         </div>
