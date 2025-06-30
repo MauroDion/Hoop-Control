@@ -254,6 +254,28 @@ export interface GameEvent {
     playerOut?: { id: string, name: string };
 }
 
+export interface PlayerGameStats {
+  playerId: string;
+  playerName: string;
+  timePlayedSeconds: number;
+  periodsPlayed: number;
+  periodsPlayedSet?: number[];
+  points: number;
+  shots_made_1p: number; shots_attempted_1p: number;
+  shots_made_2p: number; shots_attempted_2p: number;
+  shots_made_3p: number; shots_attempted_3p: number;
+  reb_def: number;
+  reb_off: number;
+  assists: number;
+  steals: number;
+  blocks: number;
+  turnovers: number;
+  fouls: number;
+  blocks_against: number;
+  fouls_received: number;
+  pir: number; // Performance Index Rating
+}
+
 export interface Game {
     id: string;
     homeTeamId: string;
@@ -278,6 +300,7 @@ export interface Game {
     awayTeamScore?: number;
     homeTeamStats?: TeamStats;
     awayTeamStats?: TeamStats;
+    playerStats?: { [playerId: string]: Partial<PlayerGameStats> };
     currentPeriod?: number;
     periodTimeRemainingSeconds?: number;
     isTimerRunning?: boolean;
@@ -302,27 +325,6 @@ export interface GameFormData {
     seasonId: string;
     competitionCategoryId: string;
     gameFormatId?: string | null;
-}
-
-export interface PlayerGameStats {
-  playerId: string;
-  playerName: string;
-  timePlayedSeconds: number;
-  periodsPlayed: number;
-  points: number;
-  shots_made_1p: number; shots_attempted_1p: number;
-  shots_made_2p: number; shots_attempted_2p: number;
-  shots_made_3p: number; shots_attempted_3p: number;
-  reb_def: number;
-  reb_off: number;
-  assists: number;
-  steals: number;
-  blocks: number;
-  turnovers: number;
-  fouls: number;
-  blocks_against: number;
-  fouls_received: number;
-  pir: number; // Performance Index Rating
 }
 
 export interface BrandingSettings {
