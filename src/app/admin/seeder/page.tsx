@@ -48,8 +48,8 @@ export default function SeederPage() {
         setError('Acceso Denegado. Solo los Super Admins pueden poblar la base de datos.');
         setPageState('error');
       }
-    } else if (!authLoading && !profile) {
-       setError("No se pudo cargar tu perfil. Es posible que no exista.");
+    } else {
+       setError("No se pudo cargar tu perfil. Es posible que no exista o haya un problema de configuración.");
        setPageState('error');
     }
 
@@ -92,6 +92,7 @@ export default function SeederPage() {
             <AlertTriangle className="h-12 w-12 text-destructive mb-4" />
             <h1 className="text-2xl font-semibold text-destructive">Error</h1>
             <p className="text-muted-foreground mb-4">{error}</p>
+            <Button asChild><Link href="/dashboard">Volver al Panel</Link></Button>
         </div>
       );
   }

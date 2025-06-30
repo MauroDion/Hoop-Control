@@ -4,8 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'next/navigation';
 import { getGamesByCoach, getAllGames, getGamesByClub, getGamesByParent } from '@/app/games/actions';
-import { getUserProfileById } from '@/app/users/actions';
-import type { Game, UserFirestoreProfile } from '@/types';
+import type { Game } from '@/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -15,7 +14,7 @@ import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 
 export default function GamesPage() {
-  const { user, loading: authLoading } = useAuth();
+  const { user, profile, loading: authLoading } = useAuth();
   const router = useRouter();
 
   const [loading, setLoading] = useState(true);
@@ -23,28 +22,26 @@ export default function GamesPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (authLoading) return;
+    if (authLoading) {
+        setLoading(true);
+        return;
+    }
     if (!user) {
       router.replace('/login?redirect=/games');
       return;
     }
+    if (!profile) {
+      setError("No se pudo cargar el perfil de usuario.");
+      setLoading(false);
+      return;
+    }
 
     const loadPageData = async () => {
-      setLoading(true);
       setError(null);
+      setLoading(true);
       try {
-        const profile = await getUserProfileById(user.uid);
-
-        if (!profile) {
-           setError("No se pudo cargar el perfil de usuario.");
-           setLoading(false);
-           return;
-        }
-        
         if (!['coach', 'coordinator', 'club_admin', 'super_admin', 'parent_guardian'].includes(profile.profileTypeId)) {
-           setError("Acceso Denegado. No tienes permisos para ver esta página.");
-           setLoading(false);
-           return;
+           throw new Error("Acceso Denegado. No tienes permisos para ver esta página.");
         }
         
         let fetchedGames: Game[] = [];
@@ -70,12 +67,13 @@ export default function GamesPage() {
       }
     };
     loadPageData();
-  }, [user, authLoading, router]);
+  }, [user, profile, authLoading, router]);
 
   if (loading || authLoading) {
     return (
       <div className="flex items-center justify-center min-h-[calc(100vh-10rem)]">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
+        <p className="ml-4">Cargando partidos...</p>
       </div>
     );
   }

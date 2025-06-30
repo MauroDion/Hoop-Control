@@ -3,8 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'next/navigation';
-import { getGamesByCoach, getAllGames, getGamesByClub } from '@/app/games/actions';
-import { getUserProfileById } from '@/app/users/actions';
+import { getGamesByCoach, getAllGames, getGamesByClub, getGamesByParent } from '@/app/games/actions';
 import type { Game } from '@/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
@@ -15,7 +14,7 @@ import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 
 export default function AnalysisPage() {
-  const { user, loading: authLoading } = useAuth();
+  const { user, profile, loading: authLoading } = useAuth();
   const router = useRouter();
 
   const [loading, setLoading] = useState(true);
@@ -23,9 +22,17 @@ export default function AnalysisPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (authLoading) return;
+    if (authLoading) {
+      setLoading(true);
+      return;
+    }
     if (!user) {
       router.replace('/login?redirect=/analysis');
+      return;
+    }
+    if (!profile) {
+      setError("No se pudo cargar el perfil de usuario.");
+      setLoading(false);
       return;
     }
 
@@ -33,12 +40,8 @@ export default function AnalysisPage() {
       setLoading(true);
       setError(null);
       try {
-        const profile = await getUserProfileById(user.uid);
-
-        if (!profile) {
-            setError("No se pudo cargar el perfil de usuario.");
-            setLoading(false);
-            return;
+        if (!['coach', 'coordinator', 'club_admin', 'super_admin', 'parent_guardian'].includes(profile.profileTypeId)) {
+            throw new Error("Acceso Denegado. No tienes permisos para ver esta página.");
         }
         
         let fetchedGames: Game[] = [];
@@ -48,6 +51,8 @@ export default function AnalysisPage() {
             fetchedGames = await getGamesByClub(profile.clubId);
         } else if (profile.profileTypeId === 'coach') {
             fetchedGames = await getGamesByCoach(user.uid);
+        } else if (profile.profileTypeId === 'parent_guardian') {
+            fetchedGames = await getGamesByParent(user.uid);
         }
         
         const completedGames = fetchedGames.filter(game => game.status === 'completed');
@@ -62,7 +67,7 @@ export default function AnalysisPage() {
       }
     };
     loadPageData();
-  }, [user, authLoading, router]);
+  }, [user, profile, authLoading, router]);
 
   if (loading || authLoading) {
     return (
@@ -79,7 +84,7 @@ export default function AnalysisPage() {
         <AlertTriangle className="h-12 w-12 text-destructive mb-4" />
         <h1 className="text-2xl font-semibold text-destructive">Error</h1>
         <p className="text-muted-foreground mb-4">{error}</p>
-        <Button onClick={() => router.push('/games')} className="mt-4">Ir a Partidos</Button>
+        <Button onClick={() => router.push('/dashboard')} className="mt-4">Ir al Panel</Button>
       </div>
     );
   }
