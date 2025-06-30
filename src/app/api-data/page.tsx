@@ -1,4 +1,4 @@
-"use client"; // This page needs to be a client component for useEffect and useState
+"use client";
 
 import React, { useEffect, useState } from 'react';
 import { getKeyMetrics } from '@/lib/hoopControlApi';
@@ -28,6 +28,7 @@ export default function ApiDataPage() {
       setData(result.data);
       setIsMockData(result.isMock);
       if (result.isMock) {
+         // This is not a critical error, just a state to show info to the user.
          console.warn("Displaying mock data because the real API call failed.");
       }
     } catch (err: any) {
