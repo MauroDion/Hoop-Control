@@ -459,7 +459,7 @@ export async function updateLiveGameState(
         const gameDoc = await transaction.get(gameRef);
         if (!gameDoc.exists) throw new Error("El partido no existe.");
         
-        const gameData = gameDoc.data();
+        const gameData = gameDoc.data() as Game;
         if(!gameData) throw new Error("No se encontraron datos del partido.");
 
         const serverTimestamp = admin.firestore.FieldValue.serverTimestamp();
@@ -467,21 +467,18 @@ export async function updateLiveGameState(
 
         const updateData: { [key: string]: any } = { ...updates, updatedAt: serverTimestamp };
 
-        // Game starting for the first time
         if (updates.status === 'inprogress' && gameData.status === 'scheduled') {
             const startPeriodEventRef = gameRef.collection('events').doc();
             transaction.set(startPeriodEventRef, { ...baseEventPayload, action: 'period_start', period: 1, gameTimeSeconds: updates.periodTimeRemainingSeconds || 0 });
             updateData.currentPeriod = 1;
         }
 
-        // Timer control
         if (updates.isTimerRunning === true && !gameData.isTimerRunning) {
             updateData.timerStartedAt = serverTimestamp;
             const timerStartEventRef = gameRef.collection('events').doc();
             transaction.set(timerStartEventRef, { ...baseEventPayload, action: 'timer_start', period: gameData.currentPeriod || 1, gameTimeSeconds: gameData.periodTimeRemainingSeconds || 0 });
         } else if (updates.isTimerRunning === false && gameData.isTimerRunning) {
-            const lastStartedTimestamp = gameData.timerStartedAt as admin.firestore.Timestamp | undefined;
-            const lastStartedMillis = lastStartedTimestamp ? lastStartedTimestamp.toMillis() : Date.now();
+            const lastStartedTimestamp = gameData.timerStartedAt ? new Date(gameData.timerStartedAt).getTime() : Date.now();
             const timeElapsedSeconds = Math.round((Date.now() - lastStartedMillis) / 1000);
             const newRemainingTime = Math.max(0, (gameData.periodTimeRemainingSeconds || 0) - timeElapsedSeconds);
             updateData.periodTimeRemainingSeconds = newRemainingTime;
@@ -490,13 +487,10 @@ export async function updateLiveGameState(
             transaction.set(timerPauseEventRef, { ...baseEventPayload, action: 'timer_pause', period: gameData.currentPeriod || 1, gameTimeSeconds: newRemainingTime });
         }
         
-        // Period changing
         if (updates.currentPeriod && updates.currentPeriod > (gameData.currentPeriod || 0)) {
             const oldPeriod = gameData.currentPeriod || 1;
-            // End old period
             const periodEndEventRef = gameRef.collection('events').doc();
             transaction.set(periodEndEventRef, { ...baseEventPayload, action: 'period_end', period: oldPeriod, gameTimeSeconds: 0 });
-            // Start new period
             const periodStartEventRef = gameRef.collection('events').doc();
             transaction.set(periodStartEventRef, { ...baseEventPayload, action: 'period_start', period: updates.currentPeriod, gameTimeSeconds: updates.periodTimeRemainingSeconds || 0 });
         }
@@ -681,18 +675,11 @@ export async function getPlayerStatsForGame(gameId: string): Promise<PlayerGameS
         const gameSnap = await gameRef.get();
         if (!gameSnap.exists) return [];
         const gameData = gameSnap.data() as Game;
-
-        const gameFormat = gameData.gameFormatId ? await getGameFormatById(gameData.gameFormatId) : null;
-        const periodDuration = (gameFormat?.periodDurationMinutes || 10) * 60;
         
         const eventsRef = gameRef.collection('events').orderBy('createdAt', 'asc');
         const eventsSnap = await eventsRef.get();
 
-        const playerStatsMap = new Map<string, Partial<PlayerGameStats> & { periodsPlayedSet?: Set<number> }>();
-        const onCourtPlayerIds = new Set<string>();
-
-        let lastEventTime = periodDuration;
-        let isTimerRunningInLoop = false;
+        const playerStatsMap = new Map<string, Partial<PlayerGameStats> & { periodsPlayedSet: Set<number> }>();
 
         const getOrCreateStats = (playerId: string, playerName: string) => {
             if (!playerStatsMap.has(playerId)) {
@@ -707,27 +694,36 @@ export async function getPlayerStatsForGame(gameId: string): Promise<PlayerGameS
             return playerStatsMap.get(playerId)!;
         };
         
+        const allPlayerIds = [...(gameData.homeTeamPlayerIds || []), ...(gameData.awayTeamPlayerIds || [])];
+        if (allPlayerIds.length > 0) {
+            const allPlayers = await getPlayersFromIds(allPlayerIds);
+            allPlayers.forEach(p => getOrCreateStats(p.id, `${p.firstName} ${p.lastName}`));
+        }
+
+        let lastEventTimestamp: admin.firestore.Timestamp | null = gameData.createdAt ? admin.firestore.Timestamp.fromMillis(new Date(gameData.createdAt).getTime()) : null;
+        let isTimerRunningInLoop = false;
+        let onCourtPlayerIds = new Set<string>();
+
         eventsSnap.docs.forEach(doc => {
             const event = doc.data() as GameEvent;
+            const eventTimestamp = doc.data().createdAt as admin.firestore.Timestamp;
 
-            if (isTimerRunningInLoop) {
-                const timeDelta = lastEventTime - event.gameTimeSeconds;
-                if (timeDelta > 0) {
-                     onCourtPlayerIds.forEach(playerId => {
-                        const stats = getOrCreateStats(playerId, 'Unknown');
-                        stats.timePlayedSeconds = (stats.timePlayedSeconds || 0) + timeDelta;
-                    });
-                }
+            if (isTimerRunningInLoop && lastEventTimestamp) {
+                const timeDeltaSeconds = (eventTimestamp.toMillis() - lastEventTimestamp.toMillis()) / 1000;
+                 onCourtPlayerIds.forEach(playerId => {
+                    const stats = getOrCreateStats(playerId, 'Unknown');
+                    stats.timePlayedSeconds = (stats.timePlayedSeconds || 0) + timeDeltaSeconds;
+                });
             }
 
-            lastEventTime = event.gameTimeSeconds;
+            lastEventTimestamp = eventTimestamp;
 
             switch (event.action) {
-                case 'period_start': onCourtPlayerIds.clear(); lastEventTime = periodDuration; isTimerRunningInLoop = true; break;
+                case 'period_start': onCourtPlayerIds.clear(); isTimerRunningInLoop = false; break;
                 case 'period_end': isTimerRunningInLoop = false; break;
                 case 'timer_start': isTimerRunningInLoop = true; break;
                 case 'timer_pause': isTimerRunningInLoop = false; break;
-                case 'substitution_in': onCourtPlayerIds.add(event.playerId); getOrCreateStats(event.playerId, event.playerName).periodsPlayedSet?.add(event.period); break;
+                case 'substitution_in': onCourtPlayerIds.add(event.playerId); getOrCreateStats(event.playerId, event.playerName).periodsPlayedSet.add(event.period); break;
                 case 'substitution_out': onCourtPlayerIds.delete(event.playerId); break;
                 case 'shot_made_1p': getOrCreateStats(event.playerId, event.playerName).points! += 1; getOrCreateStats(event.playerId, event.playerName).shots_made_1p! += 1; getOrCreateStats(event.playerId, event.playerName).shots_attempted_1p! += 1; break;
                 case 'shot_miss_1p': getOrCreateStats(event.playerId, event.playerName).shots_attempted_1p! += 1; break;
@@ -747,14 +743,21 @@ export async function getPlayerStatsForGame(gameId: string): Promise<PlayerGameS
             }
         });
         
+        if (isTimerRunningInLoop && lastEventTimestamp) {
+            const timeDeltaSeconds = (Date.now() - lastEventTimestamp.toMillis()) / 1000;
+             onCourtPlayerIds.forEach(playerId => {
+                const stats = getOrCreateStats(playerId, 'Unknown');
+                stats.timePlayedSeconds = (stats.timePlayedSeconds || 0) + timeDeltaSeconds;
+            });
+        }
+
         const finalStats: PlayerGameStats[] = Array.from(playerStatsMap.values()).map(s => {
              s.periodsPlayed = s.periodsPlayedSet?.size || 0;
              delete s.periodsPlayedSet;
-
+             s.timePlayedSeconds = Math.round(s.timePlayedSeconds || 0);
             const made_shots = (s.shots_made_1p || 0) + (s.shots_made_2p || 0) + (s.shots_made_3p || 0);
             const attempted_shots = (s.shots_attempted_1p || 0) + (s.shots_attempted_2p || 0) + (s.shots_attempted_3p || 0);
             const missed_shots = attempted_shots - made_shots;
-
             const pir = ((s.points || 0) + (s.reb_def || 0) + (s.reb_off || 0) + (s.assists || 0) + (s.steals || 0) + (s.blocks || 0) + (s.fouls_received || 0)) - 
                         (missed_shots + (s.turnovers || 0) + (s.blocks_against || 0) + (s.fouls || 0));
             
