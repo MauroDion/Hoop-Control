@@ -15,13 +15,13 @@ import {
     ChevronDown,
     Building,
     ListOrdered,
-    Database,
     BarChart2,
     Settings as SettingsIcon,
     Dribbble,
-    Menu
+    Menu,
+    Database
 } from 'lucide-react';
-import { useEffect, useState } from 'react'; 
+import { useState } from 'react'; 
 import Image from 'next/image';
 import { UserNav } from './UserNav';
 import {
