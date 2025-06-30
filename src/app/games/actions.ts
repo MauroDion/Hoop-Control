@@ -65,7 +65,7 @@ export async function getGamesByClub(clubId: string): Promise<Game[]> {
         processSnapshot(awayGamesSnap);
 
         const games = Array.from(gamesMap.values());
-        games.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        games.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()); // Sort recent first
 
         return games;
     } catch (error: any) {
@@ -312,6 +312,9 @@ export async function createTestGame(userId: string): Promise<{ success: boolean
         const homeTeamPlayerIds = homePlayers.map(p => p.id);
         const awayTeamPlayerIds = awayPlayers.map(p => p.id);
         
+        const homeTeamOnCourtPlayerIds = homeTeamPlayerIds.slice(0, 5);
+        const awayTeamOnCourtPlayerIds = awayTeamPlayerIds.slice(0, 5);
+        
         const gameDateTime = new Date();
         const initialStats: TeamStats = {
             onePointAttempts: 0, onePointMade: 0,
@@ -350,6 +353,8 @@ export async function createTestGame(userId: string): Promise<{ success: boolean
             timerStartedAt: null,
             homeTeamPlayerIds,
             awayTeamPlayerIds,
+            homeTeamOnCourtPlayerIds,
+            awayTeamOnCourtPlayerIds,
         };
         
         const gameRef = await adminDb.collection('games').add({
@@ -771,3 +776,5 @@ export async function getPlayerStatsForGame(gameId: string): Promise<PlayerGameS
         return [];
     }
 }
+
+    
