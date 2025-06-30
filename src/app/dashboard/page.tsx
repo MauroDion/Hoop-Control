@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useAuth } from '@/hooks/useAuth';
@@ -6,8 +5,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { useState } from 'react';
-import { Loader2, AlertTriangle, Building, BarChart2, Gamepad2, TestTube, Zap } from 'lucide-react';
+import { Loader2, AlertTriangle, Building, BarChart2, Gamepad2, TestTube, Zap, Database } from 'lucide-react';
 import { createTestGame, finishAllTestGames } from '@/app/games/actions';
+import { seedDatabase } from '@/app/admin/seeder/actions';
 import { useToast } from '@/hooks/use-toast';
 import {
   AlertDialog,
@@ -29,6 +29,7 @@ export default function DashboardPage() {
   const { toast } = useToast();
   const [isCreatingTestGame, setIsCreatingTestGame] = useState(false);
   const [isFinishingGames, setIsFinishingGames] = useState(false);
+  const [isSeeding, setIsSeeding] = useState(false);
 
   const canCreateTestGame = profile && ['super_admin', 'club_admin', 'coordinator', 'coach'].includes(profile.profileTypeId);
   const canManageClubs = profile && ['super_admin', 'club_admin', 'coordinator'].includes(profile.profileTypeId);
@@ -56,6 +57,26 @@ export default function DashboardPage() {
     }
     setIsFinishingGames(false);
   }
+
+  const handleSeedDatabase = async () => {
+    setIsSeeding(true);
+    const result = await seedDatabase();
+    if (result.success) {
+      toast({
+        title: '¡Base de Datos Poblada!',
+        description: 'Los datos de prueba se han cargado. La página se recargará.',
+        duration: 5000,
+      });
+      setTimeout(() => window.location.reload(), 2000);
+    } else {
+      toast({
+        variant: 'destructive',
+        title: 'Error al Poblar la Base de Datos',
+        description: result.error,
+      });
+    }
+    setIsSeeding(false);
+  };
   
   if (authLoading) {
     return (
@@ -105,7 +126,7 @@ export default function DashboardPage() {
                     <CardDescription>Gestionar equipos y jugadores de tu club.</CardDescription>
                 </CardHeader>
                 <CardContent>
-                    <Button asChild><Link href={`/clubs/${profile.clubId}`}>Gestionar {profile.profileTypeId === 'super_admin' ? 'Clubs' : 'mi Club'}</Link></Button>
+                    <Button asChild><Link href={profile.profileTypeId === 'super_admin' ? '/clubs' : `/clubs/${profile.clubId}`}>Gestionar {profile.profileTypeId === 'super_admin' ? 'Clubs' : 'mi Club'}</Link></Button>
                 </CardContent>
             </Card>
         }
@@ -133,31 +154,59 @@ export default function DashboardPage() {
                     {isCreatingTestGame ? 'Generando...' : 'Generar Partido de Prueba'}
                 </Button>
                 {profile.profileTypeId === 'super_admin' && (
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                         <Button variant="destructive" disabled={isFinishingGames}>
-                            {isFinishingGames ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Zap className="mr-2 h-4 w-4"/>}
-                            {isFinishingGames ? 'Finalizando...' : 'Finalizar Partidos de Prueba'}
-                        </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
-                          <AlertDialogDescription>
-                            Esta acción finalizará todos los partidos creados con el botón de prueba que estén aún en progreso o programados.
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                          <AlertDialogAction
-                            onClick={handleFinishTestGames}
-                            className="bg-destructive hover:bg-destructive/80"
-                          >
-                            Sí, finalizar partidos
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
+                    <>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                             <Button variant="destructive" disabled={isFinishingGames}>
+                                {isFinishingGames ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Zap className="mr-2 h-4 w-4"/>}
+                                {isFinishingGames ? 'Finalizando...' : 'Finalizar Partidos de Prueba'}
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Esta acción finalizará todos los partidos creados con el botón de prueba que estén aún en progreso o programados.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                              <AlertDialogAction
+                                onClick={handleFinishTestGames}
+                                className="bg-destructive hover:bg-destructive/80"
+                              >
+                                Sí, finalizar partidos
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button variant="destructive" disabled={isSeeding}>
+                                {isSeeding ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Database className="mr-2 h-4 w-4"/>}
+                                {isSeeding ? 'Poblando...' : 'Poblar Base de Datos'}
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>¡Acción Irreversible!</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Esto borrará todos los datos de prueba existentes (equipos, jugadores, partidos, etc.) y los reemplazará con un nuevo conjunto de datos. ¿Continuar?
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                              <AlertDialogAction
+                                onClick={handleSeedDatabase}
+                                className="bg-destructive hover:bg-destructive/80"
+                              >
+                                Sí, poblar la base de datos
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                    </>
                 )}
             </CardContent>
           </Card>
