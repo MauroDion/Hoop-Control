@@ -20,7 +20,7 @@ import type { TeamFormData, GameFormat, CompetitionCategory, UserFirestoreProfil
 import { useRouter } from "next/navigation";
 import { useToast } from "@/hooks/use-toast";
 import { createTeam, updateTeam } from "@/app/teams/actions";
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth } from '@/contexts/AuthContext';
 import { Loader2 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "../ui/separator";

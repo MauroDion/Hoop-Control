@@ -63,9 +63,10 @@ export default function SeederPage() {
     if (result.success) {
       toast({
         title: '¡Base de Datos Poblada!',
-        description: 'Se han añadido los datos de ejemplo correctamente. Refresca las otras páginas para ver los cambios.',
-        duration: 7000,
+        description: 'Los datos de prueba se han cargado. La página se recargará.',
+        duration: 5000,
       });
+      setTimeout(() => window.location.reload(), 2000);
     } else {
       setError(result.error || 'Ha ocurrido un error desconocido.');
       toast({
@@ -114,7 +115,7 @@ export default function SeederPage() {
                 <Wand2 className="mx-auto h-12 w-12 text-muted-foreground mb-4"/>
                 <h3 className="text-xl font-semibold">¿Listo para empezar?</h3>
                 <p className="text-muted-foreground my-2">
-                    Hacer clic en el botón de abajo borrará las colecciones de prueba (clubs, equipos, etc.) y los perfiles de usuario de prueba, y los reemplazará con un nuevo conjunto de datos.
+                    Hacer clic en el botón de abajo borrará las colecciones de prueba (equipos, jugadores, partidos, etc.) y los perfiles de usuario de prueba, y los reemplazará con un nuevo conjunto de datos.
                 </p>
                 <p className="text-sm font-bold text-destructive my-4">
                     <AlertTriangle className="inline-block h-4 w-4 mr-1" />
