@@ -1,11 +1,10 @@
-
 "use client";
 
 import type { User as FirebaseUser } from 'firebase/auth';
 import { auth } from '@/lib/firebase/client';
 import { onIdTokenChanged, signOut } from 'firebase/auth';
 import { useRouter, usePathname } from 'next/navigation';
-import React, { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react';
+import React, { createContext, useEffect, useState, ReactNode, useCallback } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
 import { getUserProfileById } from '@/app/users/actions';
@@ -20,7 +19,7 @@ interface AuthContextType {
   branding: BrandingSettings;
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const PUBLIC_PATHS = ['/', '/login', '/register', '/reset-password', '/profile/complete-registration'];
 const isPublicPath = (path: string) => PUBLIC_PATHS.some(p => path.startsWith(p));
@@ -129,12 +128,4 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       {children}
     </AuthContext.Provider>
   );
-};
-
-export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
-  return context;
 };
