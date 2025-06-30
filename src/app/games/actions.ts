@@ -3,7 +3,7 @@
 import { adminDb } from '@/lib/firebase/admin';
 import admin from 'firebase-admin';
 import { revalidatePath } from 'next/cache';
-import type { Game, GameFormData, Team, TeamStats, Player, GameEvent, GameEventAction, UserFirestoreProfile, StatCategory, PlayerGameStats, Child } from '@/types';
+import type { Game, GameFormData, Team, TeamStats, Player, GameEvent, GameEventAction, UserFirestoreProfile, StatCategory, PlayerGameStats, Season } from '@/types';
 import { getTeamsByCoach as getCoachTeams, getAllTeams as getAllTeamsFromDb } from '@/app/teams/actions';
 import { getUserProfileById } from '@/app/users/actions';
 import { getSeasons } from '@/app/seasons/actions';
@@ -193,6 +193,222 @@ export async function getGameById(gameId: string): Promise<Game | null> {
     }
 }
 
+export async function createGame(formData: GameFormData, userId: string): Promise<{ success: boolean; error?: string; id?: string }> {
+    if (!userId) return { success: false, error: "User not authenticated." };
+    if (!adminDb) return { success: false, error: "Database not initialized."};
+
+    try {
+        const [homeTeamSnap, awayTeamSnap] = await Promise.all([
+            adminDb.collection('teams').doc(formData.homeTeamId).get(),
+            adminDb.collection('teams').doc(formData.awayTeamId).get()
+        ]);
+
+        if (!homeTeamSnap.exists || !awayTeamSnap.exists) {
+            return { success: false, error: "One or both teams could not be found." };
+        }
+        const homeTeamData = homeTeamSnap.data() as Team;
+        const awayTeamData = awayTeamSnap.data() as Team;
+
+        const gameDateTime = new Date(`${formData.date}T${formData.time}`);
+        
+        const initialStats: TeamStats = {
+            onePointAttempts: 0, onePointMade: 0,
+            twoPointAttempts: 0, twoPointMade: 0,
+            threePointAttempts: 0, threePointMade: 0,
+            fouls: 0, timeouts: 0, reboundsOffensive: 0,
+            reboundsDefensive: 0, assists: 0, steals: 0, blocks: 0,
+            turnovers: 0, blocksAgainst: 0, foulsReceived: 0,
+        };
+
+        const newGameData: Omit<Game, 'id'> = {
+            homeTeamId: formData.homeTeamId,
+            homeTeamClubId: homeTeamData.clubId,
+            homeTeamName: homeTeamData.name,
+            awayTeamId: formData.awayTeamId,
+            awayTeamClubId: awayTeamData.clubId,
+            awayTeamName: awayTeamData.name,
+            date: gameDateTime.toISOString(),
+            location: formData.location,
+            status: 'scheduled',
+            seasonId: formData.seasonId,
+            competitionCategoryId: formData.competitionCategoryId,
+            gameFormatId: formData.gameFormatId || null,
+            createdBy: userId,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            homeTeamScore: 0,
+            awayTeamScore: 0,
+            homeTeamStats: initialStats,
+            awayTeamStats: initialStats,
+            currentPeriod: 1,
+            isTimerRunning: false,
+            periodTimeRemainingSeconds: 0,
+            timerStartedAt: null,
+            homeTeamPlayerIds: [],
+            awayTeamPlayerIds: [],
+            homeTeamOnCourtPlayerIds: [],
+            awayTeamOnCourtPlayerIds: [],
+        };
+
+        const docRef = await adminDb.collection('games').add({
+            ...newGameData,
+            date: admin.firestore.Timestamp.fromDate(gameDateTime),
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+        
+        revalidatePath('/games');
+        return { success: true, id: docRef.id };
+
+    } catch (error: any) {
+        console.error('Error creating game:', error);
+        return { success: false, error: error.message || "Failed to create game."};
+    }
+}
+
+export async function createTestGame(userId: string): Promise<{ success: boolean; error?: string; gameId?: string; }> {
+    if (!adminDb) return { success: false, error: "Database not initialized." };
+
+    try {
+        const seasonsSnapshot = await adminDb.collection('seasons').where('status', '==', 'active').limit(1).get();
+        if (seasonsSnapshot.empty) {
+            return { success: false, error: "No active season found. Please seed the database or create an active season." };
+        }
+        const seasonDoc = seasonsSnapshot.docs[0];
+        const seasonId = seasonDoc.id;
+        const season = seasonDoc.data() as Season;
+
+        const suitableCompetition = season.competitions.find(c => c.teamIds && c.teamIds.length >= 2);
+        if (!suitableCompetition) {
+            return { success: false, error: "No competition with at least two teams found in the active season." };
+        }
+
+        const teamIds = suitableCompetition.teamIds;
+        const homeTeamIndex = Math.floor(Math.random() * teamIds.length);
+        let awayTeamIndex = Math.floor(Math.random() * (teamIds.length - 1));
+        if (awayTeamIndex >= homeTeamIndex) awayTeamIndex++;
+        
+        const homeTeamId = teamIds[homeTeamIndex];
+        const awayTeamId = teamIds[awayTeamIndex];
+
+        const [homeTeamSnap, awayTeamSnap] = await Promise.all([
+            adminDb.collection('teams').doc(homeTeamId).get(),
+            adminDb.collection('teams').doc(awayTeamId).get()
+        ]);
+
+        if (!homeTeamSnap.exists || !awayTeamSnap.exists) {
+            return { success: false, error: "Could not fetch team data for the selected test teams." };
+        }
+        const homeTeamData = homeTeamSnap.data() as Team;
+        const awayTeamData = awayTeamSnap.data() as Team;
+
+        const competitionCategorySnap = await adminDb.collection('competitionCategories').doc(suitableCompetition.competitionCategoryId).get();
+        const gameFormatId = competitionCategorySnap.data()?.gameFormatId || null;
+
+        const [homePlayers, awayPlayers] = await Promise.all([
+            getPlayersByTeamId(homeTeamId),
+            getPlayersByTeamId(awayTeamId)
+        ]);
+        const homeTeamPlayerIds = homePlayers.map(p => p.id);
+        const awayTeamPlayerIds = awayPlayers.map(p => p.id);
+        
+        const gameDateTime = new Date();
+        const initialStats: TeamStats = {
+            onePointAttempts: 0, onePointMade: 0,
+            twoPointAttempts: 0, twoPointMade: 0,
+            threePointAttempts: 0, threePointMade: 0,
+            fouls: 0, timeouts: 0, reboundsOffensive: 0,
+            reboundsDefensive: 0, assists: 0, steals: 0, blocks: 0,
+            turnovers: 0, blocksAgainst: 0, foulsReceived: 0,
+        };
+
+        const newGameData: Omit<Game, 'id'> = {
+            homeTeamId,
+            homeTeamClubId: homeTeamData.clubId,
+            homeTeamName: homeTeamData.name,
+            homeTeamLogoUrl: homeTeamData.logoUrl || null,
+            awayTeamId,
+            awayTeamClubId: awayTeamData.clubId,
+            awayTeamName: awayTeamData.name,
+            awayTeamLogoUrl: awayTeamData.logoUrl || null,
+            date: gameDateTime.toISOString(),
+            location: 'Pista de Pruebas',
+            status: 'scheduled',
+            seasonId,
+            competitionCategoryId: suitableCompetition.competitionCategoryId,
+            gameFormatId,
+            createdBy: userId,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            homeTeamScore: 0,
+            awayTeamScore: 0,
+            homeTeamStats: initialStats,
+            awayTeamStats: initialStats,
+            currentPeriod: 1,
+            isTimerRunning: false,
+            periodTimeRemainingSeconds: 0,
+            timerStartedAt: null,
+            homeTeamPlayerIds,
+            awayTeamPlayerIds,
+        };
+        
+        const gameRef = await adminDb.collection('games').add({
+            ...newGameData,
+            date: admin.firestore.Timestamp.fromDate(gameDateTime),
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+        
+        revalidatePath('/games');
+        revalidatePath('/dashboard');
+
+        return { success: true, gameId: gameRef.id };
+    } catch (error: any) {
+        console.error("Error creating test game:", error);
+        return { success: false, error: error.message };
+    }
+}
+
+export async function finishAllTestGames(userId: string): Promise<{ success: boolean; error?: string; count?: number }> {
+    if (!adminDb) return { success: false, error: 'Database not initialized.' };
+    if (!userId) return { success: false, error: 'User not authenticated.' };
+    
+    const profile = await getUserProfileById(userId);
+    if (!profile || profile.profileTypeId !== 'super_admin') {
+        return { success: false, error: 'Permission denied.' };
+    }
+
+    try {
+        const gamesRef = adminDb.collection('games');
+        const query = gamesRef.where('location', '==', 'Pista de Pruebas').where('status', 'in', ['inprogress', 'scheduled']);
+        const snapshot = await query.get();
+
+        if (snapshot.empty) {
+            return { success: true, count: 0 };
+        }
+
+        const batch = adminDb.batch();
+        snapshot.docs.forEach(doc => {
+            batch.update(doc.ref, { 
+                status: 'completed',
+                isTimerRunning: false,
+                homeTeamScore: Math.floor(Math.random() * 40) + 50,
+                awayTeamScore: Math.floor(Math.random() * 40) + 50,
+                updatedAt: admin.firestore.FieldValue.serverTimestamp()
+            });
+        });
+        await batch.commit();
+        
+        revalidatePath('/games');
+        revalidatePath('/dashboard');
+        revalidatePath('/analysis');
+        return { success: true, count: snapshot.size };
+    } catch (error: any) {
+        console.error("Error finishing test games:", error);
+        return { success: false, error: error.message };
+    }
+}
+
 export async function updateGameRoster(
     gameId: string,
     playerIds: string[],
@@ -288,81 +504,6 @@ export async function updateLiveGameState(
     console.error("Error al actualizar el estado del partido en vivo:", error);
     return { success: false, error: error.message || "No se pudo actualizar el estado del partido." };
   }
-}
-
-export async function finishAllTestGames(userId: string): Promise<{ success: boolean; error?: string; count?: number }> {
-    if (!adminDb) return { success: false, error: 'Database not initialized.' };
-    if (!userId) return { success: false, error: 'User not authenticated.' };
-    
-    const profile = await getUserProfileById(userId);
-    if (!profile || profile.profileTypeId !== 'super_admin') {
-        return { success: false, error: 'Permission denied.' };
-    }
-
-    try {
-        const gamesRef = adminDb.collection('games');
-        const query = gamesRef.where('location', '==', 'Pista de Pruebas').where('status', 'in', ['inprogress', 'scheduled']);
-        const snapshot = await query.get();
-
-        if (snapshot.empty) {
-            return { success: true, count: 0 };
-        }
-
-        const batch = adminDb.batch();
-        snapshot.docs.forEach(doc => {
-            batch.update(doc.ref, { 
-                status: 'completed',
-                isTimerRunning: false,
-                updatedAt: admin.firestore.FieldValue.serverTimestamp()
-            });
-        });
-        await batch.commit();
-        
-        revalidatePath('/games');
-        revalidatePath('/dashboard');
-        return { success: true, count: snapshot.size };
-    } catch (error: any) {
-        console.error("Error finishing test games:", error);
-        return { success: false, error: error.message };
-    }
-}
-
-
-export async function finishAllInProgressGames(userId: string): Promise<{ success: boolean; error?: string; count?: number }> {
-    if (!adminDb) return { success: false, error: 'Database not initialized.' };
-    if (!userId) return { success: false, error: 'User not authenticated.' };
-    
-    const profile = await getUserProfileById(userId);
-    if (!profile || profile.profileTypeId !== 'super_admin') {
-        return { success: false, error: 'Permission denied.' };
-    }
-
-    try {
-        const gamesRef = adminDb.collection('games');
-        const query = gamesRef.where('status', '==', 'inprogress');
-        const snapshot = await query.get();
-
-        if (snapshot.empty) {
-            return { success: true, count: 0 };
-        }
-
-        const batch = adminDb.batch();
-        snapshot.docs.forEach(doc => {
-            batch.update(doc.ref, { 
-                status: 'completed', 
-                isTimerRunning: false,
-                updatedAt: admin.firestore.FieldValue.serverTimestamp()
-            });
-        });
-        await batch.commit();
-
-        revalidatePath('/games');
-        revalidatePath('/dashboard');
-        return { success: true, count: snapshot.size };
-    } catch (error: any) {
-        console.error("Error finishing all in-progress games:", error);
-        return { success: false, error: error.message };
-    }
 }
 
 export async function assignScorer(
@@ -505,7 +646,7 @@ export async function substitutePlayer(
         if (playerOut) {
             onCourtIds = onCourtIds.filter(id => id !== playerOut.id);
             const eventOutRef = gameRef.collection('events').doc();
-            transaction.set(eventOutRef, { ...baseEventPayload, action: 'substitution_out', playerId: playerOut.id, playerName: playerOut.name, playerOut });
+            transaction.set(eventOutRef, { ...baseEventPayload, action: 'substitution_out', playerId: playerOut.id, playerName: playerOut.name });
         }
 
         if (!onCourtIds.includes(playerIn.id)) {
@@ -514,7 +655,7 @@ export async function substitutePlayer(
             }
             onCourtIds.push(playerIn.id);
             const eventInRef = gameRef.collection('events').doc();
-            transaction.set(eventInRef, { ...baseEventPayload, action: 'substitution_in', playerId: playerIn.id, playerName: playerIn.name, playerIn });
+            transaction.set(eventInRef, { ...baseEventPayload, action: 'substitution_in', playerId: playerIn.id, playerName: playerIn.name });
         } else {
             throw new Error("Player is already on court.");
         }
@@ -546,7 +687,6 @@ export async function getPlayerStatsForGame(gameId: string): Promise<PlayerGameS
         const onCourtPlayerIds = new Set<string>();
 
         let lastEventTime = periodDuration;
-        let currentPeriod = 1;
         let isTimerRunningInLoop = false;
 
         const getOrCreateStats = (playerId: string, playerName: string) => {
@@ -565,7 +705,6 @@ export async function getPlayerStatsForGame(gameId: string): Promise<PlayerGameS
         eventsSnap.docs.forEach(doc => {
             const event = doc.data() as GameEvent;
 
-            // Only accumulate time if the timer was running before this event
             if (isTimerRunningInLoop) {
                 const timeDelta = lastEventTime - event.gameTimeSeconds;
                 if (timeDelta > 0) {
@@ -576,33 +715,15 @@ export async function getPlayerStatsForGame(gameId: string): Promise<PlayerGameS
                 }
             }
 
-            // Update state based on the current event
             lastEventTime = event.gameTimeSeconds;
 
             switch (event.action) {
-                case 'period_start':
-                    onCourtPlayerIds.clear();
-                    currentPeriod = event.period;
-                    lastEventTime = periodDuration;
-                    isTimerRunningInLoop = true;
-                    break;
-                case 'period_end':
-                    onCourtPlayerIds.clear();
-                    isTimerRunningInLoop = false;
-                    break;
-                case 'timer_start':
-                    isTimerRunningInLoop = true;
-                    break;
-                case 'timer_pause':
-                    isTimerRunningInLoop = false;
-                    break;
-                case 'substitution_in':
-                    onCourtPlayerIds.add(event.playerId);
-                    getOrCreateStats(event.playerId, event.playerName).periodsPlayedSet?.add(event.period);
-                    break;
-                case 'substitution_out':
-                    onCourtPlayerIds.delete(event.playerId);
-                    break;
+                case 'period_start': onCourtPlayerIds.clear(); lastEventTime = periodDuration; isTimerRunningInLoop = true; break;
+                case 'period_end': isTimerRunningInLoop = false; break;
+                case 'timer_start': isTimerRunningInLoop = true; break;
+                case 'timer_pause': isTimerRunningInLoop = false; break;
+                case 'substitution_in': onCourtPlayerIds.add(event.playerId); getOrCreateStats(event.playerId, event.playerName).periodsPlayedSet?.add(event.period); break;
+                case 'substitution_out': onCourtPlayerIds.delete(event.playerId); break;
                 case 'shot_made_1p': getOrCreateStats(event.playerId, event.playerName).points! += 1; getOrCreateStats(event.playerId, event.playerName).shots_made_1p! += 1; getOrCreateStats(event.playerId, event.playerName).shots_attempted_1p! += 1; break;
                 case 'shot_miss_1p': getOrCreateStats(event.playerId, event.playerName).shots_attempted_1p! += 1; break;
                 case 'shot_made_2p': getOrCreateStats(event.playerId, event.playerName).points! += 2; getOrCreateStats(event.playerId, event.playerName).shots_made_2p! += 1; getOrCreateStats(event.playerId, event.playerName).shots_attempted_2p! += 1; break;

@@ -1,3 +1,4 @@
+
 'use server';
 
 import { revalidatePath } from 'next/cache';
@@ -176,4 +177,37 @@ export async function getPlayersByClub(clubId: string): Promise<Player[]> {
     players.sort((a, b) => (a.lastName || '').localeCompare(b.lastName || '') || (a.firstName || '').localeCompare(b.firstName || ''));
     
     return players;
+}
+
+export async function getPlayersFromIds(playerIds: string[]): Promise<Player[]> {
+    if (!adminDb || playerIds.length === 0) return [];
+
+    try {
+        const playerChunks: Promise<admin.firestore.QuerySnapshot<admin.firestore.DocumentData>>[] = [];
+        for (let i = 0; i < playerIds.length; i += 30) {
+            const chunk = playerIds.slice(i, i + 30);
+            const playersRef = adminDb.collection('players');
+            const playersQuery = playersRef.where(admin.firestore.FieldPath.documentId(), 'in', chunk);
+            playerChunks.push(playersQuery.get());
+        }
+
+        const allPlayersSnapshots = await Promise.all(playerChunks);
+        const players: Player[] = [];
+        
+        allPlayersSnapshots.forEach(snapshot => {
+            snapshot.docs.forEach(doc => {
+                const data = doc.data();
+                players.push({
+                    id: doc.id,
+                    ...data,
+                    createdAt: data.createdAt ? (data.createdAt as admin.firestore.Timestamp).toDate().toISOString() : undefined,
+                } as Player);
+            });
+        });
+
+        return players;
+    } catch (error: any) {
+        console.error("Error fetching players by IDs:", error);
+        return [];
+    }
 }
