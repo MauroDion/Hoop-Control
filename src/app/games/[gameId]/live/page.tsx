@@ -33,11 +33,24 @@ const PlayerStatCard = ({ player, stats, onClick, userProfileType, isChild, onCo
         return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
     };
 
+    const plusMinusValue = stats.plusMinus || 0;
+
     return (
         <Card onClick={onClick} className={`p-2 relative aspect-[3/4] flex flex-col items-center justify-center overflow-hidden transition-all duration-300 bg-card ${onClick ? "hover:shadow-xl hover:scale-105 cursor-pointer" : "cursor-default"}`}>
             <div className='absolute top-2 left-2 text-2xl font-black text-green-600'>{stats.points}</div>
             {stats.fouls > 0 && <div className='absolute top-1/2 -translate-y-1/2 right-2 flex items-center justify-center px-2 h-7 bg-destructive border-2 border-white/70 rounded-sm shadow-lg z-20'><span className="text-yellow-300 text-xl font-extrabold" style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.5)' }}>{stats.fouls}</span></div>}
-            <div className="absolute top-2 right-2 text-2xl font-black text-blue-600">{canSeeAdvancedStats ? stats.pir : '-'}</div>
+            
+            {canSeeAdvancedStats && (
+                <div className="absolute top-1/2 -translate-y-1/2 left-2 flex flex-col items-center z-20">
+                    <span className="text-[10px] font-bold text-muted-foreground -mb-1">+/-</span>
+                    <div className='flex items-center justify-center px-2 h-7 bg-green-600 border-2 border-white/70 rounded-sm shadow-lg'>
+                        <span className="text-white text-xl font-extrabold" style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.5)' }}>
+                            {plusMinusValue > 0 ? `+${plusMinusValue}` : plusMinusValue}
+                        </span>
+                    </div>
+                </div>
+            )}
+
             <div className="text-8xl font-black text-destructive" style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.1)' }}>{player.jerseyNumber || 'S/N'}</div>
             <div className="absolute bottom-1 text-xs text-center font-semibold w-full px-1 bg-gradient-to-t from-background via-background to-transparent pt-8 pb-1">
                 <p className="truncate">{player.firstName} {player.lastName}</p>
@@ -158,7 +171,7 @@ export default function LiveGamePage() {
         points: 0, shots_made_1p: 0, shots_attempted_1p: 0,
         shots_made_2p: 0, shots_attempted_2p: 0, shots_made_3p: 0, shots_attempted_3p: 0,
         reb_def: 0, reb_off: 0, assists: 0, steals: 0, blocks: 0, turnovers: 0,
-        fouls: 0, blocks_against: 0, fouls_received: 0, pir: 0
+        fouls: 0, blocks_against: 0, fouls_received: 0, pir: 0, plusMinus: 0
     };
 
     const handleUpdate = useCallback(async (updates: Partial<Game>) => {

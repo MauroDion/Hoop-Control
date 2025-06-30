@@ -273,6 +273,7 @@ export interface PlayerGameStats {
   blocks_against: number;
   fouls_received: number;
   pir: number; // Performance Index Rating
+  plusMinus: number;
 }
 
 export interface Game {
