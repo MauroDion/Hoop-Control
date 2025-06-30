@@ -6,9 +6,6 @@ import { revalidatePath } from 'next/cache';
 import type { Game, GameFormData, Team, TeamStats, Player, GameEvent, GameEventAction, UserFirestoreProfile, StatCategory, PlayerGameStats, Season, Child } from '@/types';
 import { getTeamsByCoach as getCoachTeams, getAllTeams as getAllTeamsFromDb } from '@/app/teams/actions';
 import { getUserProfileById } from '@/app/users/actions';
-import { getSeasons } from '@/app/seasons/actions';
-import { getCompetitionCategories } from '@/app/competition-categories/actions';
-import { getGameFormats, getGameFormatById } from '@/app/game-formats/actions';
 import { getPlayersByTeamId, getPlayersFromIds } from '../players/actions';
 
 
@@ -317,7 +314,7 @@ export async function createTestGame(userId: string): Promise<{ success: boolean
         const awayTeamOnCourtPlayerIds = awayPlayers.slice(0, 5);
         
         const gameDateTime = new Date();
-        const initialStats: TeamStats = {
+        const initialTeamStats: TeamStats = {
             onePointAttempts: 0, onePointMade: 0,
             twoPointAttempts: 0, twoPointMade: 0,
             threePointAttempts: 0, threePointMade: 0,
@@ -325,6 +322,22 @@ export async function createTestGame(userId: string): Promise<{ success: boolean
             reboundsDefensive: 0, assists: 0, steals: 0, blocks: 0,
             turnovers: 0, blocksAgainst: 0, foulsReceived: 0,
         };
+
+        const initialPlayerStats: Omit<PlayerGameStats, 'playerId' | 'playerName'> = {
+            timePlayedSeconds: 0, periodsPlayed: 0, periodsPlayedSet: [], points: 0,
+            shots_made_1p: 0, shots_attempted_1p: 0, shots_made_2p: 0, shots_attempted_2p: 0,
+            shots_made_3p: 0, shots_attempted_3p: 0, reb_def: 0, reb_off: 0, assists: 0,
+            steals: 0, blocks: 0, turnovers: 0, fouls: 0, blocks_against: 0, fouls_received: 0, pir: 0
+        };
+
+        const playerStats: { [playerId: string]: Partial<PlayerGameStats> } = {};
+        [...homePlayers, ...awayPlayers].forEach(player => {
+            playerStats[player.id] = {
+                ...initialPlayerStats,
+                playerId: player.id,
+                playerName: `${player.firstName} ${player.lastName}`
+            };
+        });
 
         const newGameData: Omit<Game, 'id'> = {
             homeTeamId,
@@ -346,9 +359,9 @@ export async function createTestGame(userId: string): Promise<{ success: boolean
             updatedAt: new Date().toISOString(),
             homeTeamScore: 0,
             awayTeamScore: 0,
-            homeTeamStats: initialStats,
-            awayTeamStats: initialStats,
-            playerStats: {},
+            homeTeamStats: initialTeamStats,
+            awayTeamStats: initialTeamStats,
+            playerStats,
             currentPeriod: 1,
             isTimerRunning: false,
             periodTimeRemainingSeconds: 0,
@@ -589,25 +602,24 @@ export async function recordGameEvent(
             const playerStatsField = `playerStats.${playerId}`;
             
             const updates: { [key: string]: any } = {};
-
             const increment = admin.firestore.FieldValue.increment;
             
             const actions: Record<GameEventAction, (() => void) | undefined> = {
-                shot_made_1p: () => { updates[scoreField] = increment(1); updates[`${teamStatsField}.onePointMade`] = increment(1); updates[`${teamStatsField}.onePointAttempts`] = increment(1); updates[`${playerStatsField}.points`] = increment(1); updates[`${playerStatsField}.shots_made_1p`] = increment(1); updates[`${playerStatsField}.shots_attempted_1p`] = increment(1); },
-                shot_miss_1p: () => { updates[`${teamStatsField}.onePointAttempts`] = increment(1); updates[`${playerStatsField}.shots_attempted_1p`] = increment(1); },
-                shot_made_2p: () => { updates[scoreField] = increment(2); updates[`${teamStatsField}.twoPointMade`] = increment(1); updates[`${teamStatsField}.twoPointAttempts`] = increment(1); updates[`${playerStatsField}.points`] = increment(2); updates[`${playerStatsField}.shots_made_2p`] = increment(1); updates[`${playerStatsField}.shots_attempted_2p`] = increment(1); },
-                shot_miss_2p: () => { updates[`${teamStatsField}.twoPointAttempts`] = increment(1); updates[`${playerStatsField}.shots_attempted_2p`] = increment(1); },
-                shot_made_3p: () => { updates[scoreField] = increment(3); updates[`${teamStatsField}.threePointMade`] = increment(1); updates[`${teamStatsField}.threePointAttempts`] = increment(1); updates[`${playerStatsField}.points`] = increment(3); updates[`${playerStatsField}.shots_made_3p`] = increment(1); updates[`${playerStatsField}.shots_attempted_3p`] = increment(1); },
-                shot_miss_3p: () => { updates[`${teamStatsField}.threePointAttempts`] = increment(1); updates[`${playerStatsField}.shots_attempted_3p`] = increment(1); },
-                rebound_defensive: () => { updates[`${playerStatsField}.reb_def`] = increment(1); },
-                rebound_offensive: () => { updates[`${playerStatsField}.reb_off`] = increment(1); },
-                assist: () => { updates[`${playerStatsField}.assists`] = increment(1); },
-                steal: () => { updates[`${teamStatsField}.steals`] = increment(1); updates[`${playerStatsField}.steals`] = increment(1); },
-                block: () => { updates[`${playerStatsField}.blocks`] = increment(1); },
-                turnover: () => { updates[`${playerStatsField}.turnovers`] = increment(1); },
-                foul: () => { updates[`${teamStatsField}.fouls`] = increment(1); updates[`${playerStatsField}.fouls`] = increment(1); },
-                block_against: () => { updates[`${playerStatsField}.blocks_against`] = increment(1); },
-                foul_received: () => { updates[`${playerStatsField}.fouls_received`] = increment(1); },
+                shot_made_1p: () => { updates[scoreField] = increment(1); updates[`${teamStatsField}.onePointMade`] = increment(1); updates[`${teamStatsField}.onePointAttempts`] = increment(1); updates[`${playerStatsField}.points`] = increment(1); updates[`${playerStatsField}.shots_made_1p`] = increment(1); updates[`${playerStatsField}.shots_attempted_1p`] = increment(1); updates[`${playerStatsField}.pir`] = increment(1); },
+                shot_miss_1p: () => { updates[`${teamStatsField}.onePointAttempts`] = increment(1); updates[`${playerStatsField}.shots_attempted_1p`] = increment(1); updates[`${playerStatsField}.pir`] = increment(-1); },
+                shot_made_2p: () => { updates[scoreField] = increment(2); updates[`${teamStatsField}.twoPointMade`] = increment(1); updates[`${teamStatsField}.twoPointAttempts`] = increment(1); updates[`${playerStatsField}.points`] = increment(2); updates[`${playerStatsField}.shots_made_2p`] = increment(1); updates[`${playerStatsField}.shots_attempted_2p`] = increment(1); updates[`${playerStatsField}.pir`] = increment(2); },
+                shot_miss_2p: () => { updates[`${teamStatsField}.twoPointAttempts`] = increment(1); updates[`${playerStatsField}.shots_attempted_2p`] = increment(1); updates[`${playerStatsField}.pir`] = increment(-1); },
+                shot_made_3p: () => { updates[scoreField] = increment(3); updates[`${teamStatsField}.threePointMade`] = increment(1); updates[`${teamStatsField}.threePointAttempts`] = increment(1); updates[`${playerStatsField}.points`] = increment(3); updates[`${playerStatsField}.shots_made_3p`] = increment(1); updates[`${playerStatsField}.shots_attempted_3p`] = increment(1); updates[`${playerStatsField}.pir`] = increment(3); },
+                shot_miss_3p: () => { updates[`${teamStatsField}.threePointAttempts`] = increment(1); updates[`${playerStatsField}.shots_attempted_3p`] = increment(1); updates[`${playerStatsField}.pir`] = increment(-1); },
+                rebound_defensive: () => { updates[`${playerStatsField}.reb_def`] = increment(1); updates[`${playerStatsField}.pir`] = increment(1); },
+                rebound_offensive: () => { updates[`${playerStatsField}.reb_off`] = increment(1); updates[`${playerStatsField}.pir`] = increment(1); },
+                assist: () => { updates[`${playerStatsField}.assists`] = increment(1); updates[`${playerStatsField}.pir`] = increment(1); },
+                steal: () => { updates[`${teamStatsField}.steals`] = increment(1); updates[`${playerStatsField}.steals`] = increment(1); updates[`${playerStatsField}.pir`] = increment(1); },
+                block: () => { updates[`${playerStatsField}.blocks`] = increment(1); updates[`${playerStatsField}.pir`] = increment(1); },
+                turnover: () => { updates[`${playerStatsField}.turnovers`] = increment(1); updates[`${playerStatsField}.pir`] = increment(-1); },
+                foul: () => { updates[`${teamStatsField}.fouls`] = increment(1); updates[`${playerStatsField}.fouls`] = increment(1); updates[`${playerStatsField}.pir`] = increment(-1); },
+                block_against: () => { updates[`${playerStatsField}.blocks_against`] = increment(1); updates[`${playerStatsField}.pir`] = increment(-1); },
+                foul_received: () => { updates[`${playerStatsField}.fouls_received`] = increment(1); updates[`${playerStatsField}.pir`] = increment(1); },
                 substitution_in: undefined,
                 substitution_out: undefined,
                 period_start: undefined,
@@ -687,38 +699,4 @@ export async function substitutePlayer(
   }
 }
 
-export async function getPlayerStatsForGame(gameId: string): Promise<PlayerGameStats[]> {
-    if (!adminDb) return [];
-    try {
-        const gameRef = adminDb.collection('games').doc(gameId);
-        const gameSnap = await gameRef.get();
-        if (!gameSnap.exists) return [];
-        const gameData = gameSnap.data() as Game;
-        
-        const playerStats = gameData.playerStats || {};
-        
-        const finalStats = Object.entries(playerStats).map(([playerId, stats]) => {
-            const periodsPlayed = stats.periodsPlayedSet?.length || 0;
-            const timePlayedSeconds = Math.round(stats.timePlayedSeconds || 0);
-
-            const made_shots = (stats.shots_made_1p || 0) + (stats.shots_made_2p || 0) + (stats.shots_made_3p || 0);
-            const attempted_shots = (stats.shots_attempted_1p || 0) + (stats.shots_attempted_2p || 0) + (stats.shots_attempted_3p || 0);
-            const missed_shots = attempted_shots - made_shots;
-            const pir = ((stats.points || 0) + (stats.reb_def || 0) + (stats.reb_off || 0) + (stats.assists || 0) + (stats.steals || 0) + (stats.blocks || 0) + (stats.fouls_received || 0)) - 
-                        (missed_shots + (stats.turnovers || 0) + (stats.blocks_against || 0) + (stats.fouls || 0));
-
-            return {
-                ...stats,
-                playerId,
-                timePlayedSeconds,
-                periodsPlayed,
-                pir: Math.round(pir),
-            };
-        });
-
-        return finalStats;
-    } catch (err) {
-        console.error("Error calculating player stats:", err);
-        return [];
-    }
-}
+    
