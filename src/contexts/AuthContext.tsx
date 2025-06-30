@@ -3,7 +3,7 @@
 import type { User as FirebaseUser } from 'firebase/auth';
 import { auth } from '@/lib/firebase/client';
 import { onIdTokenChanged, signOut } from 'firebase/auth';
-import { useRouter, usePathname } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import React, { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
@@ -34,20 +34,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [profile, setProfile] = useState<UserFirestoreProfile | null>(null);
   const [branding, setBranding] = useState<BrandingSettings>({});
   const [loading, setLoading] = useState(true);
-  const router = useRouter();
   const { toast } = useToast();
 
   const handleLogout = useCallback(async () => {
     try {
       await fetch('/api/auth/session-logout', { method: 'POST' }); 
       await signOut(auth);
-      toast({ title: "Sesión Cerrada" });
-      router.push('/login');
+      // State will be cleared by onIdTokenChanged listener
     } catch (error) {
        console.error("Logout failed:", error);
        toast({ variant: 'destructive', title: 'Error al cerrar sesión' });
     }
-  }, [toast, router]);
+  }, [toast]);
 
   useEffect(() => {
     getBrandingSettings().then(setBranding);
@@ -58,6 +56,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setLoading(true);
         if (firebaseUser) {
             try {
+                // Ensure session cookie exists by calling our login endpoint.
+                // This syncs client auth state with server session state.
                 const idToken = await firebaseUser.getIdToken(true);
                 const response = await fetch('/api/auth/session-login', {
                     method: 'POST',
@@ -66,7 +66,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                 });
 
                 if (!response.ok) {
-                    throw new Error("Session login failed");
+                   const errorData = await response.json();
+                   console.warn(`Session sync failed with reason: ${errorData.reason}`);
+                   throw new Error(errorData.error || "Session login failed");
                 }
                 
                 const userProfile = await getUserProfileById(firebaseUser.uid);
@@ -74,7 +76,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                 setProfile(userProfile);
                 
             } catch(error) {
-                console.error("Error during auth state sync:", error);
+                console.error("Auth state sync failed, forcing logout:", error);
                 await handleLogout();
             }
         } else {
