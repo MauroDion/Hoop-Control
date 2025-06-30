@@ -1,73 +1,14 @@
+
+"use client";
+
+import React, { useEffect, useState } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
 import { getTaskById } from "@/app/tasks/actions";
+import type { Task } from "@/types";
 import { TaskForm } from "@/components/tasks/TaskForm";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { AlertTriangle, Edit } from "lucide-react";
-import { auth } from "@/lib/firebase/client"; // Assuming auth is initialized and currentUser is available
 import { redirect } from "next/navigation";
-
-
-export default async function EditTaskPage({ params }: { params: { id: string } }) {
-  // This is a server component, so auth.currentUser might not be reliable here.
-  // For robust auth in Server Components, you'd typically use a session management library
-  // or verify an ID token passed from the client or from cookies.
-  // For this example, we'll simulate getting userId. In real app, pass it or use server-side auth.
-  // const userId = auth.currentUser?.uid; // This is NOT reliable in Server Components.
-  // A common pattern is to have a server-side auth helper.
-  // For now, as a placeholder for this scaffold, we will proceed.
-  // Ideally, this page would be client component to use useAuth() or protected by middleware that ensures user.
-
-  // This is a workaround, best to handle auth state properly for server components or make this a client component.
-  // If not using a proper server-session, you would pass the userId from a parent client component or context.
-  // For this example, we'll assume middleware protects this route and user is available.
-  // However, getTaskById needs the userId. This is tricky for pure Server Component.
-  // Let's assume for now that a real app would have a server-side way to get the user.
-  // This page should ideally be a client component to use the useAuth hook for userId.
-  // OR, the getTaskById function needs to be adapted for server-side auth (e.g. using Admin SDK and ID token).
-  
-  // For the purpose of this scaffold, we acknowledge this limitation for pure server component.
-  // Making this a client component is a safer approach for Firebase client SDK.
-  // Or, ensure the server action `getTaskById` can run without client-side `auth.currentUser`.
-  // To make it work for now, we might need to pass userId or make it client.
-  // Let's make it a client component to resolve this easily.
-  
-  // REDIRECTING to client component pattern below.
-  // The actual fetching and form rendering will be in a client component.
-  // This server component just acts as a loader/router.
-
-  // This Server Component will fetch the initial task data.
-  // Authentication needs to be handled, for instance, by passing userId or making it client-side.
-  // Since actions.ts is server-side, it *could* use Admin SDK if properly configured.
-  // For now, we'll stick to client SDK and rely on middleware for route protection.
-  // The userId for getTaskById will be problematic if not passed or handled by client.
-
-  // To simplify, we'll assume actions.ts `getTaskById` will be called from a client component
-  // that provides the userId. This page will be a client component.
-
-  // The below approach is if this were a SERVER component strictly.
-  // const task = await getTaskById(params.id, "PLACEHOLDER_USER_ID_FETCH_SERVER_SIDE");
-  // Since we decided on client components for pages needing auth, we'll adjust.
-  // This page itself cannot reliably get userId with Firebase client SDK if it's a server component.
-  // We'll structure it assuming it will become a client component or call one.
-  // For now, let's just use a client component approach for the form itself.
-  
-  // The solution is to make the component that *needs* user.uid a client component.
-  // This page can remain server, but it would pass data to a client component.
-  // Or, the entire page becomes client.
-  // Let's try to keep it simple: make the page client to use useAuth.
-  
-  // This page will be marked as "use client" to use useAuth hook.
-  // It has been converted to a Client Component below by moving the logic into EditTaskClientPage.
-  
-  return <EditTaskClientPage taskId={params.id} />;
-}
-
-
-// --- Client Component Part ---
-"use client"; // Make this part a client component
-
-import React, { useEffect, useState } from 'react';
-import { useAuth } from '@/hooks/useAuth';
-import { Task } from '@/types'; // Assuming Task type is defined
 
 function EditTaskClientPage({ taskId }: { taskId: string }) {
   const { user, loading: authLoading } = useAuth();
@@ -76,17 +17,17 @@ function EditTaskClientPage({ taskId }: { taskId: string }) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (authLoading) return; // Wait for auth state to load
+    if (authLoading) return;
 
     if (!user) {
-      redirect("/login"); // Or show an error message
+      redirect("/login");
       return;
     }
 
     async function fetchTask() {
       try {
         setLoading(true);
-        const fetchedTask = await getTaskById(taskId, user.uid); // Pass user.uid here
+        const fetchedTask = await getTaskById(taskId, user.uid);
         if (fetchedTask) {
           setTask(fetchedTask);
         } else {
@@ -141,4 +82,8 @@ function EditTaskClientPage({ taskId }: { taskId: string }) {
       </Card>
     </div>
   );
+}
+
+export default function EditTaskPage({ params }: { params: { id: string } }) {
+  return <EditTaskClientPage taskId={params.id} />;
 }

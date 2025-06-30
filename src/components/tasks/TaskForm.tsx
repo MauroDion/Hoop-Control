@@ -20,7 +20,7 @@ import type { Task, TaskFormData } from "@/types";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/hooks/use-toast";
 import { createTask, updateTask } from "@/app/tasks/actions";
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth } from '@/contexts/AuthContext';
 
 const taskFormSchema = z.object({
   title: z.string().min(3, "El título debe tener al menos 3 caracteres."),
@@ -36,9 +36,13 @@ interface TaskFormProps {
 }
 
 // Helper to convert JS Date to yyyy-MM-dd string
-const formatDateForInput = (date?: Date | null): string => {
-  if (!date) return "";
-  return date.toISOString().split('T')[0];
+const formatDateForInput = (dateString?: string | null): string => {
+  if (!dateString) return "";
+  try {
+    return new Date(dateString).toISOString().split('T')[0];
+  } catch(e) {
+    return "";
+  }
 };
 
 export function TaskForm({ task, onFormSubmit }: TaskFormProps) {

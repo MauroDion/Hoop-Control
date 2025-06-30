@@ -17,7 +17,7 @@ import { Textarea } from "@/components/ui/textarea";
 import type { GameFormat, GameFormatFormData } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { createGameFormat, updateGameFormat } from "@/app/game-formats/actions";
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth } from '@/contexts/AuthContext';
 import { Loader2 } from "lucide-react";
 import { useEffect } from "react";
 

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from 'react';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 import { getGamesByCoach, getAllGames, getGamesByClub, getGamesByParent } from '@/app/games/actions';
 import type { Game } from '@/types';
@@ -95,11 +95,13 @@ export default function GamesPage() {
         <h1 className="text-4xl font-headline font-bold text-primary flex items-center">
           <CalendarClock className="mr-3 h-10 w-10" /> Partidos Programados
         </h1>
-        <Button asChild>
-          <Link href="/games/new">
-            <PlusCircle className="mr-2 h-5 w-5" /> Programar Partido
-          </Link>
-        </Button>
+        { profile && ['super_admin', 'club_admin', 'coordinator'].includes(profile.profileTypeId) && (
+            <Button asChild>
+                <Link href="/games/new">
+                    <PlusCircle className="mr-2 h-5 w-5" /> Programar Partido
+                </Link>
+            </Button>
+        )}
       </div>
 
       <Card className="shadow-xl">

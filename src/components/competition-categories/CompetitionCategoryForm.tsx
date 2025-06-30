@@ -18,7 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import type { CompetitionCategoryFormData, GameFormat, CompetitionCategory } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { createCompetitionCategory, updateCompetitionCategory } from "@/app/competition-categories/actions";
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth } from '@/contexts/AuthContext';
 import { Loader2 } from "lucide-react";
 import { useEffect } from "react";
 

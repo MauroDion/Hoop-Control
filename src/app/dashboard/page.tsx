@@ -1,13 +1,14 @@
 "use client";
 
-import { useAuth } from '@/hooks/useAuth';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import Link from 'next/link';
-import { useState } from 'react';
-import { Loader2, AlertTriangle, Building, BarChart2, Gamepad2, TestTube, Zap, Database } from 'lucide-react';
+import React, { useState } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
+import { useRouter } from 'next/navigation';
 import { createTestGame, finishAllTestGames } from '@/app/games/actions';
 import { seedDatabase } from '@/app/admin/seeder/actions';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Loader2, AlertTriangle, Building, BarChart2, Gamepad2, TestTube, Zap, Database } from 'lucide-react';
+import Link from 'next/link';
 import { useToast } from '@/hooks/use-toast';
 import {
   AlertDialog,
@@ -20,7 +21,6 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { useRouter } from 'next/navigation';
 
 
 export default function DashboardPage() {

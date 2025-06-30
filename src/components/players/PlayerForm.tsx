@@ -16,7 +16,7 @@ import { Input } from "@/components/ui/input";
 import type { Player, PlayerFormData } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { createPlayer, updatePlayer } from "@/app/players/actions";
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth } from '@/contexts/AuthContext';
 import { Loader2 } from "lucide-react";
 import React from 'react';
 

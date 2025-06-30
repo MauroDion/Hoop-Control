@@ -3,7 +3,7 @@
 import { TeamForm } from "@/components/teams/TeamForm";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Users, Loader2, AlertTriangle, ChevronLeft } from "lucide-react";
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth } from '@/contexts/AuthContext';
 import { useParams, useRouter } from "next/navigation";
 import React, { useEffect, useState } from "react";
 import type { GameFormat, CompetitionCategory, UserFirestoreProfile, Club } from "@/types";

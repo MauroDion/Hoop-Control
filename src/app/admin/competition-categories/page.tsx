@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, useCallback } from 'react';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 import { getUserProfileById } from '@/app/users/actions';
 import { getCompetitionCategories, deleteCompetitionCategory } from '@/app/competition-categories/actions';

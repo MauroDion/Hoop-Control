@@ -11,7 +11,7 @@ import type { GameFormData, Team, GameFormat, CompetitionCategory, Season, UserF
 import { useRouter } from "next/navigation";
 import { useToast } from "@/hooks/use-toast";
 import { createGame } from "@/app/games/actions";
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth } from '@/contexts/AuthContext';
 import { Loader2 } from "lucide-react";
 import React, { useMemo, useEffect } from 'react';
 

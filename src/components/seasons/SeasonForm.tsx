@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import type { Season, SeasonFormData, Team, CompetitionCategory } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { createSeason, updateSeason } from "@/app/seasons/actions";
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth } from '@/contexts/AuthContext';
 import { Loader2, Trash2, PlusCircle } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";

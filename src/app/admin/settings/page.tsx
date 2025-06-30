@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 import { getUserProfileById } from '@/app/users/actions';
 import { saveBrandingSettings, getBrandingSettings } from './actions';
@@ -86,14 +86,14 @@ export default function SettingsPage() {
     
     const [pageState, setPageState] = useState<'loading' | 'error' | 'success'>('loading');
     const [error, setError] = useState<string | null>(null);
-    
-    const [settings, setSettings] = useState<BrandingSettings>({});
     const [isSavingAppName, setIsSavingAppName] = useState(false);
+
+    const [settings, setSettings] = useState<BrandingSettings>({});
 
     const loadSettings = useCallback(async () => {
         try {
-            const fetchedSettings = await getBrandingSettings();
-            setSettings(fetchedSettings);
+            const settings = await getBrandingSettings();
+            setSettings(settings);
         } catch (err: any) {
             toast({ variant: 'destructive', title: 'Error', description: 'No se pudieron cargar los ajustes actuales.' });
         }
@@ -120,13 +120,12 @@ export default function SettingsPage() {
         });
 
     }, [user, authLoading, router, loadSettings]);
-    
+
     const handleSaveSetting = async (setting: Partial<BrandingSettings>) => {
         const result = await saveBrandingSettings(setting);
         if (result.success) {
             toast({ title: 'Ajustes guardados', description: 'La configuración de la marca ha sido actualizada.' });
             await loadSettings();
-            // Force a full reload to make sure the new branding is applied everywhere (e.g., header)
             window.location.reload();
         } else {
             toast({ variant: 'destructive', title: 'Error al guardar', description: result.error });

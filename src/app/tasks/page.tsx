@@ -7,8 +7,8 @@ import { TasksList } from "@/components/tasks/TasksList";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { PlusCircle, Loader2, AlertTriangle } from "lucide-react";
-import { useAuth } from '@/hooks/useAuth';
-import { useRouter } from 'next/navigation'; // Use next/navigation for App Router
+import { useAuth } from '@/contexts/AuthContext';
+import { useRouter } from 'next/navigation';
 
 
 export default function TasksPage() {
@@ -19,7 +19,6 @@ export default function TasksPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Client-side guard: If auth is resolved and there is no user, redirect.
     if (!authLoading && !user) {
       router.replace('/login?redirect=/tasks');
       return;
@@ -29,7 +28,7 @@ export default function TasksPage() {
        async function fetchTasks() {
         try {
           setLoading(true);
-          const fetchedTasks = await getTasks(user.uid); // Pass user.uid to fetch tasks for this user
+          const fetchedTasks = await getTasks(user.uid);
           setTasks(fetchedTasks);
         } catch (e: any) {
           console.error("Failed to fetch tasks:", e);
@@ -42,7 +41,6 @@ export default function TasksPage() {
     }
   }, [user, authLoading, router]);
 
-  // Show a loader while authentication is in progress or if there's no user yet (and we are about to redirect).
   if (authLoading || !user) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)] text-center p-6">
@@ -53,7 +51,6 @@ export default function TasksPage() {
     );
   }
 
-  // If we are still loading the tasks data for an authenticated user.
   if (loading) {
      return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)] text-center p-6">
