@@ -276,42 +276,34 @@ export async function createTestGame(userId: string): Promise<{ success: boolean
         const seasonId = seasonDoc.id;
         const season = seasonDoc.data() as Season;
 
-        // Find a competition with at least two teams that have at least 5 players each
-        let suitableCompetition: Season['competitions'][0] | undefined;
-        let eligibleTeamIds: string[] = [];
-
-        for (const comp of season.competitions) {
-            if (!comp.teamIds || comp.teamIds.length < 2) continue;
-
-            const playersSnapshot = await adminDb.collection('players').where('teamId', 'in', comp.teamIds).get();
-            const playersByTeam = new Map<string, Player[]>();
-            playersSnapshot.forEach(doc => {
-                const player = doc.data() as Player;
-                if (player.teamId) {
-                    if (!playersByTeam.has(player.teamId)) playersByTeam.set(player.teamId, []);
-                    playersByTeam.get(player.teamId)!.push(player);
-                }
-            });
-
-            const teamsWithEnoughPlayers = comp.teamIds.filter(teamId => (playersByTeam.get(teamId)?.length || 0) >= 5);
-            
-            if (teamsWithEnoughPlayers.length >= 2) {
-                suitableCompetition = comp;
-                eligibleTeamIds = teamsWithEnoughPlayers;
-                break;
+        const allTeamIdsInSeason = Array.from(new Set(season.competitions.flatMap(c => c.teamIds || [])));
+        if (allTeamIdsInSeason.length < 2) {
+            return { success: false, error: "Not enough teams in the active season to create a match." };
+        }
+        
+        const playersSnapshot = await adminDb.collection('players').where('teamId', 'in', allTeamIdsInSeason).get();
+        const playersByTeam = new Map<string, Player[]>();
+        playersSnapshot.forEach(doc => {
+            const player = doc.data() as Player;
+            if (player.teamId) {
+                if (!playersByTeam.has(player.teamId)) playersByTeam.set(player.teamId, []);
+                playersByTeam.get(player.teamId)!.push(player);
             }
-        }
-        
-        if (!suitableCompetition || eligibleTeamIds.length < 2) {
-            return { success: false, error: "Could not find at least two teams with 5 or more players in any active competition." };
-        }
+        });
+        const allEligibleTeamIds = allTeamIdsInSeason.filter(teamId => (playersByTeam.get(teamId)?.length || 0) >= 5);
 
-        const homeTeamIndex = Math.floor(Math.random() * eligibleTeamIds.length);
-        let awayTeamIndex = Math.floor(Math.random() * (eligibleTeamIds.length - 1));
-        if (awayTeamIndex >= homeTeamIndex) awayTeamIndex++;
+        const valenciaTeamIds = allEligibleTeamIds.filter(id => id.startsWith('vbc-'));
+        if (valenciaTeamIds.length === 0) {
+            return { success: false, error: "No eligible Valencia teams (with >= 5 players) found in the active season." };
+        }
         
-        const homeTeamId = eligibleTeamIds[homeTeamIndex];
-        const awayTeamId = eligibleTeamIds[awayTeamIndex];
+        const homeTeamId = valenciaTeamIds[Math.floor(Math.random() * valenciaTeamIds.length)];
+
+        const opponentTeamIds = allEligibleTeamIds.filter(id => !id.startsWith('vbc-'));
+        if (opponentTeamIds.length === 0) {
+            return { success: false, error: "Found an eligible Valencia team, but no eligible opponent teams (with >= 5 players) to play against." };
+        }
+        const awayTeamId = opponentTeamIds[Math.floor(Math.random() * opponentTeamIds.length)];
 
         const [homeTeamSnap, awayTeamSnap, homePlayers, awayPlayers] = await Promise.all([
             adminDb.collection('teams').doc(homeTeamId).get(),
@@ -327,7 +319,12 @@ export async function createTestGame(userId: string): Promise<{ success: boolean
         const homeTeamData = homeTeamSnap.data() as Team;
         const awayTeamData = awayTeamSnap.data() as Team;
 
-        const competitionCategorySnap = await adminDb.collection('competitionCategories').doc(suitableCompetition.competitionCategoryId).get();
+        const competitionCategoryId = homeTeamData.competitionCategoryId;
+        if (!competitionCategoryId) {
+             return { success: false, error: "Selected Valencia team does not have a competition category assigned." };
+        }
+
+        const competitionCategorySnap = await adminDb.collection('competitionCategories').doc(competitionCategoryId).get();
         const gameFormatId = competitionCategorySnap.data()?.gameFormatId || null;
         
         const homeTeamPlayerIds = homePlayers.map(p => p.id);
@@ -349,7 +346,7 @@ export async function createTestGame(userId: string): Promise<{ success: boolean
             homeTeamId, homeTeamClubId: homeTeamData.clubId, homeTeamName: homeTeamData.name, homeTeamLogoUrl: homeTeamData.logoUrl || null,
             awayTeamId, awayTeamClubId: awayTeamData.clubId, awayTeamName: awayTeamData.name, awayTeamLogoUrl: awayTeamData.logoUrl || null,
             date: gameDateTime.toISOString(), location: 'Pista de Pruebas', status: 'scheduled',
-            seasonId, competitionCategoryId: suitableCompetition.competitionCategoryId, gameFormatId,
+            seasonId, competitionCategoryId, gameFormatId,
             createdBy: userId, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
             homeTeamScore: 0, awayTeamScore: 0, homeTeamStats: initialTeamStats, awayTeamStats: initialTeamStats, playerStats,
             currentPeriod: 1, isTimerRunning: false, periodTimeRemainingSeconds: 0, timerStartedAt: null,
@@ -644,14 +641,18 @@ export async function substitutePlayer(
 
         const gameData = gameDoc.data() as Game;
         const profile = await getUserProfileById(userId);
+        if (!profile) throw new Error("User profile not found.");
 
-        const isSuperAdmin = profile?.profileTypeId === 'super_admin';
-        const isClubAdmin = profile?.profileTypeId === 'club_admin' && profile.clubId === (teamType === 'home' ? gameData.homeTeamClubId : gameData.awayTeamClubId);
-        const isCoordinator = profile?.profileTypeId === 'coordinator' && profile.clubId === (teamType === 'home' ? gameData.homeTeamClubId : gameData.awayTeamClubId);
-        const coachTeams = await getCoachTeams(userId);
-        const isCoach = coachTeams.some(t => t.id === (teamType === 'home' ? gameData.homeTeamId : gameData.awayTeamId));
+        const isSuperAdmin = profile.profileTypeId === 'super_admin';
+        const isClubAdmin = ['club_admin', 'coordinator'].includes(profile.profileTypeId) && profile.clubId === (teamType === 'home' ? gameData.homeTeamClubId : gameData.awayTeamClubId);
+        
+        let isCoach = false;
+        if(profile.profileTypeId === 'coach') {
+            const coachTeams = await getCoachTeams(userId);
+            isCoach = coachTeams.some(t => t.id === (teamType === 'home' ? gameData.homeTeamId : gameData.awayTeamId));
+        }
 
-        if (!isSuperAdmin && !isClubAdmin && !isCoordinator && !isCoach) {
+        if (!isSuperAdmin && !isClubAdmin && !isCoach) {
             throw new Error("No tienes permiso para realizar sustituciones en este equipo.");
         }
 
@@ -694,51 +695,4 @@ export async function substitutePlayer(
     console.error("Error substituting player:", error);
     return { success: false, error: error.message };
   }
-}
-
-export async function getPlayerStatsForGame(gameId: string): Promise<{ [playerId: string]: PlayerGameStats }> {
-    if (!adminDb) return {};
-    const eventsRef = adminDb.collection('games').doc(gameId).collection('events');
-    const snapshot = await eventsRef.orderBy('createdAt', 'asc').get();
-
-    const playerStats: { [playerId: string]: PlayerGameStats } = {};
-
-    snapshot.docs.forEach(doc => {
-        const event = doc.data() as GameEvent;
-        const { playerId, playerName, action } = event;
-
-        if (playerId === 'SYSTEM') return;
-
-        if (!playerStats[playerId]) {
-            playerStats[playerId] = {
-                playerId, playerName, timePlayedSeconds: 0, periodsPlayed: 0, periodsPlayedSet: [],
-                points: 0, shots_made_1p: 0, shots_attempted_1p: 0, shots_made_2p: 0,
-                shots_attempted_2p: 0, shots_made_3p: 0, shots_attempted_3p: 0,
-                reb_def: 0, reb_off: 0, assists: 0, steals: 0, blocks: 0, turnovers: 0,
-                fouls: 0, blocks_against: 0, fouls_received: 0, pir: 0
-            };
-        }
-
-        const stats = playerStats[playerId];
-        
-        switch (action) {
-            case 'shot_made_1p': stats.shots_made_1p++; stats.shots_attempted_1p++; stats.points += 1; stats.pir += 1; break;
-            case 'shot_miss_1p': stats.shots_attempted_1p++; stats.pir -= 1; break;
-            case 'shot_made_2p': stats.shots_made_2p++; stats.shots_attempted_2p++; stats.points += 2; stats.pir += 2; break;
-            case 'shot_miss_2p': stats.shots_attempted_2p++; stats.pir -= 1; break;
-            case 'shot_made_3p': stats.shots_made_3p++; stats.shots_attempted_3p++; stats.points += 3; stats.pir += 3; break;
-            case 'shot_miss_3p': stats.shots_attempted_3p++; stats.pir -= 1; break;
-            case 'rebound_defensive': stats.reb_def++; stats.pir++; break;
-            case 'rebound_offensive': stats.reb_off++; stats.pir++; break;
-            case 'assist': stats.assists++; stats.pir++; break;
-            case 'steal': stats.steals++; stats.pir++; break;
-            case 'block': stats.blocks++; stats.pir++; break;
-            case 'turnover': stats.turnovers++; stats.pir--; break;
-            case 'foul': stats.fouls++; stats.pir--; break;
-            case 'block_against': stats.blocks_against++; stats.pir--; break;
-            case 'foul_received': stats.fouls_received++; stats.pir++; break;
-        }
-    });
-
-    return playerStats;
 }
