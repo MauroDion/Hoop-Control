@@ -3,6 +3,7 @@
 
 import { adminDb } from '@/lib/firebase/admin';
 import admin from 'firebase-admin';
+import { Game, Player, Season, Team, TeamStats, UserFirestoreProfile } from '@/types';
 
 // Helper function to delete all documents in a collection
 async function deleteCollection(collectionPath: string, batchSize: number = 100) {
@@ -131,97 +132,63 @@ export async function seedDatabase(): Promise<{ success: boolean; error?: string
         ];
         clubs.forEach(club => batch.set(adminDb.collection('clubs').doc(club.id), {...club, approved: true, createdAt: serverTimestamp}));
 
-        const allTeamsData = [];
+        const allTeamsData: Team[] = [];
 
         // --- 4. Users, Teams, Players ---
         let userCounter = 1;
         for (const club of clubs) {
-            // Create 1 Coordinator per Club
             const coordName = `${getRandomItem(firstNamesMasculine)} ${getRandomItem(lastNames)}`;
             const coordId = `user-coord-${userCounter}`;
-            const coordinator = {
-                uid: coordId,
-                displayName: coordName,
-                email: `${coordName.toLowerCase().replace(/\s/g, '.')}@example.com`,
-                profileTypeId: 'coordinator',
-                clubId: club.id,
-                status: 'approved',
-                isSeeded: true,
-                onboardingCompleted: true,
-                createdAt: serverTimestamp,
-                updatedAt: serverTimestamp,
+            const coordinator: Omit<UserFirestoreProfile, 'createdAt' | 'updatedAt'> = {
+                uid: coordId, displayName: coordName, email: `${coordName.toLowerCase().replace(/\s/g, '.')}@example.com`,
+                profileTypeId: 'coordinator', clubId: club.id, status: 'approved', isSeeded: true, onboardingCompleted: true,
             };
-            batch.set(adminDb.collection('user_profiles').doc(coordId), coordinator);
+            batch.set(adminDb.collection('user_profiles').doc(coordId), {...coordinator, createdAt: serverTimestamp, updatedAt: serverTimestamp });
             userCounter++;
             
             for(const category of categories) {
-                 // Create 1-2 Coaches per Team
-                const coachIds = [];
-                const numCoaches = 1 + Math.floor(Math.random() * 2); // 1 or 2
-                 for (let i = 0; i < numCoaches; i++) {
+                const coachIds: string[] = [];
+                for (let i = 0; i < 2; i++) {
                     const coachName = `${getRandomItem(firstNamesFeminine)} ${getRandomItem(lastNames)}`;
                     const coachId = `user-coach-${userCounter}`;
                     coachIds.push(coachId);
-                    const coach = {
-                        uid: coachId,
-                        displayName: coachName,
-                        email: `${coachName.toLowerCase().replace(/\s/g, '.')}@example.com`,
-                        profileTypeId: 'coach',
-                        clubId: club.id,
-                        status: 'approved',
-                        isSeeded: true,
-                        onboardingCompleted: true,
-                        createdAt: serverTimestamp,
-                        updatedAt: serverTimestamp,
+                    const coach: Omit<UserFirestoreProfile, 'createdAt' | 'updatedAt'> = {
+                        uid: coachId, displayName: coachName, email: `${coachName.toLowerCase().replace(/\s/g, '.')}@example.com`,
+                        profileTypeId: 'coach', clubId: club.id, status: 'approved', isSeeded: true, onboardingCompleted: true,
                     };
-                    batch.set(adminDb.collection('user_profiles').doc(coachId), coach);
+                    batch.set(adminDb.collection('user_profiles').doc(coachId), {...coach, createdAt: serverTimestamp, updatedAt: serverTimestamp});
                     userCounter++;
                  }
 
-                // Create 1 Team per Category per Club
                 const teamId = `${club.shortName?.toLowerCase()}-${category.id}`;
-                const team = {
-                    id: teamId,
-                    name: `${club.name} ${category.name}`,
-                    clubId: club.id,
-                    competitionCategoryId: category.id,
-                    coachIds: coachIds,
-                    coordinatorIds: [coordId],
-                    createdAt: serverTimestamp,
-                    updatedAt: serverTimestamp
+                const teamDocRef = adminDb.collection('teams').doc(teamId);
+                const teamData: Partial<Team> = {
+                    id: teamId, name: `${club.name} ${category.name}`, clubId: club.id,
+                    competitionCategoryId: category.id, coachIds, coordinatorIds: [coordId],
                 };
-                batch.set(adminDb.collection('teams').doc(team.id), team);
-                allTeamsData.push(team);
+                batch.set(teamDocRef, {...teamData, createdAt: serverTimestamp, updatedAt: serverTimestamp });
+                allTeamsData.push(teamData as Team);
 
-                // Create 8-9 Players per Team
-                const numPlayers = 8 + Math.floor(Math.random() * 2);
-                for (let p = 0; p < numPlayers; p++) {
+                for (let p = 0; p < 9; p++) {
                     const playerName = generatePlayerName(category.isFeminine);
-                    const player = {
-                        ...playerName,
-                        jerseyNumber: 4 + p,
-                        position: ['Base', 'Escolta', 'Alero', 'Ala-Pívot', 'Pívot'][p % 5],
-                        teamId: team.id,
-                        createdAt: serverTimestamp
+                    const player: Partial<Player> = {
+                        ...playerName, jerseyNumber: 4 + p, teamId: teamId,
                     };
-                    batch.set(adminDb.collection('players').doc(), player);
+                    batch.set(adminDb.collection('players').doc(), {...player, createdAt: serverTimestamp});
                 }
             }
         }
 
         // --- 5. Season ---
         const activeSeasonId = 'season-24-25';
-        const season2425 = {
-            name: 'Temporada 2024-2025',
-            status: 'active',
-            competitions: categories.map(category => {
-                return {
-                    competitionCategoryId: category.id,
-                    teamIds: allTeamsData.filter(t => t.competitionCategoryId === category.id).map(t => t.id)
-                }
-            })
+        const season2425: Partial<Season> = {
+            name: 'Temporada 2024-2025', status: 'active',
+            competitions: categories.map(category => ({
+                competitionCategoryId: category.id,
+                teamIds: allTeamsData.filter(t => t.competitionCategoryId === category.id).map(t => t.id)
+            }))
         };
-        batch.set(adminDb.collection('seasons').doc(activeSeasonId), season2425);
+        batch.set(adminDb.collection('seasons').doc(activeSeasonId), {...season2425, createdAt: serverTimestamp, updatedAt: serverTimestamp});
         
          // --- 6. Completed Games ---
         console.log('Creando partidos de ejemplo...');
@@ -240,22 +207,22 @@ export async function seedDatabase(): Promise<{ success: boolean; error?: string
                     const homeTeamScore = Math.floor(Math.random() * 40) + 50;
                     const awayTeamScore = Math.floor(Math.random() * 40) + 50;
 
-                    const initialStats = {
+                    const initialStats: Omit<TeamStats, 'foulsReceived'> = {
                         onePointAttempts: 10, onePointMade: 8, twoPointAttempts: 20, twoPointMade: 10,
                         threePointAttempts: 15, threePointMade: 5, fouls: Math.floor(Math.random() * 10) + 5,
                         timeouts: Math.floor(Math.random() * 4), reboundsOffensive: Math.floor(Math.random() * 10) + 5,
                         reboundsDefensive: Math.floor(Math.random() * 20) + 10, assists: Math.floor(Math.random() * 15) + 5,
                         steals: Math.floor(Math.random() * 10), blocks: Math.floor(Math.random() * 5),
-                        turnovers: Math.floor(Math.random() * 10) + 5, blocksAgainst: 0, foulsReceived: 0,
+                        turnovers: Math.floor(Math.random() * 10) + 5, blocksAgainst: 0,
                     };
 
                     const gameData = {
-                        homeTeamId: homeTeam.id, homeTeamClubId: homeTeam.clubId, homeTeamName: homeTeam.name, homeTeamLogoUrl: null,
-                        awayTeamId: awayTeam.id, awayTeamClubId: awayTeam.clubId, awayTeamName: awayTeam.name, awayTeamLogoUrl: null,
+                        homeTeamId: homeTeam.id, homeTeamClubId: homeTeam.clubId, homeTeamName: homeTeam.name,
+                        awayTeamId: awayTeam.id, awayTeamClubId: awayTeam.clubId, awayTeamName: awayTeam.name,
                         date: admin.firestore.Timestamp.fromDate(gameDate), location: `${homeTeam.clubId.split('-')[1]} Arena`,
                         status: 'completed', seasonId: activeSeasonId, competitionCategoryId: category.id, gameFormatId: category.gameFormatId,
                         homeTeamScore, awayTeamScore, homeTeamStats: initialStats, awayTeamStats: { ...initialStats },
-                        currentPeriod: gameFormat5v5.numPeriods, isTimerRunning: false, periodTimeRemainingSeconds: 0, timerStartedAt: null,
+                        currentPeriod: gameFormat5v5.numPeriods, isTimerRunning: false, periodTimeRemainingSeconds: 0,
                         createdBy: 'system-seeder', createdAt: serverTimestamp, updatedAt: serverTimestamp,
                     };
                     const gameRef = adminDb.collection('games').doc();
