@@ -582,7 +582,6 @@ export async function recordGameEvent(
             const profile = await getUserProfileById(userId);
             const isSuperAdmin = profile?.profileTypeId === 'super_admin';
 
-            // Permission check
             const assignments = gameData.scorerAssignments || {};
             const { action } = eventData;
             let requiredCategory: StatCategory | null = null;
@@ -591,7 +590,7 @@ export async function recordGameEvent(
             else if (['rebound_defensive', 'rebound_offensive', 'assist', 'steal', 'block', 'turnover', 'block_against'].includes(action)) requiredCategory = 'turnovers';
             
             if (requiredCategory && assignments[requiredCategory]?.uid !== userId && !isSuperAdmin) {
-                 throw new Error(`You are not assigned to score "${requiredCategory}".`);
+                 throw new Error(`No tienes permiso para anotar "${requiredCategory}".`);
             }
 
             const newEvent: Omit<GameEvent, 'id'> = {
