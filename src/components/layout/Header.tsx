@@ -22,7 +22,8 @@ import {
     Menu
 } from 'lucide-react';
 import { useEffect, useState } from 'react'; 
-import type { BrandingSettings } from '@/types';
+import Image from 'next/image';
+import { UserNav } from './UserNav';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -31,8 +32,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import Image from 'next/image';
-import { UserNav } from './UserNav';
 import {
   Sheet,
   SheetContent,
@@ -63,6 +62,9 @@ export default function Header() {
         <nav className="hidden md:flex items-center space-x-6 text-sm font-medium">
           {!loading && user && (
             <>
+              <Link href="/dashboard" className="transition-colors hover:text-primary flex items-center">
+                  <LayoutDashboard className="mr-2 h-4 w-4" /> Panel
+              </Link>
               <Link href="/games" className="transition-colors hover:text-primary flex items-center">
                 <CalendarClock className="mr-2 h-4 w-4" /> Partidos
               </Link>
@@ -88,13 +90,13 @@ export default function Header() {
                     <DropdownMenuLabel>Gestión</DropdownMenuLabel>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem asChild><Link href="/admin/user-management" className="flex items-center w-full cursor-pointer"><UserCog className="mr-2 h-4 w-4" /><span>Usuarios</span></Link></DropdownMenuItem>
-                    <DropdownMenuItem asChild><Link href="/clubs" className="flex items-center w-full cursor-pointer"><Building className="mr-2 h-4 w-4" /><span>Clubs</span></Link></DropdownMenuItem>
+                     <DropdownMenuItem asChild><Link href="/clubs" className="flex items-center w-full cursor-pointer"><Building className="mr-2 h-4 w-4" /><span>Clubs</span></Link></DropdownMenuItem>
                     <DropdownMenuItem asChild><Link href="/seasons" className="flex items-center w-full cursor-pointer"><CalendarCheck className="mr-2 h-4 w-4" /><span>Temporadas</span></Link></DropdownMenuItem>
-                    <DropdownMenuItem asChild><Link href="/admin/competition-categories" className="flex items-center w-full cursor-pointer"><Tag className="mr-2 h-4 w-4" /><span>Categorías</span></Link></DropdownMenuItem>
-                    <DropdownMenuItem asChild><Link href="/admin/game-formats" className="flex items-center w-full cursor-pointer"><ListOrdered className="mr-2 h-4 w-4" /><span>Formatos de Partido</span></Link></DropdownMenuItem>
+                     <DropdownMenuItem asChild><Link href="/admin/competition-categories" className="flex items-center w-full cursor-pointer"><Tag className="mr-2 h-4 w-4" /><span>Categorías</span></Link></DropdownMenuItem>
+                     <DropdownMenuItem asChild><Link href="/admin/game-formats" className="flex items-center w-full cursor-pointer"><ListOrdered className="mr-2 h-4 w-4" /><span>Formatos de Partido</span></Link></DropdownMenuItem>
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem asChild><Link href="/admin/settings" className="flex items-center w-full cursor-pointer"><SettingsIcon className="mr-2 h-4 w-4" /><span>Ajustes de Marca</span></Link></DropdownMenuItem>
-                    <DropdownMenuItem asChild><Link href="/admin/seeder" className="flex items-center w-full cursor-pointer"><Database className="mr-2 h-4 w-4" /><span>Poblar Datos (Dev)</span></Link></DropdownMenuItem>
+                     <DropdownMenuItem asChild><Link href="/admin/settings" className="flex items-center w-full cursor-pointer"><SettingsIcon className="mr-2 h-4 w-4" /><span>Ajustes de Marca</span></Link></DropdownMenuItem>
+                     <DropdownMenuItem asChild><Link href="/admin/seeder" className="flex items-center w-full cursor-pointer"><Database className="mr-2 h-4 w-4" /><span>Poblar Datos (Dev)</span></Link></DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
               )}
@@ -129,6 +131,7 @@ export default function Header() {
                         )}
                     </Link>
                     <nav className="flex flex-col space-y-2">
+                        <Button variant="ghost" asChild className="justify-start"><Link href="/dashboard" onClick={() => setIsMobileMenuOpen(false)}><LayoutDashboard className="mr-2 h-4 w-4" /> Panel</Link></Button>
                         <Button variant="ghost" asChild className="justify-start"><Link href="/games" onClick={() => setIsMobileMenuOpen(false)}><CalendarClock className="mr-2 h-4 w-4" /> Partidos</Link></Button>
                         <Button variant="ghost" asChild className="justify-start"><Link href="/analysis" onClick={() => setIsMobileMenuOpen(false)}><BarChart2 className="mr-2 h-4 w-4" /> Análisis</Link></Button>
                         <Button variant="ghost" asChild className="justify-start"><Link href="/tasks" onClick={() => setIsMobileMenuOpen(false)}><ListChecks className="mr-2 h-4 w-4" /> Tareas</Link></Button>

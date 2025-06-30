@@ -20,7 +20,7 @@ export async function middleware(request: NextRequest) {
   }
 
   if (sessionCookie && isPublic(pathname)) {
-    return NextResponse.redirect(new URL('/games', request.url));
+    return NextResponse.redirect(new URL('/dashboard', request.url));
   }
 
   if (!sessionCookie && !isPublic(pathname)) {
