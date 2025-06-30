@@ -6,7 +6,19 @@ import { revalidatePath } from 'next/cache';
 import type { Game, GameFormData, Team, TeamStats, Player, GameEvent, GameEventAction, UserFirestoreProfile, StatCategory, PlayerGameStats, Season, Child } from '@/types';
 import { getTeamsByCoach as getCoachTeams } from '@/app/teams/actions';
 import { getUserProfileById } from '@/app/users/actions';
-import { getPlayersByTeamId, getPlayersFromIds } from '../players/actions';
+import { getPlayersFromIds } from '../players/actions';
+
+const initialPlayerStats: Omit<PlayerGameStats, 'playerId' | 'playerName'> = {
+    timePlayedSeconds: 0,
+    periodsPlayed: 0,
+    periodsPlayedSet: [],
+    points: 0, shots_made_1p: 0, shots_attempted_1p: 0,
+    shots_made_2p: 0, shots_attempted_2p: 0,
+    shots_made_3p: 0, shots_attempted_3p: 0,
+    reb_def: 0, reb_off: 0, assists: 0, steals: 0, blocks: 0,
+    turnovers: 0, blocks_against: 0, fouls_received: 0,
+    pir: 0, plusMinus: 0
+};
 
 
 export async function getAllGames(): Promise<Game[]> {
@@ -208,7 +220,7 @@ export async function createGame(formData: GameFormData, userId: string): Promis
 
         const gameDateTime = new Date(`${formData.date}T${formData.time}`);
         
-        const initialStats: TeamStats = {
+        const initialTeamStats: TeamStats = {
             onePointAttempts: 0, onePointMade: 0,
             twoPointAttempts: 0, twoPointMade: 0,
             threePointAttempts: 0, threePointMade: 0,
@@ -235,8 +247,8 @@ export async function createGame(formData: GameFormData, userId: string): Promis
             updatedAt: new Date().toISOString(),
             homeTeamScore: 0,
             awayTeamScore: 0,
-            homeTeamStats: initialStats,
-            awayTeamStats: initialStats,
+            homeTeamStats: initialTeamStats,
+            awayTeamStats: initialTeamStats,
             playerStats: {},
             currentPeriod: 1,
             isTimerRunning: false,
@@ -272,11 +284,11 @@ export async function createTestGame(userId: string): Promise<{ success: boolean
 
         if (seasonsSnapshot.empty) {
             console.warn("No active season found via indexed query, attempting direct fetch...");
-            const allSeasonsSnapshot = await adminDb.collection('seasons').get();
-            const activeSeasons = allSeasonsSnapshot.docs.filter(doc => doc.data().status === 'active');
+            const allSeasons = await adminDb.collection('seasons').get();
+            const activeSeasonDoc = allSeasons.docs.find(doc => doc.data().status === 'active');
             
-            if (activeSeasons.length > 0) {
-                seasonsSnapshot = { empty: false, docs: [activeSeasons[0]] } as unknown as admin.firestore.QuerySnapshot;
+            if (activeSeasonDoc) {
+                seasonsSnapshot = { docs: [activeSeasonDoc] } as any;
                 console.log("Found active season via direct fetch. Continuing.");
             } else {
                  return { success: false, error: "No active season found. Please seed the database or create an active season." };
@@ -319,8 +331,8 @@ export async function createTestGame(userId: string): Promise<{ success: boolean
         const [homeTeamSnap, awayTeamSnap, homePlayers, awayPlayers] = await Promise.all([
             adminDb.collection('teams').doc(homeTeamId).get(),
             adminDb.collection('teams').doc(awayTeamId).get(),
-            getPlayersByTeamId(homeTeamId),
-            getPlayersByTeamId(awayTeamId),
+            getPlayersFromIds(playersByTeam.get(homeTeamId)?.map(p => p.id) || []),
+            getPlayersFromIds(playersByTeam.get(awayTeamId)?.map(p => p.id) || []),
         ]);
 
         if (!homeTeamSnap.exists || !awayTeamSnap.exists) {
@@ -346,8 +358,7 @@ export async function createTestGame(userId: string): Promise<{ success: boolean
         
         const gameDateTime = new Date();
         const initialTeamStats: TeamStats = { onePointAttempts: 0, onePointMade: 0, twoPointAttempts: 0, twoPointMade: 0, threePointAttempts: 0, threePointMade: 0, fouls: 0, timeouts: 0, reboundsOffensive: 0, reboundsDefensive: 0, assists: 0, steals: 0, blocks: 0, turnovers: 0, blocksAgainst: 0, foulsReceived: 0 };
-        const initialPlayerStats: Omit<PlayerGameStats, 'playerId' | 'playerName'> = { timePlayedSeconds: 0, periodsPlayed: 0, periodsPlayedSet: [], points: 0, shots_made_1p: 0, shots_attempted_1p: 0, shots_made_2p: 0, shots_attempted_2p: 0, shots_made_3p: 0, shots_attempted_3p: 0, reb_def: 0, reb_off: 0, assists: 0, steals: 0, blocks: 0, turnovers: 0, fouls: 0, blocks_against: 0, fouls_received: 0, pir: 0, plusMinus: 0 };
-
+        
         const playerStats: { [playerId: string]: Partial<PlayerGameStats> } = {};
         [...homePlayers, ...awayPlayers].forEach(player => {
             playerStats[player.id] = { ...initialPlayerStats, playerId: player.id, playerName: `${player.firstName} ${player.lastName}` };
@@ -431,14 +442,27 @@ export async function updateGameRoster(
     try {
         const gameRef = adminDb.collection('games').doc(gameId);
         
-        const updateData = isHomeTeam 
-            ? { homeTeamPlayerIds: playerIds } 
-            : { awayTeamPlayerIds: playerIds };
+        const gameSnap = await gameRef.get();
+        if (!gameSnap.exists) throw new Error("Game not found.");
+        const gameData = gameSnap.data() as Game;
+        const existingPlayerStats = gameData.playerStats || {};
+        
+        const updates: { [key: string]: any } = {};
+        const newPlayersToFetch = playerIds.filter(pId => !existingPlayerStats[pId]);
 
-        await gameRef.update({
-            ...updateData,
-            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-        });
+        if (newPlayersToFetch.length > 0) {
+            const players = await getPlayersFromIds(newPlayersToFetch);
+            players.forEach(player => {
+                const playerName = `${player.firstName} ${player.lastName}`;
+                updates[`playerStats.${player.id}`] = { ...initialPlayerStats, playerId: player.id, playerName };
+            });
+        }
+
+        const rosterField = isHomeTeam ? 'homeTeamPlayerIds' : 'awayTeamPlayerIds';
+        updates[rosterField] = playerIds;
+        updates.updatedAt = admin.firestore.FieldValue.serverTimestamp();
+
+        await gameRef.update(updates);
         
         revalidatePath(`/games/${gameId}`);
         return { success: true };
