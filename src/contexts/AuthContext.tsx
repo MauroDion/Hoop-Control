@@ -16,7 +16,7 @@ interface AuthContextType {
   user: FirebaseUser | null;
   profile: UserFirestoreProfile | null;
   loading: boolean;
-  logout: () => Promise<void>;
+  logout: (showToast?: boolean) => Promise<void>;
   branding: BrandingSettings;
 }
 
@@ -35,16 +35,26 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const pathname = usePathname();
   const { toast } = useToast();
 
-  const handleLogout = useCallback(async () => {
-    console.log("AuthContext: Logout initiated.");
+  const handleLogout = useCallback(async (showToast = true) => {
     try {
-      await signOut(auth); // This will trigger onIdTokenChanged which does the rest.
-      toast({ title: "Sesión Cerrada" });
+      await fetch('/api/auth/session-logout', { method: 'POST' }); 
+      await signOut(auth);
+      if (showToast) {
+        toast({ title: "Sesión Cerrada" });
+      }
     } catch (error) {
        console.error("Logout failed:", error);
-       toast({ variant: 'destructive', title: 'Error al cerrar sesión' });
+       if(showToast) {
+         toast({ variant: 'destructive', title: 'Error al cerrar sesión' });
+       }
+    } finally {
+      setUser(null);
+      setProfile(null);
+      if (!isPublicPath(pathname)) {
+        router.push('/login');
+      }
     }
-  }, [toast]);
+  }, [toast, pathname, router]);
 
   useEffect(() => {
     getBrandingSettings().then(setBranding);
@@ -57,6 +67,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setUser(firebaseUser);
         
         try {
+          // Verify session with server to align client/server state
           const idToken = await firebaseUser.getIdToken();
           const response = await fetch('/api/auth/session-login', {
             method: 'POST',
@@ -68,14 +79,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
           if (response.ok) {
               const userProfile = await getUserProfileById(firebaseUser.uid);
-              if (!userProfile) { // Should not happen if session-login was ok, but as a safeguard.
-                  throw new Error("Profile inconsistent with session.");
-              }
+              if (!userProfile) throw new Error("Profile inconsistent with session.");
               setProfile(userProfile);
+              
               if (userProfile.profileTypeId === 'parent_guardian' && !userProfile.onboardingCompleted && pathname !== '/profile/my-children') {
                 router.replace('/profile/my-children');
-              } else if (pathname === '/profile/complete-registration') {
-                router.replace('/games');
+              } else if (isPublicPath(pathname) || pathname === '/profile/complete-registration') {
+                router.replace('/dashboard');
               }
           } else {
               if (responseData.reason === 'not_found') {
@@ -83,19 +93,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                       router.replace('/profile/complete-registration');
                   }
               } else {
-                  await handleLogout();
+                  await handleLogout(false);
                   router.push(`/login?status=${responseData.reason || 'login_required'}`);
                   return;
               }
           }
         } catch (error: any) {
             console.error("Error during authentication flow:", error);
-            await handleLogout();
+            await handleLogout(false);
         }
       } else {
         setUser(null);
         setProfile(null);
-        fetch('/api/auth/session-logout', { method: 'POST' }); 
         if (!isPublicPath(pathname)) {
             router.push('/login');
         }
@@ -122,10 +131,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   );
 };
 
-export const useAuthContext = () => {
+export const useAuth = () => {
   const context = useContext(AuthContext);
   if (context === undefined) {
-    throw new Error('useAuthContext must be used within an AuthProvider');
+    throw new Error('useAuth must be used within an AuthProvider');
   }
   return context;
 };

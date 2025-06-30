@@ -1,7 +1,7 @@
 
 'use server';
 
-import { adminDb } from '@/lib/firebase/admin';
+import { adminDb, adminAuth } from '@/lib/firebase/admin';
 import admin from 'firebase-admin';
 import { Game, Player, Season, Team, TeamStats, UserFirestoreProfile } from '@/types';
 
@@ -80,14 +80,13 @@ function generatePlayerName(isFeminine: boolean) {
 
 
 export async function seedDatabase(): Promise<{ success: boolean; error?: string }> {
-    if (!adminDb) {
-        return { success: false, error: 'La base de datos del admin no está inicializada.' };
+    if (!adminDb || !adminAuth) {
+        return { success: false, error: 'La base de datos del admin o la autenticación no están inicializadas.' };
     }
 
     try {
         console.log('Iniciando el proceso de borrado de datos de prueba...');
         
-        // Collections to be completely wiped out.
         const collectionsToDelete = ['gameFormats', 'competitionCategories', 'clubs', 'teams', 'players', 'seasons', 'games'];
         for (const collection of collectionsToDelete) {
             console.log(`Borrando colección: ${collection}...`);
@@ -95,11 +94,10 @@ export async function seedDatabase(): Promise<{ success: boolean; error?: string
             console.log(`Colección ${collection} borrada.`);
         }
         
-        // ** SAFEGUARD ** Only delete users marked as seeded to preserve manual users.
         console.log("Borrando solo perfiles de usuario de prueba (seeded)...");
         const seederUsersQuery = adminDb.collection('user_profiles').where('isSeeded', '==', true);
         await deleteDocumentsByQuery(seederUsersQuery);
-        console.log("Perfiles de usuario de prueba borrados. Los usuarios manuales permanecen.");
+        console.log("Perfiles de usuario de prueba borrados.");
         
         console.log('Proceso de borrado completado. Iniciando la carga de nuevos datos...');
 
@@ -132,18 +130,32 @@ export async function seedDatabase(): Promise<{ success: boolean; error?: string
         ];
         clubs.forEach(club => batch.set(adminDb.collection('clubs').doc(club.id), {...club, approved: true, createdAt: serverTimestamp}));
 
+        // --- 4. Users, Teams, Players ---
+        const superAdminUID = 'superadmin';
+        try {
+            await adminAuth.updateUser(superAdminUID, { email: 'superadmin@example.com', password: 'password', displayName: 'Super Admin', emailVerified: true });
+        } catch (error: any) {
+            if (error.code === 'auth/user-not-found') {
+                await adminAuth.createUser({ uid: superAdminUID, email: 'superadmin@example.com', password: 'password', displayName: 'Super Admin', emailVerified: true });
+            }
+        }
+        const superAdminProfile: Omit<UserFirestoreProfile, 'createdAt' | 'updatedAt'> = {
+            uid: superAdminUID, displayName: 'Super Admin', email: 'superadmin@example.com',
+            profileTypeId: 'super_admin', clubId: 'club-estudiantes', status: 'approved', isSeeded: false, onboardingCompleted: true,
+        };
+        batch.set(adminDb.collection('user_profiles').doc(superAdminUID), {...superAdminProfile, createdAt: serverTimestamp, updatedAt: serverTimestamp });
+        
+        let userCounter = 1;
         const allTeamsData: Team[] = [];
 
-        // --- 4. Users, Teams, Players ---
-        let userCounter = 1;
         for (const club of clubs) {
             const coordName = `${getRandomItem(firstNamesMasculine)} ${getRandomItem(lastNames)}`;
             const coordId = `user-coord-${userCounter}`;
-            const coordinator: Omit<UserFirestoreProfile, 'createdAt' | 'updatedAt'> = {
-                uid: coordId, displayName: coordName, email: `${coordName.toLowerCase().replace(/\s/g, '.')}@example.com`,
+            const coordinator: Omit<UserFirestoreProfile, 'createdAt' | 'updatedAt' | 'uid'> = {
+                displayName: coordName, email: `${coordName.toLowerCase().replace(/\s/g, '.')}@example.com`,
                 profileTypeId: 'coordinator', clubId: club.id, status: 'approved', isSeeded: true, onboardingCompleted: true,
             };
-            batch.set(adminDb.collection('user_profiles').doc(coordId), {...coordinator, createdAt: serverTimestamp, updatedAt: serverTimestamp });
+            batch.set(adminDb.collection('user_profiles').doc(coordId), {...coordinator, uid: coordId, createdAt: serverTimestamp, updatedAt: serverTimestamp });
             userCounter++;
             
             for(const category of categories) {
@@ -152,81 +164,28 @@ export async function seedDatabase(): Promise<{ success: boolean; error?: string
                     const coachName = `${getRandomItem(firstNamesFeminine)} ${getRandomItem(lastNames)}`;
                     const coachId = `user-coach-${userCounter}`;
                     coachIds.push(coachId);
-                    const coach: Omit<UserFirestoreProfile, 'createdAt' | 'updatedAt'> = {
-                        uid: coachId, displayName: coachName, email: `${coachName.toLowerCase().replace(/\s/g, '.')}@example.com`,
+                    const coach: Omit<UserFirestoreProfile, 'createdAt' | 'updatedAt' | 'uid'> = {
+                        displayName: coachName, email: `${coachName.toLowerCase().replace(/\s/g, '.')}@example.com`,
                         profileTypeId: 'coach', clubId: club.id, status: 'approved', isSeeded: true, onboardingCompleted: true,
                     };
-                    batch.set(adminDb.collection('user_profiles').doc(coachId), {...coach, createdAt: serverTimestamp, updatedAt: serverTimestamp});
+                    batch.set(adminDb.collection('user_profiles').doc(coachId), {...coach, uid: coachId, createdAt: serverTimestamp, updatedAt: serverTimestamp});
                     userCounter++;
                  }
 
                 const teamId = `${club.shortName?.toLowerCase()}-${category.id}`;
                 const teamDocRef = adminDb.collection('teams').doc(teamId);
-                const teamData: Partial<Team> = {
+                const teamData: any = {
                     id: teamId, name: `${club.name} ${category.name}`, clubId: club.id,
                     competitionCategoryId: category.id, coachIds, coordinatorIds: [coordId],
+                    createdAt: serverTimestamp, updatedAt: serverTimestamp
                 };
-                batch.set(teamDocRef, {...teamData, createdAt: serverTimestamp, updatedAt: serverTimestamp });
+                batch.set(teamDocRef, teamData);
                 allTeamsData.push(teamData as Team);
 
                 for (let p = 0; p < 9; p++) {
                     const playerName = generatePlayerName(category.isFeminine);
-                    const player: Partial<Player> = {
-                        ...playerName, jerseyNumber: 4 + p, teamId: teamId,
-                    };
+                    const player: Partial<Player> = { ...playerName, jerseyNumber: 4 + p, teamId: teamId };
                     batch.set(adminDb.collection('players').doc(), {...player, createdAt: serverTimestamp});
-                }
-            }
-        }
-
-        // --- 5. Season ---
-        const activeSeasonId = 'season-24-25';
-        const season2425: Partial<Season> = {
-            name: 'Temporada 2024-2025', status: 'active',
-            competitions: categories.map(category => ({
-                competitionCategoryId: category.id,
-                teamIds: allTeamsData.filter(t => t.competitionCategoryId === category.id).map(t => t.id)
-            }))
-        };
-        batch.set(adminDb.collection('seasons').doc(activeSeasonId), {...season2425, createdAt: serverTimestamp, updatedAt: serverTimestamp});
-        
-         // --- 6. Completed Games ---
-        console.log('Creando partidos de ejemplo...');
-        for (const category of categories) {
-            const teamsInCategory = allTeamsData.filter(t => t.competitionCategoryId === category.id);
-            if (teamsInCategory.length < 2) continue;
-
-            for (let i = 0; i < teamsInCategory.length; i += 2) {
-                if (i + 1 < teamsInCategory.length) {
-                    const homeTeam = teamsInCategory[i];
-                    const awayTeam = teamsInCategory[i + 1];
-
-                    const gameDate = new Date();
-                    gameDate.setDate(gameDate.getDate() - Math.floor(Math.random() * 30));
-                    
-                    const homeTeamScore = Math.floor(Math.random() * 40) + 50;
-                    const awayTeamScore = Math.floor(Math.random() * 40) + 50;
-
-                    const initialStats: Omit<TeamStats, 'foulsReceived'> = {
-                        onePointAttempts: 10, onePointMade: 8, twoPointAttempts: 20, twoPointMade: 10,
-                        threePointAttempts: 15, threePointMade: 5, fouls: Math.floor(Math.random() * 10) + 5,
-                        timeouts: Math.floor(Math.random() * 4), reboundsOffensive: Math.floor(Math.random() * 10) + 5,
-                        reboundsDefensive: Math.floor(Math.random() * 20) + 10, assists: Math.floor(Math.random() * 15) + 5,
-                        steals: Math.floor(Math.random() * 10), blocks: Math.floor(Math.random() * 5),
-                        turnovers: Math.floor(Math.random() * 10) + 5, blocksAgainst: 0,
-                    };
-
-                    const gameData = {
-                        homeTeamId: homeTeam.id, homeTeamClubId: homeTeam.clubId, homeTeamName: homeTeam.name,
-                        awayTeamId: awayTeam.id, awayTeamClubId: awayTeam.clubId, awayTeamName: awayTeam.name,
-                        date: admin.firestore.Timestamp.fromDate(gameDate), location: `${homeTeam.clubId.split('-')[1]} Arena`,
-                        status: 'completed', seasonId: activeSeasonId, competitionCategoryId: category.id, gameFormatId: category.gameFormatId,
-                        homeTeamScore, awayTeamScore, homeTeamStats: initialStats, awayTeamStats: { ...initialStats },
-                        currentPeriod: gameFormat5v5.numPeriods, isTimerRunning: false, periodTimeRemainingSeconds: 0,
-                        createdBy: 'system-seeder', createdAt: serverTimestamp, updatedAt: serverTimestamp,
-                    };
-                    const gameRef = adminDb.collection('games').doc();
-                    batch.set(gameRef, gameData);
                 }
             }
         }

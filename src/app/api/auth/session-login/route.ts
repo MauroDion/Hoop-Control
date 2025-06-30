@@ -21,8 +21,6 @@ export async function POST(request: NextRequest) {
     const userProfile = await getUserProfileById(uid);
 
     if (!userProfile) {
-      // This is a valid user (e.g. from Google Sign In) who hasn't completed their profile.
-      // Deny session cookie creation but provide a specific reason for the client to handle.
       return NextResponse.json({ 
           error: 'User profile not found.',
           reason: 'not_found'
@@ -36,7 +34,7 @@ export async function POST(request: NextRequest) {
       const options = {
         name: 'session',
         value: sessionCookie,
-        maxAge: expiresIn,
+        maxAge: expiresIn / 1000,
         httpOnly: true,
         secure: true,
         path: '/',
@@ -48,7 +46,6 @@ export async function POST(request: NextRequest) {
       return response;
 
     } else {
-      // User has a profile but is not approved (pending, rejected).
       return NextResponse.json({ 
           error: 'User account not active.',
           reason: userProfile.status
