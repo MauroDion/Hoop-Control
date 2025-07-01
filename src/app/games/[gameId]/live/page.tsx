@@ -34,21 +34,32 @@ const PlayerStatCard = ({ player, stats, onClick, userProfileType, isChild, onCo
     };
 
     const plusMinusValue = stats.plusMinus || 0;
+    const pirValue = stats.pir || 0;
 
     return (
         <Card onClick={onClick} className={`p-2 relative aspect-[3/4] flex flex-col items-center justify-center overflow-hidden transition-all duration-300 bg-card ${onClick ? "hover:shadow-xl hover:scale-105 cursor-pointer" : "cursor-default"}`}>
             <div className='absolute top-2 left-2 text-2xl font-black text-green-600'>{stats.points}</div>
-            {stats.fouls > 0 && <div className='absolute top-1/2 -translate-y-1/2 right-2 flex items-center justify-center px-2 h-7 bg-destructive border-2 border-white/70 rounded-sm shadow-lg z-20'><span className="text-yellow-300 text-xl font-extrabold" style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.5)' }}>{stats.fouls}</span></div>}
+            {stats.fouls > 0 && <div className='absolute top-2 right-2 flex items-center justify-center px-1.5 h-6 bg-destructive border-2 border-white/70 rounded-sm shadow-lg z-20'><span className="text-yellow-300 text-sm font-extrabold" style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.5)' }}>F: {stats.fouls}</span></div>}
             
             {canSeeAdvancedStats && (
-                <div className="absolute top-1/2 -translate-y-1/2 left-2 flex flex-col items-center z-20">
-                    <span className="text-[10px] font-bold text-muted-foreground -mb-1">+/-</span>
-                    <div className='flex items-center justify-center px-2 h-7 bg-green-600 border-2 border-white/70 rounded-sm shadow-lg'>
-                        <span className="text-white text-xl font-extrabold" style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.5)' }}>
-                            {plusMinusValue > 0 ? `+${plusMinusValue}` : plusMinusValue}
-                        </span>
+                <>
+                    <div className="absolute top-1/2 -translate-y-1/2 left-2 flex flex-col items-center z-20">
+                        <span className="text-[10px] font-bold text-muted-foreground -mb-1">+/-</span>
+                        <div className='flex items-center justify-center px-2 h-7 bg-green-600 border-2 border-white/70 rounded-sm shadow-lg'>
+                            <span className="text-white text-xl font-extrabold" style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.5)' }}>
+                                {plusMinusValue > 0 ? `+${plusMinusValue}` : plusMinusValue}
+                            </span>
+                        </div>
                     </div>
-                </div>
+                     <div className="absolute top-1/2 -translate-y-1/2 right-2 flex flex-col items-center z-20">
+                        <span className="text-[10px] font-bold text-muted-foreground -mb-1">PIR</span>
+                        <div className='flex items-center justify-center px-2 h-7 bg-blue-600 border-2 border-white/70 rounded-sm shadow-lg'>
+                            <span className="text-white text-xl font-extrabold" style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.5)' }}>
+                                {pirValue}
+                            </span>
+                        </div>
+                    </div>
+                </>
             )}
 
             <div className="text-8xl font-black text-destructive" style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.1)' }}>{player.jerseyNumber || 'S/N'}</div>
@@ -206,6 +217,12 @@ export default function LiveGamePage() {
             }
         };
     }, [game?.isTimerRunning, game?.timerStartedAt, game?.periodTimeRemainingSeconds]);
+
+    useEffect(() => {
+        if (game?.periodTimeRemainingSeconds !== undefined) {
+            setDisplayTime(game.periodTimeRemainingSeconds);
+        }
+    }, [game?.periodTimeRemainingSeconds]);
 
     useEffect(() => {
         if (authLoading) return;
