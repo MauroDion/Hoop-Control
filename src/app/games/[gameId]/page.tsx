@@ -112,7 +112,8 @@ export default function ManageGamePage() {
     const [savingHome, setSavingHome] = useState(false);
     const [savingAway, setSavingAway] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [canManageRoster, setCanManageRoster] = useState(false);
+    const [canManageHomeRoster, setCanManageHomeRoster] = useState(false);
+    const [canManageAwayRoster, setCanManageAwayRoster] = useState(false);
     const [canAccessLiveGame, setCanAccessLiveGame] = useState(false);
 
     const loadPageData = useCallback(async (userId: string) => {
@@ -136,7 +137,8 @@ export default function ManageGamePage() {
             const isCoachOfAwayTeam = coachTeams.some(t => t.id === gameData.awayTeamId);
 
             const isSuperAdmin = profile.profileTypeId === 'super_admin';
-            const isClubAdminForGame = (profile.profileTypeId === 'club_admin' || profile.profileTypeId === 'coordinator') && (profile.clubId === gameData.homeTeamClubId || profile.clubId === gameData.awayTeamClubId);
+            const isClubAdminForHome = (profile.profileTypeId === 'club_admin' || profile.profileTypeId === 'coordinator') && profile.clubId === gameData.homeTeamClubId;
+            const isClubAdminForAway = (profile.profileTypeId === 'club_admin' || profile.profileTypeId === 'coordinator') && profile.clubId === gameData.awayTeamClubId;
             
             let isParentOfPlayerInGame = false;
             if (profile.profileTypeId === 'parent_guardian' && profile.children && profile.children.length > 0) {
@@ -150,16 +152,15 @@ export default function ManageGamePage() {
                 }
             }
 
-            const hasPermission = isSuperAdmin || isClubAdminForGame || isCoachOfHomeTeam || isCoachOfAwayTeam || isParentOfPlayerInGame;
-            
-            if (!hasPermission) {
+            if (!isSuperAdmin && !isClubAdminForHome && !isClubAdminForAway && !isCoachOfHomeTeam && !isCoachOfAwayTeam && !isParentOfPlayerInGame) {
                 throw new Error("No tienes permiso para ver este partido.");
             }
             
             setGame(gameData);
-            setCanManageRoster(isSuperAdmin || isClubAdminForGame || isCoachOfHomeTeam || isCoachOfAwayTeam);
-            setCanAccessLiveGame(hasPermission);
-            
+            setCanAccessLiveGame(isSuperAdmin || isClubAdminForHome || isClubAdminForAway || isCoachOfHomeTeam || isCoachOfAwayTeam || isParentOfPlayerInGame);
+            setCanManageHomeRoster((isSuperAdmin || isClubAdminForHome || isCoachOfHomeTeam) && gameData.status === 'scheduled');
+            setCanManageAwayRoster((isSuperAdmin || isClubAdminForAway || isCoachOfAwayTeam) && gameData.status === 'scheduled');
+
             setHomePlayers(homeTeamPlayers);
             setAwayPlayers(awayTeamPlayers);
 
@@ -266,7 +267,6 @@ export default function ManageGamePage() {
     const homeRosterCount = selectedHomePlayers.size;
     const awayRosterCount = selectedAwayPlayers.size;
     const canStartGame = homeRosterCount >= 5 && awayRosterCount >= 5;
-    const isRosterEditable = canManageRoster && game.status === 'scheduled';
 
     return (
         <div className="space-y-8">
@@ -320,7 +320,7 @@ export default function ManageGamePage() {
                 onSelectAll={handleSelectAll}
                 onClearAll={handleClearAll}
                 isSaving={savingHome}
-                readOnly={!isRosterEditable}
+                readOnly={!canManageHomeRoster}
             />
 
             <RosterCard 
@@ -334,7 +334,7 @@ export default function ManageGamePage() {
                 onSelectAll={handleSelectAll}
                 onClearAll={handleClearAll}
                 isSaving={savingAway}
-                readOnly={!isRosterEditable}
+                readOnly={!canManageAwayRoster}
             />
         </div>
     );

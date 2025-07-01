@@ -233,9 +233,11 @@ export async function createGame(formData: GameFormData, userId: string): Promis
             homeTeamId: formData.homeTeamId,
             homeTeamClubId: homeTeamData.clubId,
             homeTeamName: homeTeamData.name,
+            homeTeamLogoUrl: homeTeamData.logoUrl || null,
             awayTeamId: formData.awayTeamId,
             awayTeamClubId: awayTeamData.clubId,
             awayTeamName: awayTeamData.name,
+            awayTeamLogoUrl: awayTeamData.logoUrl || null,
             date: gameDateTime.toISOString(),
             location: formData.location,
             status: 'scheduled',
@@ -510,25 +512,22 @@ export async function updateLiveGameState(
             const timerStartEventRef = gameRef.collection('events').doc();
             transaction.set(timerStartEventRef, { ...baseEventPayload, action: 'timer_start', period: gameData.currentPeriod || 1, gameTimeSeconds: gameData.periodTimeRemainingSeconds || 0 });
         } else if (updates.isTimerRunning === false && gameData.isTimerRunning) {
-            const startTime = gameData.timerStartedAt as unknown as admin.firestore.Timestamp;
-            const lastStartedMillis = startTime ? startTime.toMillis() : Date.now();
-            const timeElapsedSeconds = Math.round((Date.now() - lastStartedMillis) / 1000);
+            const startTime = gameData.timerStartedAt ? new Date(gameData.timerStartedAt).getTime() : Date.now();
+            const timeElapsedSeconds = Math.max(0, Math.round((Date.now() - startTime) / 1000));
+            const newRemainingTime = Math.max(0, (gameData.periodTimeRemainingSeconds || 0) - timeElapsedSeconds);
+            updateData.periodTimeRemainingSeconds = newRemainingTime;
 
-            if (isNaN(timeElapsedSeconds) || timeElapsedSeconds < 0) {
-                console.warn(`Calculated invalid timeElapsedSeconds (${timeElapsedSeconds}), skipping player time update.`);
-            } else {
-                const newRemainingTime = Math.max(0, (gameData.periodTimeRemainingSeconds || 0) - timeElapsedSeconds);
-                updateData.periodTimeRemainingSeconds = newRemainingTime;
-                
-                const onCourtIds = [...(gameData.homeTeamOnCourtPlayerIds || []), ...(gameData.awayTeamOnCourtPlayerIds || [])];
-                onCourtIds.forEach(playerId => {
+            const onCourtIds = [...(gameData.homeTeamOnCourtPlayerIds || []), ...(gameData.awayTeamOnCourtPlayerIds || [])];
+            onCourtIds.forEach(playerId => {
+                const currentStats = gameData.playerStats?.[playerId];
+                if (currentStats) {
                     updateData[`playerStats.${playerId}.timePlayedSeconds`] = admin.firestore.FieldValue.increment(timeElapsedSeconds);
-                });
-        
-                const timerPauseEventRef = gameRef.collection('events').doc();
-                transaction.set(timerPauseEventRef, { ...baseEventPayload, action: 'timer_pause', period: gameData.currentPeriod || 1, gameTimeSeconds: newRemainingTime });
-            }
-
+                }
+            });
+    
+            const timerPauseEventRef = gameRef.collection('events').doc();
+            transaction.set(timerPauseEventRef, { ...baseEventPayload, action: 'timer_pause', period: gameData.currentPeriod || 1, gameTimeSeconds: newRemainingTime });
+            
             updateData.timerStartedAt = null;
         }
         
@@ -704,16 +703,24 @@ export async function substitutePlayer(
         const profile = await getUserProfileById(userId);
         if (!profile) throw new Error("User profile not found.");
 
-        const isSuperAdmin = profile.profileTypeId === 'super_admin';
-        const isClubAdmin = ['club_admin', 'coordinator'].includes(profile.profileTypeId) && profile.clubId === (teamType === 'home' ? gameData.homeTeamClubId : gameData.awayTeamClubId);
+        let hasPermission = false;
         
-        let isCoach = false;
-        if(profile.profileTypeId === 'coach') {
+        if (profile.profileTypeId === 'super_admin') {
+            hasPermission = true;
+        } else if (['club_admin', 'coordinator'].includes(profile.profileTypeId)) {
+            const teamClubId = teamType === 'home' ? gameData.homeTeamClubId : gameData.awayTeamClubId;
+            if (profile.clubId === teamClubId) {
+                hasPermission = true;
+            }
+        } else if (profile.profileTypeId === 'coach') {
             const coachTeams = await getCoachTeams(userId);
-            isCoach = coachTeams.some(t => t.id === (teamType === 'home' ? gameData.homeTeamId : gameData.awayTeamId));
+            const teamId = teamType === 'home' ? gameData.homeTeamId : gameData.awayTeamId;
+            if (coachTeams.some(t => t.id === teamId)) {
+                hasPermission = true;
+            }
         }
-
-        if (!isSuperAdmin && !isClubAdmin && !isCoach) {
+        
+        if (!hasPermission) {
             throw new Error("No tienes permiso para realizar sustituciones en este equipo.");
         }
 
@@ -757,6 +764,3 @@ export async function substitutePlayer(
     return { success: false, error: error.message };
   }
 }
-
-
-    
