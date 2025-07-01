@@ -130,24 +130,12 @@ export async function seedDatabase(): Promise<{ success: boolean; error?: string
         ];
         clubs.forEach(club => batch.set(adminDb.collection('clubs').doc(club.id), {...club, approved: true, createdAt: serverTimestamp}));
 
-        // --- 4. Users, Teams, Players ---
-        const superAdminUID = 'superadmin';
-        try {
-            await adminAuth.updateUser(superAdminUID, { email: 'superadmin@example.com', password: 'password', displayName: 'Super Admin', emailVerified: true });
-        } catch (error: any) {
-            if (error.code === 'auth/user-not-found') {
-                await adminAuth.createUser({ uid: superAdminUID, email: 'superadmin@example.com', password: 'password', displayName: 'Super Admin', emailVerified: true });
-            }
-        }
-        const superAdminProfile: Omit<UserFirestoreProfile, 'createdAt' | 'updatedAt'> = {
-            uid: superAdminUID, displayName: 'Super Admin', email: 'superadmin@example.com',
-            profileTypeId: 'super_admin', clubId: 'club-estudiantes', status: 'approved', isSeeded: false, onboardingCompleted: true,
-        };
-        batch.set(adminDb.collection('user_profiles').doc(superAdminUID), {...superAdminProfile, createdAt: serverTimestamp, updatedAt: serverTimestamp });
-        
-        let userCounter = 1;
-        const allTeamsData: Team[] = [];
+        // --- Setup for Season Data ---
+        const seasonCompetitionsMap = new Map<string, string[]>();
+        categories.forEach(cat => seasonCompetitionsMap.set(cat.id, []));
 
+        // --- 4. Users, Teams, Players ---
+        let userCounter = 1;
         for (const club of clubs) {
             const coordName = `${getRandomItem(firstNamesMasculine)} ${getRandomItem(lastNames)}`;
             const coordId = `user-coord-${userCounter}`;
@@ -180,7 +168,9 @@ export async function seedDatabase(): Promise<{ success: boolean; error?: string
                     createdAt: serverTimestamp, updatedAt: serverTimestamp
                 };
                 batch.set(teamDocRef, teamData);
-                allTeamsData.push(teamData as Team);
+                
+                // Add team to our map for the season object
+                seasonCompetitionsMap.get(category.id)?.push(teamId);
 
                 for (let p = 0; p < 9; p++) {
                     const playerName = generatePlayerName(category.isFeminine);
@@ -189,6 +179,22 @@ export async function seedDatabase(): Promise<{ success: boolean; error?: string
                 }
             }
         }
+        
+        // --- 5. Season ---
+        const seasonCompetitions = Array.from(seasonCompetitionsMap.entries()).map(([catId, teamIds]) => ({
+            competitionCategoryId: catId,
+            teamIds: teamIds
+        }));
+
+        const season2425 = {
+            name: 'Temporada 2024-2025',
+            status: 'active',
+            competitions: seasonCompetitions,
+            createdAt: serverTimestamp,
+            updatedAt: serverTimestamp,
+        };
+        console.log("Season object to be created:", JSON.stringify(season2425, null, 2));
+        batch.set(adminDb.collection('seasons').doc('season-24-25'), season2425);
         
         await batch.commit();
 
