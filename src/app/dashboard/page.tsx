@@ -1,218 +1,258 @@
-
 "use client";
 
-import React, { useState } from 'react';
-import { useAuth } from '@/contexts/AuthContext';
-import { useRouter } from 'next/navigation';
-import { createTestGame, finishAllTestGames } from '@/app/games/actions';
-import { seedDatabase } from '@/app/admin/seeder/actions';
-import { Button } from '@/components/ui/button';
+import { useAuth } from '@/hooks/useAuth';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, AlertTriangle, Building, BarChart2, Gamepad2, TestTube, Zap, Database } from 'lucide-react';
+import { BarChart, Building, CheckSquare, Users, AlertTriangle, PlusCircle, Loader2 } from 'lucide-react';
+import Image from 'next/image';
+import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { useToast } from '@/hooks/use-toast';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
+import { useEffect, useState } from 'react';
+import { getUserProfileById } from '@/app/users/actions';
+import type { UserFirestoreProfile } from '@/types';
+import { useRouter } from 'next/navigation';
+
+// Dummy data - replace with actual data fetching
+const summaryData = {
+  activeProjects: 5,
+  completedTasks: 120,
+  teamMembers: 15,
+  alerts: 2,
+};
+
+// Placeholder for API data state
+interface ApiData {
+  keyMetric: string;
+  value: number | string;
+}
+const bcsjdApiSampleData: ApiData[] = [
+  { keyMetric: "Overall Progress", value: "75%" },
+  { keyMetric: "Budget Utilization", value: "60%" },
+];
 
 
 export default function DashboardPage() {
-  const { user, profile, loading: authLoading } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const router = useRouter();
-  const { toast } = useToast();
-  const [isCreatingTestGame, setIsCreatingTestGame] = useState(false);
-  const [isFinishingGames, setIsFinishingGames] = useState(false);
-  const [isSeeding, setIsSeeding] = useState(false);
+  const [userProfile, setUserProfile] = useState<UserFirestoreProfile | null>(null);
+  const [loadingProfile, setLoadingProfile] = useState(true);
+  const [profileError, setProfileError] = useState<string | null>(null);
 
-  const canCreateTestGame = profile && ['super_admin', 'club_admin', 'coordinator', 'coach'].includes(profile.profileTypeId);
-  const canManageClubs = profile && ['super_admin', 'club_admin', 'coordinator'].includes(profile.profileTypeId);
-
-  const handleCreateTestGame = async () => {
-    if (!user) return;
-    setIsCreatingTestGame(true);
-    const result = await createTestGame(user.uid);
-    if(result.success) {
-        toast({ title: 'Partido de Prueba Creado', description: `El partido con ID ${result.gameId} ha sido creado.`});
-    } else {
-        toast({ variant: 'destructive', title: 'Error', description: result.error });
+  useEffect(() => {
+    // The middleware is now responsible for ensuring only authenticated users reach this page.
+    // So, we expect the `user` object to be available shortly after `authLoading` is false.
+    if (user) {
+      console.log(`Dashboard: User authenticated. Fetching profile for UID: ${user.uid}`);
+      setLoadingProfile(true);
+      setProfileError(null);
+      getUserProfileById(user.uid)
+        .then(profile => {
+          if (profile) {
+            console.log("Dashboard: Successfully fetched profile data:", profile);
+            setUserProfile(profile);
+          } else {
+            console.error("Dashboard: getUserProfileById returned null. This means no profile document was found for the UID in 'user_profiles' collection or there was a permission issue.");
+            setProfileError("Your user profile could not be found in the database. This might be a permission issue. Please contact an administrator.");
+            setUserProfile(null);
+          }
+        })
+        .catch(err => {
+          console.error("Dashboard: An error occurred while fetching user profile:", err);
+          setProfileError("An error occurred while loading your profile. Please try again later.");
+          setUserProfile(null);
+        })
+        .finally(() => {
+          console.log("Dashboard: Finished fetching profile.");
+          setLoadingProfile(false);
+        });
+    } else if (!authLoading && !user) {
+      // This is a failsafe. If for any reason an unauthenticated user gets here
+      // (e.g., session expires while on page), redirect them.
+      console.warn("Dashboard: Failsafe triggered. Unauthenticated user detected. Redirecting to login.");
+      router.replace('/login');
     }
-    setIsCreatingTestGame(false);
-  };
+  }, [user, authLoading, router]);
 
-  const handleFinishTestGames = async () => {
-    if (!user) return;
-    setIsFinishingGames(true);
-    const result = await finishAllTestGames(user.uid);
-     if(result.success) {
-        toast({ title: 'Partidos de Prueba Finalizados', description: `${result.count} partidos han sido marcados como completados.`});
-    } else {
-        toast({ variant: 'destructive', title: 'Error', description: result.error });
-    }
-    setIsFinishingGames(false);
-  }
-
-  const handleSeedDatabase = async () => {
-    setIsSeeding(true);
-    const result = await seedDatabase();
-    if (result.success) {
-      toast({
-        title: '¡Base de Datos Poblada!',
-        description: 'Los datos de prueba se han cargado. La página se recargará.',
-        duration: 5000,
-      });
-      setTimeout(() => window.location.reload(), 2000);
-    } else {
-      toast({
-        variant: 'destructive',
-        title: 'Error al Poblar la Base de Datos',
-        description: result.error,
-      });
-    }
-    setIsSeeding(false);
-  };
-  
-  if (authLoading) {
+  // A single, reliable loading state. Middleware ensures we don't need an "unauthenticated" UI here.
+  // We wait for auth to be confirmed (`!authLoading && user`) before proceeding to render the dashboard.
+  if (authLoading || !user) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)]">
         <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-        <h1 className="text-2xl font-headline font-semibold">Cargando...</h1>
-        <p className="text-muted-foreground">Por favor, espera.</p>
+        <h1 className="text-2xl font-headline font-semibold">Verifying Session...</h1>
+        <p className="text-muted-foreground">Please wait.</p>
       </div>
     );
   }
-  
-  if (!user || !profile) {
-      return (
-            <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)]">
-                <AlertTriangle className="h-12 w-12 text-destructive mb-4" />
-                <h1 className="text-2xl font-headline font-semibold text-destructive">Error de Autenticación</h1>
-                <p className="text-muted-foreground mb-4">No se pudo cargar el perfil de usuario. Intenta iniciar sesión de nuevo.</p>
-                <Button asChild><Link href="/login">Ir a Iniciar Sesión</Link></Button>
-            </div>
-      )
-  }
 
+  const renderClubManagement = () => {
+    if (loadingProfile) {
+      return (
+        <div className="flex items-center">
+          <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+          <span>Loading user information...</span>
+        </div>
+      );
+    }
+
+    if (profileError) {
+      return (
+        <div className="flex items-center text-destructive p-4 bg-destructive/10 rounded-md">
+          <AlertTriangle className="mr-3 h-5 w-5 flex-shrink-0" />
+          <span>{profileError}</span>
+        </div>
+      );
+    }
+    
+    if (userProfile?.profileTypeId === 'super_admin') {
+      return (
+        <>
+          <p className="text-sm text-muted-foreground">
+            As a Super Admin, you have full control over clubs and teams.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-2 pt-2">
+            <Button asChild>
+              <Link href={`/clubs/new`}>
+                <PlusCircle className="mr-2 h-5 w-5" /> Create New Club
+              </Link>
+            </Button>
+            <Button asChild variant="outline">
+              <Link href={`/clubs`}>
+                <Building className="mr-2 h-5 w-5" /> Manage Clubs
+              </Link>
+            </Button>
+          </div>
+        </>
+      );
+    }
+    
+    if (userProfile?.clubId) {
+       return (
+        <>
+          <p className="text-sm text-muted-foreground">
+            You are associated with club <code className="font-mono bg-muted px-1 py-0.5 rounded">{userProfile.clubId}</code>.
+            You can create a new team for your club now.
+          </p>
+          <Button asChild>
+            <Link href={`/clubs/${userProfile.clubId}/teams/new`}>
+              <PlusCircle className="mr-2 h-5 w-5" /> Create New Team
+            </Link>
+          </Button>
+        </>
+      );
+    }
+
+    // Fallback for non-super-admin users without a clubId, or if profile is somehow empty but not errored.
+    return (
+      <div className="flex items-center text-muted-foreground">
+        <AlertTriangle className="mr-2 h-5 w-5 text-yellow-500" />
+        <span>Your profile is not associated with a club. Team creation is disabled.</span>
+      </div>
+    );
+  };
+  
+  // From here on, we can safely assume `user` exists.
   return (
     <div className="space-y-8">
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-4xl font-headline font-bold text-primary">¡Bienvenido, {user.displayName || user.email}!</CardTitle>
-          <CardDescription className="text-lg">Este es tu panel central de Hoop Control.</CardDescription>
-        </CardHeader>
-      </Card>
-      
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 p-6 bg-card rounded-lg shadow-lg">
+        <div>
+          <h1 className="text-4xl font-headline font-bold text-primary">Welcome, {user.displayName || user.email}!</h1>
+          <p className="text-lg text-muted-foreground mt-1">Here&apos;s a summary of your Hoop Control workspace.</p>
+        </div>
+        <Image 
+          src="https://placehold.co/150x150.png" 
+          alt="User avatar or decorative image" 
+          width={100} 
+          height={100} 
+          className="rounded-full shadow-md hidden sm:block"
+          data-ai-hint="professional avatar"
+        />
+      </div>
+
+      {/* Summary Cards */}
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
         <Card className="shadow-md hover:shadow-lg transition-shadow">
-          <CardHeader>
-            <CardTitle className="flex items-center"><Gamepad2 className="mr-3 h-6 w-6 text-accent"/>Partidos</CardTitle>
-            <CardDescription>Ver partidos programados y registrar resultados en vivo.</CardDescription>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Active Projects</CardTitle>
+            <Building className="h-5 w-5 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-             <Button asChild><Link href="/games">Gestionar Partidos</Link></Button>
+            <div className="text-3xl font-bold text-primary">{summaryData.activeProjects}</div>
+            <p className="text-xs text-muted-foreground">+2 from last month</p>
           </CardContent>
         </Card>
-        
-        { canManageClubs && 
-            <Card className="shadow-md hover:shadow-lg transition-shadow">
-                <CardHeader>
-                    <CardTitle className="flex items-center"><Building className="mr-3 h-6 w-6 text-accent"/>Mi Club</CardTitle>
-                    <CardDescription>Gestionar equipos y jugadores de tu club.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <Button asChild><Link href={profile.profileTypeId === 'super_admin' ? '/clubs' : `/clubs/${profile.clubId}`}>Gestionar {profile.profileTypeId === 'super_admin' ? 'Clubs' : 'mi Club'}</Link></Button>
-                </CardContent>
-            </Card>
-        }
-
-         <Card className="shadow-md hover:shadow-lg transition-shadow">
-          <CardHeader>
-            <CardTitle className="flex items-center"><BarChart2 className="mr-3 h-6 w-6 text-accent"/>Análisis</CardTitle>
-            <CardDescription>Revisar estadísticas de partidos completados.</CardDescription>
+        <Card className="shadow-md hover:shadow-lg transition-shadow">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Tasks Completed</CardTitle>
+            <CheckSquare className="h-5 w-5 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-             <Button asChild><Link href="/analysis">Ver Análisis</Link></Button>
+            <div className="text-3xl font-bold text-primary">{summaryData.completedTasks}</div>
+            <p className="text-xs text-muted-foreground">+15 this week</p>
+          </CardContent>
+        </Card>
+        <Card className="shadow-md hover:shadow-lg transition-shadow">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Team Members</CardTitle>
+            <Users className="h-5 w-5 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold text-primary">{summaryData.teamMembers}</div>
+            <p className="text-xs text-muted-foreground">All active</p>
+          </CardContent>
+        </Card>
+        <Card className="shadow-md hover:shadow-lg transition-shadow">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Critical Alerts (Sample)</CardTitle>
+            <AlertTriangle className="h-5 w-5 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold">{summaryData.alerts}</div>
+            <p className="text-xs text-muted-foreground">This is a sample card</p>
           </CardContent>
         </Card>
       </div>
 
-       { canCreateTestGame &&
-          <Card className="border-amber-500">
-            <CardHeader>
-                <CardTitle className="flex items-center text-amber-700"><TestTube className="mr-3 h-6 w-6"/>Zona de Pruebas</CardTitle>
-                <CardDescription>Acciones de desarrollo para probar la funcionalidad.</CardDescription>
-            </CardHeader>
-            <CardContent className="flex flex-col sm:flex-row gap-4">
-                <Button variant="secondary" onClick={handleCreateTestGame} disabled={isCreatingTestGame}>
-                    {isCreatingTestGame ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Gamepad2 className="mr-2 h-4 w-4"/>}
-                    {isCreatingTestGame ? 'Generando...' : 'Generar Partido de Prueba'}
-                </Button>
-                {profile.profileTypeId === 'super_admin' && (
-                    <>
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                             <Button variant="destructive" disabled={isFinishingGames}>
-                                {isFinishingGames ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Zap className="mr-2 h-4 w-4"/>}
-                                {isFinishingGames ? 'Finalizando...' : 'Finalizar Partidos de Prueba'}
-                            </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
-                              <AlertDialogDescription>
-                                Esta acción finalizará todos los partidos creados con el botón de prueba que estén aún en progreso o programados.
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                              <AlertDialogAction
-                                onClick={handleFinishTestGames}
-                                className="bg-destructive hover:bg-destructive/80"
-                              >
-                                Sí, finalizar partidos
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
+      {/* Club & Team Management Section */}
+      <Card className="shadow-lg">
+        <CardHeader>
+          <CardTitle className="text-2xl font-headline flex items-center">
+            Club & Team Management
+          </CardTitle>
+          <CardDescription>Manage your club details and create new teams.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {renderClubManagement()}
+        </CardContent>
+      </Card>
 
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button variant="destructive" disabled={isSeeding}>
-                                {isSeeding ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Database className="mr-2 h-4 w-4"/>}
-                                {isSeeding ? 'Poblando...' : 'Poblar Base de Datos'}
-                            </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>¡Acción Irreversible!</AlertDialogTitle>
-                              <AlertDialogDescription>
-                                Esto borrará todos los datos de prueba existentes (equipos, jugadores, partidos, etc.) y los reemplazará con un nuevo conjunto de datos. ¿Continuar?
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                              <AlertDialogAction
-                                onClick={handleSeedDatabase}
-                                className="bg-destructive hover:bg-destructive/80"
-                              >
-                                Sí, poblar la base de datos
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
-                    </>
-                )}
-            </CardContent>
-          </Card>
-        }
-
+      {/* Hoop Control API Data Section (Placeholder) */}
+      <Card className="shadow-lg">
+        <CardHeader>
+          <CardTitle className="text-2xl font-headline flex items-center">
+            <BarChart className="mr-3 h-6 w-6 text-accent" />
+            Hoop Control API Overview
+          </CardTitle>
+          <CardDescription>Key metrics from the integrated API.</CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-4 md:grid-cols-2">
+          {bcsjdApiSampleData.map((item) => (
+            <div key={item.keyMetric} className="p-4 border rounded-md bg-secondary/30">
+              <h3 className="text-sm font-medium text-muted-foreground">{item.keyMetric}</h3>
+              <p className="text-2xl font-bold text-primary">{item.value}</p>
+            </div>
+          ))}
+           <div className="p-4 border rounded-md bg-secondary/30 flex items-center justify-center">
+             <Image 
+                src="https://placehold.co/300x150.png" 
+                alt="Chart Placeholder" 
+                width={300} 
+                height={150} 
+                className="rounded shadow"
+                data-ai-hint="data chart"
+              />
+           </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

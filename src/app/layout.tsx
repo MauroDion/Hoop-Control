@@ -24,7 +24,7 @@ const playfairDisplay = Playfair_Display({
 
 export const metadata: Metadata = {
   title: 'Hoop Control',
-  description: 'Basketball Game Tracker para gestionar equipos, jugadores y partidos en directo.',
+  description: 'Basketball Game Tracker for team, player, and live game management.',
 };
 
 export default function RootLayout({
@@ -33,7 +33,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="es" suppressHydrationWarning className={`${ptSans.variable} ${playfairDisplay.variable}`}>
+    <html lang="en" suppressHydrationWarning className={`${ptSans.variable} ${playfairDisplay.variable}`}>
       <head />
       <body className={cn("min-h-screen bg-background font-body antialiased")}>
         <AuthProvider>

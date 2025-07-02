@@ -1,7 +1,7 @@
 "use client"; // This page needs to be a client component for useEffect and useState
 
 import React, { useEffect, useState } from 'react';
-import { getKeyMetrics } from '@/lib/hoopControlApi';
+import { getKeyMetrics } from '@/lib/bcsjdApi';
 import type { BcsjdApiDataItem } from '@/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';

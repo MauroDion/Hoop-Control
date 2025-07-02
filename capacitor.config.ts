@@ -1,8 +1,8 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.example.app',
-  appName: 'HOOP Control',
+  appId: 'com.hoopcontrol.app',
+  appName: 'Hoop Control',
   webDir: 'public'
 };
 
