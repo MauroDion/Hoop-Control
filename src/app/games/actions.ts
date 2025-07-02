@@ -493,7 +493,7 @@ export async function updateLiveGameState(
         const gameDoc = await transaction.get(gameRef);
         if (!gameDoc.exists) throw new Error("El partido no existe.");
         
-        const gameData = gameDoc.data() as Game;
+        const gameData = gameDoc.data() as any;
         if(!gameData) throw new Error("No se encontraron datos del partido.");
 
         const serverTimestamp = admin.firestore.FieldValue.serverTimestamp();
@@ -512,8 +512,14 @@ export async function updateLiveGameState(
             const timerStartEventRef = gameRef.collection('events').doc();
             transaction.set(timerStartEventRef, { ...baseEventPayload, action: 'timer_start', period: gameData.currentPeriod || 1, gameTimeSeconds: gameData.periodTimeRemainingSeconds || 0 });
         } else if (updates.isTimerRunning === false && gameData.isTimerRunning) {
-            const startTime = gameData.timerStartedAt ? new Date(gameData.timerStartedAt).getTime() : Date.now();
-            const timeElapsedSeconds = Math.max(0, Math.round((Date.now() - startTime) / 1000));
+            const timerStartedAtTimestamp = gameData.timerStartedAt as admin.firestore.Timestamp | null;
+            const startTimeMs = timerStartedAtTimestamp ? timerStartedAtTimestamp.toMillis() : Date.now();
+            let timeElapsedSeconds = Math.round((Date.now() - startTimeMs) / 1000);
+
+            if (!isFinite(timeElapsedSeconds) || timeElapsedSeconds < 0) {
+              timeElapsedSeconds = 0;
+            }
+            
             const newRemainingTime = Math.max(0, (gameData.periodTimeRemainingSeconds || 0) - timeElapsedSeconds);
             updateData.periodTimeRemainingSeconds = newRemainingTime;
 
