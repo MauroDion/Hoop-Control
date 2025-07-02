@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Loader2, AlertTriangle, Database, Wand2 } from 'lucide-react';
 import { seedDatabase } from './actions';
 import { useToast } from '@/hooks/use-toast';
+import Link from 'next/link';
 import {
   AlertDialog,
   AlertDialogAction,
