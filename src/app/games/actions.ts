@@ -482,7 +482,7 @@ function getTimerSyncUpdates(
     }
 
     const timerStartedAtMs = new Date(gameData.timerStartedAt).getTime();
-    const nowMs = Date.now(); // Using JS Date.now() on server, acceptable for elapsed time.
+    const nowMs = Date.now();
     const elapsedSeconds = Math.round((nowMs - timerStartedAtMs) / 1000);
 
     if (elapsedSeconds <= 0) {
@@ -532,18 +532,16 @@ export async function updateLiveGameState(
 
         const finalUpdates: { [key: string]: any } = { ...updates, updatedAt: serverTimestamp };
 
-        // Handle STARTING the timer
+        const { updates: timeUpdates } = getTimerSyncUpdates(gameData, serverTimestamp);
+        Object.assign(finalUpdates, timeUpdates);
+        
         if (updates.isTimerRunning === true && !gameData.isTimerRunning) {
             finalUpdates.timerStartedAt = serverTimestamp;
             const timerStartEventRef = gameRef.collection('events').doc();
             transaction.set(timerStartEventRef, { ...baseEventPayload, action: 'timer_start', period: gameData.currentPeriod || 1, gameTimeSeconds: gameData.periodTimeRemainingSeconds ?? 0 });
         
-        // Handle PAUSING the timer
         } else if (updates.isTimerRunning === false && gameData.isTimerRunning) {
-            const { updates: timeUpdates } = getTimerSyncUpdates(gameData, serverTimestamp);
-            Object.assign(finalUpdates, timeUpdates);
             finalUpdates.timerStartedAt = null; 
-
             const timerPauseEventRef = gameRef.collection('events').doc();
             transaction.set(timerPauseEventRef, { ...baseEventPayload, action: 'timer_pause', period: gameData.currentPeriod || 1, gameTimeSeconds: finalUpdates.periodTimeRemainingSeconds });
         }
@@ -652,6 +650,14 @@ export async function recordGameEvent(
             
             const finalUpdates: { [key: string]: any } = { ...timeUpdates, updatedAt: serverTimestamp };
             
+            if (playerId && (!gameData.playerStats || !gameData.playerStats[playerId])) {
+                finalUpdates[`playerStats.${playerId}`] = {
+                    ...initialPlayerStats,
+                    playerId: playerId,
+                    playerName: eventData.playerName || 'Unknown Player',
+                };
+            }
+
             const eventGameTime = Math.max(0, (gameData.periodTimeRemainingSeconds || 0) - elapsedSeconds);
             transaction.set(eventRef, { ...eventData, gameId, createdBy: userId, createdAt: serverTimestamp, gameTimeSeconds: eventGameTime });
             
@@ -801,3 +807,4 @@ export async function substitutePlayer(
 }
 
     
+
