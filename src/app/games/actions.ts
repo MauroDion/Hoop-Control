@@ -285,13 +285,11 @@ export async function createTestGame(userId: string): Promise<{ success: boolean
         let seasonsSnapshot = await adminDb.collection('seasons').where('status', '==', 'active').limit(1).get();
 
         if (seasonsSnapshot.empty) {
-            console.warn("No active season found via indexed query, attempting direct fetch...");
             const allSeasons = await adminDb.collection('seasons').get();
             const activeSeasonDoc = allSeasons.docs.find(doc => doc.data().status === 'active');
             
             if (activeSeasonDoc) {
                 seasonsSnapshot = { docs: [activeSeasonDoc] } as any;
-                console.log("Found active season via direct fetch. Continuing.");
             } else {
                  return { success: false, error: "No active season found. Please seed the database or create an active season." };
             }
@@ -493,7 +491,7 @@ export async function updateLiveGameState(
         const gameDoc = await transaction.get(gameRef);
         if (!gameDoc.exists) throw new Error("El partido no existe.");
         
-        const gameData = gameDoc.data() as any;
+        const gameData = gameDoc.data() as Game;
         if(!gameData) throw new Error("No se encontraron datos del partido.");
 
         const serverTimestamp = admin.firestore.FieldValue.serverTimestamp();
@@ -512,9 +510,8 @@ export async function updateLiveGameState(
             const timerStartEventRef = gameRef.collection('events').doc();
             transaction.set(timerStartEventRef, { ...baseEventPayload, action: 'timer_start', period: gameData.currentPeriod || 1, gameTimeSeconds: gameData.periodTimeRemainingSeconds || 0 });
         } else if (updates.isTimerRunning === false && gameData.isTimerRunning) {
-            const timerStartedAtTimestamp = gameData.timerStartedAt as admin.firestore.Timestamp | null;
-            const startTimeMs = timerStartedAtTimestamp ? timerStartedAtTimestamp.toMillis() : Date.now();
-            let timeElapsedSeconds = Math.round((Date.now() - startTimeMs) / 1000);
+            const timerStartedAtTimestamp = gameData.timerStartedAt ? new Date(gameData.timerStartedAt).getTime() : Date.now();
+            let timeElapsedSeconds = Math.round((Date.now() - timerStartedAtTimestamp) / 1000);
 
             if (!isFinite(timeElapsedSeconds) || timeElapsedSeconds < 0) {
               timeElapsedSeconds = 0;
@@ -525,9 +522,8 @@ export async function updateLiveGameState(
 
             const onCourtIds = [...(gameData.homeTeamOnCourtPlayerIds || []), ...(gameData.awayTeamOnCourtPlayerIds || [])];
             onCourtIds.forEach(playerId => {
-                const currentStats = gameData.playerStats?.[playerId];
-                if (currentStats) {
-                    updateData[`playerStats.${playerId}.timePlayedSeconds`] = admin.firestore.FieldValue.increment(timeElapsedSeconds);
+                if (gameData.playerStats?.[playerId]) {
+                     updateData[`playerStats.${playerId}.timePlayedSeconds`] = admin.firestore.FieldValue.increment(timeElapsedSeconds);
                 }
             });
     
@@ -609,7 +605,8 @@ export async function recordGameEvent(
 
             const gameData = gameDoc.data() as Game;
             const profile = await getUserProfileById(userId);
-            const isSuperAdmin = profile?.profileTypeId === 'super_admin';
+            if (!profile) throw new Error("User profile not found.");
+            const isSuperAdmin = profile.profileTypeId === 'super_admin';
 
             const assignments = gameData.scorerAssignments || {};
             const { action, playerId, teamId } = eventData;
@@ -623,13 +620,36 @@ export async function recordGameEvent(
                  throw new Error(`No tienes permiso para anotar "${requiredCategory}".`);
             }
 
-            transaction.set(eventRef, { ...eventData, gameId, createdBy: userId, createdAt: admin.firestore.FieldValue.serverTimestamp() });
+            const serverTimestamp = admin.firestore.FieldValue.serverTimestamp();
+            const updates: { [key: string]: any } = { updatedAt: serverTimestamp };
+            
+            // Update time on every action if timer is running
+            if (gameData.isTimerRunning && gameData.timerStartedAt) {
+                const timerStartedAtMs = new Date(gameData.timerStartedAt).getTime();
+                const nowMs = Date.now();
+                const elapsedSeconds = Math.round((nowMs - timerStartedAtMs) / 1000);
 
+                if (elapsedSeconds > 0) {
+                    const newRemainingTime = Math.max(0, (gameData.periodTimeRemainingSeconds || 0) - elapsedSeconds);
+                    updates.periodTimeRemainingSeconds = newRemainingTime;
+
+                    const onCourtIds = [...(gameData.homeTeamOnCourtPlayerIds || []), ...(gameData.awayTeamOnCourtPlayerIds || [])];
+                    
+                    onCourtIds.forEach(pId => {
+                        updates[`playerStats.${pId}.timePlayedSeconds`] = admin.firestore.FieldValue.increment(elapsedSeconds);
+                    });
+
+                    // Reset the timer's starting point
+                    updates.timerStartedAt = serverTimestamp;
+                }
+            }
+            
+            transaction.set(eventRef, { ...eventData, gameId, createdBy: userId, createdAt: serverTimestamp });
+            
             const scoreField = teamId === 'home' ? 'homeTeamScore' : 'awayTeamScore';
             const teamStatsField = teamId === 'home' ? 'homeTeamStats' : 'awayTeamStats';
             const playerStatsField = `playerStats.${playerId}`;
             
-            const updates: { [key: string]: any } = {};
             const increment = admin.firestore.FieldValue.increment;
             
             const processScore = (points: number) => {
