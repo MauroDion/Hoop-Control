@@ -3,21 +3,19 @@
 
 import { adminDb, adminAuth } from '@/lib/firebase/admin';
 import admin from 'firebase-admin';
-import { Game, Player, Season, Team, TeamStats, UserFirestoreProfile } from '@/types';
+import type { Game, Player, Season, Team, UserFirestoreProfile } from '@/types';
 
 // Helper function to delete all documents in a collection
-async function deleteCollection(collectionPath: string, batchSize: number = 100) {
-    if (!adminDb) return;
-    const collectionRef = adminDb.collection(collectionPath);
+async function deleteCollection(db: admin.firestore.Firestore, collectionPath: string, batchSize: number = 100) {
+    const collectionRef = db.collection(collectionPath);
     const query = collectionRef.orderBy('__name__').limit(batchSize);
 
     return new Promise((resolve, reject) => {
-        deleteQueryBatch(query, resolve).catch(reject);
+        deleteQueryBatch(db, query, resolve).catch(reject);
     });
 }
 
-async function deleteQueryBatch(query: admin.firestore.Query, resolve: (value: unknown) => void) {
-    if (!adminDb) return;
+async function deleteQueryBatch(db: admin.firestore.Firestore, query: admin.firestore.Query, resolve: (value: unknown) => void) {
     const snapshot = await query.get();
 
     const batchSize = snapshot.size;
@@ -26,28 +24,26 @@ async function deleteQueryBatch(query: admin.firestore.Query, resolve: (value: u
         return;
     }
 
-    const batch = adminDb.batch();
+    const batch = db.batch();
     snapshot.docs.forEach((doc) => {
         batch.delete(doc.ref);
     });
     await batch.commit();
 
     process.nextTick(() => {
-        deleteQueryBatch(query, resolve);
+        deleteQueryBatch(db, query, resolve);
     });
 }
 
 // Helper to delete documents based on a query (e.g., seeded users).
-async function deleteDocumentsByQuery(query: admin.firestore.Query, batchSize: number = 100) {
-    if (!adminDb) return;
-    
+async function deleteDocumentsByQuery(db: admin.firestore.Firestore, query: admin.firestore.Query, batchSize: number = 100) {
     const snapshot = await query.limit(batchSize).get();
     
     if (snapshot.size === 0) {
         return;
     }
     
-    const batch = adminDb.batch();
+    const batch = db.batch();
     snapshot.docs.forEach(doc => {
         batch.delete(doc.ref);
     });
@@ -55,7 +51,7 @@ async function deleteDocumentsByQuery(query: admin.firestore.Query, batchSize: n
     
     if (snapshot.size === batchSize) {
         process.nextTick(() => {
-            deleteDocumentsByQuery(query, batchSize);
+            deleteDocumentsByQuery(db, query, batchSize);
         });
     }
 }
@@ -83,6 +79,8 @@ export async function seedDatabase(): Promise<{ success: boolean; error?: string
     if (!adminDb || !adminAuth) {
         return { success: false, error: 'La base de datos del admin o la autenticación no están inicializadas.' };
     }
+    
+    const db = adminDb; // Local constant for type narrowing
 
     try {
         console.log('Iniciando el proceso de borrado de datos de prueba...');
@@ -90,25 +88,25 @@ export async function seedDatabase(): Promise<{ success: boolean; error?: string
         const collectionsToDelete = ['gameFormats', 'competitionCategories', 'clubs', 'teams', 'players', 'seasons', 'games'];
         for (const collection of collectionsToDelete) {
             console.log(`Borrando colección: ${collection}...`);
-            await deleteCollection(collection);
+            await deleteCollection(db, collection);
             console.log(`Colección ${collection} borrada.`);
         }
         
         console.log("Borrando solo perfiles de usuario de prueba (seeded)...");
-        const seederUsersQuery = adminDb.collection('user_profiles').where('isSeeded', '==', true);
-        await deleteDocumentsByQuery(seederUsersQuery);
+        const seederUsersQuery = db.collection('user_profiles').where('isSeeded', '==', true);
+        await deleteDocumentsByQuery(db, seederUsersQuery);
         console.log("Perfiles de usuario de prueba borrados.");
         
         console.log('Proceso de borrado completado. Iniciando la carga de nuevos datos...');
 
-        const batch = adminDb.batch();
+        const batch = db.batch();
         const serverTimestamp = admin.firestore.FieldValue.serverTimestamp();
 
         // --- 1. Game Formats ---
         const gameFormat5v5 = { id: '5v5-standard', name: 'Estándar 5v5', numPeriods: 4, periodDurationMinutes: 10, defaultTotalTimeouts: 4 };
         const gameFormat3v3 = { id: '3v3-half', name: '3v3 Media Pista', numPeriods: 1, periodDurationMinutes: 15, defaultTotalTimeouts: 2 };
-        batch.set(adminDb.collection('gameFormats').doc(gameFormat5v5.id), gameFormat5v5);
-        batch.set(adminDb.collection('gameFormats').doc(gameFormat3v3.id), gameFormat3v3);
+        batch.set(db.collection('gameFormats').doc(gameFormat5v5.id), gameFormat5v5);
+        batch.set(db.collection('gameFormats').doc(gameFormat3v3.id), gameFormat3v3);
 
         // --- 2. Competition Categories ---
         const categories = [
@@ -118,7 +116,7 @@ export async function seedDatabase(): Promise<{ success: boolean; error?: string
             { id: 'u16-masculino', name: 'U16 Masculino', level: 16, gameFormatId: gameFormat5v5.id, isFeminine: false },
             { id: 'senior-femenino', name: 'Senior Femenino', level: 99, gameFormatId: gameFormat5v5.id, isFeminine: true },
         ];
-        categories.forEach(cat => batch.set(adminDb.collection('competitionCategories').doc(cat.id), {name: cat.name, level: cat.level, gameFormatId: cat.gameFormatId}));
+        categories.forEach(cat => batch.set(db.collection('competitionCategories').doc(cat.id), {name: cat.name, level: cat.level, gameFormatId: cat.gameFormatId}));
 
         // --- 3. Clubs ---
         const clubs = [
@@ -128,7 +126,7 @@ export async function seedDatabase(): Promise<{ success: boolean; error?: string
             { id: 'club-joventut', name: 'Club Joventut Badalona', shortName: 'CJB', city_name: 'Badalona', province_name: 'Barcelona' },
             { id: 'club-unicaja', name: 'Unicaja Málaga', shortName: 'UNI', city_name: 'Málaga', province_name: 'Málaga' },
         ];
-        clubs.forEach(club => batch.set(adminDb.collection('clubs').doc(club.id), {...club, approved: true, createdAt: serverTimestamp}));
+        clubs.forEach(club => batch.set(db.collection('clubs').doc(club.id), {...club, approved: true, createdAt: serverTimestamp}));
 
         // --- Setup for Season Data ---
         const seasonCompetitionsMap = new Map<string, string[]>();
@@ -139,11 +137,11 @@ export async function seedDatabase(): Promise<{ success: boolean; error?: string
         for (const club of clubs) {
             const coordName = `${getRandomItem(firstNamesMasculine)} ${getRandomItem(lastNames)}`;
             const coordId = `user-coord-${userCounter}`;
-            const coordinator: Omit<UserFirestoreProfile, 'createdAt' | 'updatedAt' | 'uid'> = {
+            const coordinator: Omit<UserFirestoreProfile, 'createdAt' | 'updatedAt' | 'uid' | 'children'> = {
                 displayName: coordName, email: `${coordName.toLowerCase().replace(/\s/g, '.')}@example.com`,
                 profileTypeId: 'coordinator', clubId: club.id, status: 'approved', isSeeded: true, onboardingCompleted: true,
             };
-            batch.set(adminDb.collection('user_profiles').doc(coordId), {...coordinator, uid: coordId, createdAt: serverTimestamp, updatedAt: serverTimestamp });
+            batch.set(db.collection('user_profiles').doc(coordId), {...coordinator, uid: coordId, createdAt: serverTimestamp, updatedAt: serverTimestamp });
             userCounter++;
             
             for(const category of categories) {
@@ -152,16 +150,16 @@ export async function seedDatabase(): Promise<{ success: boolean; error?: string
                     const coachName = `${getRandomItem(firstNamesFeminine)} ${getRandomItem(lastNames)}`;
                     const coachId = `user-coach-${userCounter}`;
                     coachIds.push(coachId);
-                    const coach: Omit<UserFirestoreProfile, 'createdAt' | 'updatedAt' | 'uid'> = {
+                    const coach: Omit<UserFirestoreProfile, 'createdAt' | 'updatedAt' | 'uid' | 'children'> = {
                         displayName: coachName, email: `${coachName.toLowerCase().replace(/\s/g, '.')}@example.com`,
                         profileTypeId: 'coach', clubId: club.id, status: 'approved', isSeeded: true, onboardingCompleted: true,
                     };
-                    batch.set(adminDb.collection('user_profiles').doc(coachId), {...coach, uid: coachId, createdAt: serverTimestamp, updatedAt: serverTimestamp});
+                    batch.set(db.collection('user_profiles').doc(coachId), {...coach, uid: coachId, createdAt: serverTimestamp, updatedAt: serverTimestamp});
                     userCounter++;
                  }
 
                 const teamId = `${club.shortName?.toLowerCase()}-${category.id}`;
-                const teamDocRef = adminDb.collection('teams').doc(teamId);
+                const teamDocRef = db.collection('teams').doc(teamId);
                 const teamData: any = {
                     id: teamId, name: `${club.name} ${category.name}`, clubId: club.id,
                     competitionCategoryId: category.id, coachIds, coordinatorIds: [coordId],
@@ -169,13 +167,12 @@ export async function seedDatabase(): Promise<{ success: boolean; error?: string
                 };
                 batch.set(teamDocRef, teamData);
                 
-                // Add team to our map for the season object
                 seasonCompetitionsMap.get(category.id)?.push(teamId);
 
                 for (let p = 0; p < 9; p++) {
                     const playerName = generatePlayerName(category.isFeminine);
                     const player: Partial<Player> = { ...playerName, jerseyNumber: 4 + p, teamId: teamId };
-                    batch.set(adminDb.collection('players').doc(), {...player, createdAt: serverTimestamp});
+                    batch.set(db.collection('players').doc(), {...player, createdAt: serverTimestamp});
                 }
             }
         }
@@ -193,8 +190,7 @@ export async function seedDatabase(): Promise<{ success: boolean; error?: string
             createdAt: serverTimestamp,
             updatedAt: serverTimestamp,
         };
-        console.log("Season object to be created:", JSON.stringify(season2425, null, 2));
-        batch.set(adminDb.collection('seasons').doc('season-24-25'), season2425);
+        batch.set(db.collection('seasons').doc('season-24-25'), season2425);
         
         await batch.commit();
 
