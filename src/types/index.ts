@@ -233,6 +233,8 @@ export type GameEventAction =
   | 'foul'
   | 'block_against'
   | 'foul_received'
+  | 'team_foul'
+  | 'timeout'
   | 'substitution_in' | 'substitution_out'
   | 'period_start' | 'period_end'
   | 'timer_start' | 'timer_pause';
@@ -241,8 +243,8 @@ export interface GameEvent {
     id: string;
     gameId: string;
     teamId: 'home' | 'away' | 'system';
-    playerId: string;
-    playerName: string;
+    playerId?: string;
+    playerName?: string;
     action: GameEventAction;
     period: number;
     gameTimeSeconds: number; // Time remaining in period when event happened

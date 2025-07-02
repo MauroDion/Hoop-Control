@@ -3,7 +3,7 @@
 import { adminDb } from '@/lib/firebase/admin';
 import admin from 'firebase-admin';
 import { revalidatePath } from 'next/cache';
-import type { Game, GameFormData, Team, TeamStats, Player, GameEventAction, UserFirestoreProfile, StatCategory, PlayerGameStats, Season, Child, GameEvent } from '@/types';
+import type { Game, GameFormData, Team, TeamStats, Player, GameEventAction, UserFirestoreProfile, StatCategory, PlayerGameStats, Season, GameEvent } from '@/types';
 import { getTeamsByCoach as getCoachTeams } from '@/app/teams/actions';
 import { getUserProfileById } from '@/app/users/actions';
 import { getPlayersFromIds } from '../players/actions';
@@ -472,11 +472,6 @@ export async function updateGameRoster(
     }
 }
 
-/**
- * A centralized function to calculate time elapsed and generate update objects.
- * This should be used within a transaction to ensure atomicity.
- * It returns an object containing the updates and the number of seconds that have elapsed.
- */
 function getTimerSyncUpdates(
     gameData: Game,
     serverTimestamp: admin.firestore.FieldValue
@@ -487,8 +482,7 @@ function getTimerSyncUpdates(
     }
 
     const timerStartedAtMs = new Date(gameData.timerStartedAt).getTime();
-    // Use server time to avoid client-server discrepancies
-    const nowMs = Date.now();
+    const nowMs = Date.now(); // Using JS Date.now() on server, acceptable for elapsed time.
     const elapsedSeconds = Math.round((nowMs - timerStartedAtMs) / 1000);
 
     if (elapsedSeconds <= 0) {
@@ -499,7 +493,7 @@ function getTimerSyncUpdates(
     
     const updates: { [key: string]: any } = {
         periodTimeRemainingSeconds: newRemainingTime,
-        timerStartedAt: serverTimestamp, // Reset the timer's starting point for the next interval
+        timerStartedAt: serverTimestamp,
     };
 
     const onCourtIds = [...(gameData.homeTeamOnCourtPlayerIds || []), ...(gameData.awayTeamOnCourtPlayerIds || [])];
@@ -548,8 +542,7 @@ export async function updateLiveGameState(
         } else if (updates.isTimerRunning === false && gameData.isTimerRunning) {
             const { updates: timeUpdates } = getTimerSyncUpdates(gameData, serverTimestamp);
             Object.assign(finalUpdates, timeUpdates);
-            
-            finalUpdates.timerStartedAt = null; // Explicitly set to null on pause
+            finalUpdates.timerStartedAt = null; 
 
             const timerPauseEventRef = gameRef.collection('events').doc();
             transaction.set(timerPauseEventRef, { ...baseEventPayload, action: 'timer_pause', period: gameData.currentPeriod || 1, gameTimeSeconds: finalUpdates.periodTimeRemainingSeconds });
@@ -642,7 +635,13 @@ export async function recordGameEvent(
 
             if (action.startsWith('shot')) requiredCategory = 'shots';
             else if (action.includes('foul')) requiredCategory = 'fouls';
-            else if (['rebound_defensive', 'rebound_offensive', 'assist', 'steal', 'block', 'turnover', 'block_against'].includes(action)) requiredCategory = 'turnovers';
+            else if (['rebound_defensive', 'rebound_offensive', 'assist', 'steal', 'block', 'turnover', 'block_against', 'team_foul', 'timeout'].includes(action)) {
+                if (action === 'team_foul' || action === 'foul' || action === 'foul_received') {
+                    requiredCategory = 'fouls';
+                } else {
+                    requiredCategory = 'turnovers';
+                }
+            }
             
             if (requiredCategory && assignments[requiredCategory]?.uid !== userId && !isSuperAdmin) {
                  throw new Error(`No tienes permiso para anotar "${requiredCategory}".`);
@@ -658,7 +657,7 @@ export async function recordGameEvent(
             
             const scoreField = teamId === 'home' ? 'homeTeamScore' : 'awayTeamScore';
             const teamStatsField = teamId === 'home' ? 'homeTeamStats' : 'awayTeamStats';
-            const playerStatsField = `playerStats.${playerId}`;
+            const playerStatsField = playerId ? `playerStats.${playerId}` : null;
             
             const increment = admin.firestore.FieldValue.increment;
             
@@ -675,35 +674,35 @@ export async function recordGameEvent(
             };
             
             const pirMapping: Partial<Record<GameEventAction, number>> = {
-                shot_made_1p: 1, shot_miss_1p: -1,
-                shot_made_2p: 2, shot_miss_2p: -1,
-                shot_made_3p: 3, shot_miss_3p: -1,
-                rebound_defensive: 1, rebound_offensive: 1,
+                shot_made_1p: 1, shot_miss_1p: -1, shot_made_2p: 2, shot_miss_2p: -1,
+                shot_made_3p: 3, shot_miss_3p: -1, rebound_defensive: 1, rebound_offensive: 1,
                 assist: 1, steal: 1, block: 1, foul_received: 1,
                 turnover: -1, foul: -1, block_against: -1,
             };
 
             const actions: Partial<Record<GameEventAction, () => void>> = {
-                shot_made_1p: () => { processScore(1); finalUpdates[scoreField] = increment(1); finalUpdates[`${teamStatsField}.onePointMade`] = increment(1); finalUpdates[`${teamStatsField}.onePointAttempts`] = increment(1); finalUpdates[`${playerStatsField}.points`] = increment(1); finalUpdates[`${playerStatsField}.shots_made_1p`] = increment(1); finalUpdates[`${playerStatsField}.shots_attempted_1p`] = increment(1); },
-                shot_miss_1p: () => { finalUpdates[`${teamStatsField}.onePointAttempts`] = increment(1); finalUpdates[`${playerStatsField}.shots_attempted_1p`] = increment(1); },
-                shot_made_2p: () => { processScore(2); finalUpdates[scoreField] = increment(2); finalUpdates[`${teamStatsField}.twoPointMade`] = increment(1); finalUpdates[`${teamStatsField}.twoPointAttempts`] = increment(1); finalUpdates[`${playerStatsField}.points`] = increment(2); finalUpdates[`${playerStatsField}.shots_made_2p`] = increment(1); finalUpdates[`${playerStatsField}.shots_attempted_2p`] = increment(1); },
-                shot_miss_2p: () => { finalUpdates[`${teamStatsField}.twoPointAttempts`] = increment(1); finalUpdates[`${playerStatsField}.shots_attempted_2p`] = increment(1); },
-                shot_made_3p: () => { processScore(3); finalUpdates[scoreField] = increment(3); finalUpdates[`${teamStatsField}.threePointMade`] = increment(1); finalUpdates[`${teamStatsField}.threePointAttempts`] = increment(1); finalUpdates[`${playerStatsField}.points`] = increment(3); finalUpdates[`${playerStatsField}.shots_made_3p`] = increment(1); finalUpdates[`${playerStatsField}.shots_attempted_3p`] = increment(1); },
-                shot_miss_3p: () => { finalUpdates[`${teamStatsField}.threePointAttempts`] = increment(1); finalUpdates[`${playerStatsField}.shots_attempted_3p`] = increment(1); },
-                rebound_defensive: () => { finalUpdates[`${teamStatsField}.reboundsDefensive`] = increment(1); finalUpdates[`${playerStatsField}.reb_def`] = increment(1); },
-                rebound_offensive: () => { finalUpdates[`${teamStatsField}.reboundsOffensive`] = increment(1); finalUpdates[`${playerStatsField}.reb_off`] = increment(1); },
-                assist: () => { finalUpdates[`${teamStatsField}.assists`] = increment(1); finalUpdates[`${playerStatsField}.assists`] = increment(1); },
-                steal: () => { finalUpdates[`${teamStatsField}.steals`] = increment(1); finalUpdates[`${playerStatsField}.steals`] = increment(1); },
-                block: () => { finalUpdates[`${teamStatsField}.blocks`] = increment(1); finalUpdates[`${playerStatsField}.blocks`] = increment(1); },
-                turnover: () => { finalUpdates[`${teamStatsField}.turnovers`] = increment(1); finalUpdates[`${playerStatsField}.turnovers`] = increment(1); },
-                foul: () => { finalUpdates[`${teamStatsField}.fouls`] = increment(1); finalUpdates[`${playerStatsField}.fouls`] = increment(1); },
-                block_against: () => { finalUpdates[`${teamStatsField}.blocksAgainst`] = increment(1); finalUpdates[`${playerStatsField}.blocks_against`] = increment(1); },
-                foul_received: () => { finalUpdates[`${teamStatsField}.foulsReceived`] = increment(1); finalUpdates[`${playerStatsField}.fouls_received`] = increment(1); },
+                shot_made_1p: () => { if(playerStatsField) { processScore(1); finalUpdates[scoreField] = increment(1); finalUpdates[`${teamStatsField}.onePointMade`] = increment(1); finalUpdates[`${teamStatsField}.onePointAttempts`] = increment(1); finalUpdates[`${playerStatsField}.points`] = increment(1); finalUpdates[`${playerStatsField}.shots_made_1p`] = increment(1); finalUpdates[`${playerStatsField}.shots_attempted_1p`] = increment(1); }},
+                shot_miss_1p: () => { if(playerStatsField) { finalUpdates[`${teamStatsField}.onePointAttempts`] = increment(1); finalUpdates[`${playerStatsField}.shots_attempted_1p`] = increment(1); }},
+                shot_made_2p: () => { if(playerStatsField) { processScore(2); finalUpdates[scoreField] = increment(2); finalUpdates[`${teamStatsField}.twoPointMade`] = increment(1); finalUpdates[`${teamStatsField}.twoPointAttempts`] = increment(1); finalUpdates[`${playerStatsField}.points`] = increment(2); finalUpdates[`${playerStatsField}.shots_made_2p`] = increment(1); finalUpdates[`${playerStatsField}.shots_attempted_2p`] = increment(1); }},
+                shot_miss_2p: () => { if(playerStatsField) { finalUpdates[`${teamStatsField}.twoPointAttempts`] = increment(1); finalUpdates[`${playerStatsField}.shots_attempted_2p`] = increment(1); }},
+                shot_made_3p: () => { if(playerStatsField) { processScore(3); finalUpdates[scoreField] = increment(3); finalUpdates[`${teamStatsField}.threePointMade`] = increment(1); finalUpdates[`${teamStatsField}.threePointAttempts`] = increment(1); finalUpdates[`${playerStatsField}.points`] = increment(3); finalUpdates[`${playerStatsField}.shots_made_3p`] = increment(1); finalUpdates[`${playerStatsField}.shots_attempted_3p`] = increment(1); }},
+                shot_miss_3p: () => { if(playerStatsField) { finalUpdates[`${teamStatsField}.threePointAttempts`] = increment(1); finalUpdates[`${playerStatsField}.shots_attempted_3p`] = increment(1); }},
+                rebound_defensive: () => { if(playerStatsField) { finalUpdates[`${teamStatsField}.reboundsDefensive`] = increment(1); finalUpdates[`${playerStatsField}.reb_def`] = increment(1); }},
+                rebound_offensive: () => { if(playerStatsField) { finalUpdates[`${teamStatsField}.reboundsOffensive`] = increment(1); finalUpdates[`${playerStatsField}.reb_off`] = increment(1); }},
+                assist: () => { if(playerStatsField) { finalUpdates[`${teamStatsField}.assists`] = increment(1); finalUpdates[`${playerStatsField}.assists`] = increment(1); }},
+                steal: () => { if(playerStatsField) { finalUpdates[`${teamStatsField}.steals`] = increment(1); finalUpdates[`${playerStatsField}.steals`] = increment(1); }},
+                block: () => { if(playerStatsField) { finalUpdates[`${teamStatsField}.blocks`] = increment(1); finalUpdates[`${playerStatsField}.blocks`] = increment(1); }},
+                turnover: () => { if(playerStatsField) { finalUpdates[`${teamStatsField}.turnovers`] = increment(1); finalUpdates[`${playerStatsField}.turnovers`] = increment(1); }},
+                foul: () => { if(playerStatsField) { finalUpdates[`${teamStatsField}.fouls`] = increment(1); finalUpdates[`${playerStatsField}.fouls`] = increment(1); }},
+                team_foul: () => { finalUpdates[`${teamStatsField}.fouls`] = increment(1); },
+                timeout: () => { finalUpdates[`${teamStatsField}.timeouts`] = increment(1); },
+                block_against: () => { if(playerStatsField) { finalUpdates[`${teamStatsField}.blocksAgainst`] = increment(1); finalUpdates[`${playerStatsField}.blocks_against`] = increment(1); }},
+                foul_received: () => { if(playerStatsField) { finalUpdates[`${teamStatsField}.foulsReceived`] = increment(1); finalUpdates[`${playerStatsField}.fouls_received`] = increment(1); }},
             };
 
             actions[action]?.();
             
-            if (pirMapping[action]) {
+            if (playerStatsField && pirMapping[action]) {
                 finalUpdates[`${playerStatsField}.pir`] = increment(pirMapping[action]!);
             }
 
