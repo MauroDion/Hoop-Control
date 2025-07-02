@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
@@ -9,7 +8,7 @@ import type { User as FirebaseUser } from 'firebase/auth';
 
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '@/lib/firebase/client';
-import { updateLiveGameState, recordGameEvent, substitutePlayer, assignScorer } from '@/app/games/actions';
+import { updateLiveGameState, recordGameEvent, substitutePlayer, assignScorer, endCurrentPeriod } from '@/app/games/actions';
 import { getGameFormatById } from '@/app/game-formats/actions';
 import { getPlayersByTeamId } from '@/app/players/actions';
 import type { Game, GameFormat, Player, GameEventAction, PlayerGameStats, UserFirestoreProfile, ProfileType, StatCategory, GameEvent } from '@/types';
@@ -21,6 +20,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Separator } from '@/components/ui/separator';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import Image from 'next/image';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 
 const PlayerStatCard = ({ player, stats, onClick, userProfileType, isChild }: { player: Player; stats: PlayerGameStats; onClick?: () => void, userProfileType?: ProfileType, isChild: boolean }) => {
     
@@ -343,6 +343,14 @@ export default function LiveGamePage() {
             });
         }
     }, [game, gameFormat, handleUpdate]);
+    
+    const handleEndPeriod = useCallback(async () => {
+        if (!game || !user) return;
+        const result = await endCurrentPeriod(game.id, user.uid);
+        if (!result.success) {
+            toast({ variant: 'destructive', title: 'Error', description: result.error });
+        }
+    }, [game, user, toast]);
 
     const handleResetTimer = useCallback(() => {
         if (!game || !gameFormat) return;
@@ -362,7 +370,7 @@ export default function LiveGamePage() {
                 if (format) setGameFormat(format);
             }
             updates.periodTimeRemainingSeconds = (format?.periodDurationMinutes || 10) * 60;
-            updates.isTimerRunning = true;
+            updates.isTimerRunning = false;
         }
         if (status === 'completed') {
             updates.isTimerRunning = false;
@@ -505,7 +513,29 @@ export default function LiveGamePage() {
                 <CardContent className="flex flex-col gap-2">
                     {canManageControls && <Button size="lg" onClick={() => setIsAssignmentDialogOpen(true)}><UserCheck className="mr-2 h-5 w-5"/>Asignar Anotadores</Button> }
                     {game.status === 'scheduled' && canManageControls && <Button size="lg" className="bg-green-600 hover:bg-green-700" onClick={() => handleGameStatusChange('inprogress')}><Play className="mr-2 h-5 w-5"/> Empezar Partido</Button>}
-                    {game.status === 'inprogress' && canManageControls && <Button size="lg" variant="destructive" className="w-full" onClick={() => handleGameStatusChange('completed')}><Flag className="mr-2 h-5 w-5"/> Finalizar Partido</Button>}
+                    {game.status === 'inprogress' && canManageControls && (
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button size="lg" variant="destructive" className="w-full">
+                                <Flag className="mr-2 h-5 w-5"/> Finalizar Partido
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                                <AlertDialogTitle>¿Finalizar el partido?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                Esta acción marcará el partido como completado y no se podrá deshacer. ¿Estás seguro?
+                                </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                <AlertDialogAction onClick={() => handleGameStatusChange('completed')} className="bg-destructive hover:bg-destructive/80">
+                                Sí, Finalizar
+                                </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                    )}
                     {game.status === 'completed' && <p className="text-center font-bold text-lg text-green-700">Partido Finalizado</p>}
                 </CardContent>
             </Card>
@@ -523,7 +553,12 @@ export default function LiveGamePage() {
                                     {game.isTimerRunning ? <Pause className="mr-2"/> : <Play className="mr-2"/>}
                                     {game.isTimerRunning ? 'Pausar' : 'Iniciar'}
                                 </Button>
-                                <Button onClick={handleNextPeriod} disabled={game.status !== 'inprogress' || game.isTimerRunning || (game.currentPeriod || 0) >= (gameFormat?.numPeriods || 4)} variant="outline" size="lg"><FastForward className="mr-2"/> Siguiente Per.</Button>
+                                <Button onClick={handleEndPeriod} disabled={game.status !== 'inprogress' || !game.isTimerRunning || game.currentPeriod! >= (gameFormat?.numPeriods || 4)} variant="outline" size="lg">
+                                    <FastForward className="mr-2"/> Finalizar Período
+                                </Button>
+                                <Button onClick={handleNextPeriod} disabled={game.status !== 'inprogress' || game.isTimerRunning || game.currentPeriod! >= (gameFormat?.numPeriods || 4)} variant="outline" size="sm">
+                                    Siguiente Per.
+                                </Button>
                                 <Button onClick={handleResetTimer} disabled={game.status !== 'inprogress'} variant="secondary" size="icon" aria-label="Reiniciar cronómetro"><TimerReset/></Button>
                             </div>
                         }
