@@ -24,6 +24,17 @@ export async function middleware(request: NextRequest) {
     }
   } else {
     if (isProtectedRoute) {
+        // If the request is for a Server Action from an unauthenticated user,
+        // don't redirect, but return an authorization error.
+        // Server Actions use POST requests.
+        if (request.method === 'POST') {
+             return new NextResponse(
+                JSON.stringify({ success: false, message: 'Authentication required.' }),
+                { status: 401, headers: { 'Content-Type': 'application/json' } }
+            );
+        }
+
+        // For standard page navigations (GET requests), redirect to the login page.
         const loginUrl = new URL('/login', request.url);
         loginUrl.searchParams.set('redirect', pathname);
         return NextResponse.redirect(loginUrl);
