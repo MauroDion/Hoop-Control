@@ -9,8 +9,7 @@ import type { User as FirebaseUser } from 'firebase/auth';
 
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '@/lib/firebase/client';
-import { updateLiveGameState, recordGameEvent, substitutePlayer, assignScorer, getGameById } from '@/app/games/actions';
-import { getTeamsByCoach } from '@/app/teams/actions';
+import { updateLiveGameState, recordGameEvent, substitutePlayer, assignScorer } from '@/app/games/actions';
 import { getGameFormatById } from '@/app/game-formats/actions';
 import { getPlayersByTeamId } from '@/app/players/actions';
 import type { Game, GameFormat, Player, GameEventAction, PlayerGameStats, UserFirestoreProfile, ProfileType, StatCategory, GameEvent } from '@/types';
@@ -179,11 +178,13 @@ export default function LiveGamePage() {
     
     const defaultStats: PlayerGameStats = {
         playerId: '', playerName: '', timePlayedSeconds: 0, periodsPlayed: 0,
+        periodsPlayedSet: [],
         points: 0, shots_made_1p: 0, shots_attempted_1p: 0,
         shots_made_2p: 0, shots_attempted_2p: 0,
         shots_made_3p: 0, shots_attempted_3p: 0,
         reb_def: 0, reb_off: 0, assists: 0, steals: 0, blocks: 0, turnovers: 0,
-        fouls: 0, blocks_against: 0, fouls_received: 0, pir: 0, plusMinus: 0
+        fouls: 0, blocks_against: 0, fouls_received: 0,
+        pir: 0, plusMinus: 0
     };
 
     const handleUpdate = useCallback(async (updates: Partial<Game>) => {
@@ -199,10 +200,11 @@ export default function LiveGamePage() {
     
         if (game?.isTimerRunning && game.timerStartedAt) {
             const serverStartTime = new Date(game.timerStartedAt).getTime();
+            const serverRemainingSeconds = game.periodTimeRemainingSeconds || 0;
             
             const updateDisplay = () => {
                 const elapsedSeconds = Math.floor((Date.now() - serverStartTime) / 1000);
-                const newDisplayTime = Math.max(0, (game.periodTimeRemainingSeconds || 0) - elapsedSeconds);
+                const newDisplayTime = Math.max(0, serverRemainingSeconds - elapsedSeconds);
                 setDisplayTime(newDisplayTime);
             };
     
@@ -218,12 +220,6 @@ export default function LiveGamePage() {
             }
         };
     }, [game?.isTimerRunning, game?.timerStartedAt, game?.periodTimeRemainingSeconds]);
-
-    useEffect(() => {
-        if (game?.periodTimeRemainingSeconds !== undefined) {
-            setDisplayTime(game.periodTimeRemainingSeconds);
-        }
-    }, [game?.periodTimeRemainingSeconds]);
 
     useEffect(() => {
         if (authLoading) return;
