@@ -1,15 +1,11 @@
 "use client";
 
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { BarChart, Building, CheckSquare, Users, AlertTriangle, PlusCircle, Loader2 } from 'lucide-react';
+import { BarChart, Building, CheckSquare, Users, AlertTriangle, Loader2 } from 'lucide-react';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
-import { getUserProfileById } from '@/app/users/actions';
-import type { UserFirestoreProfile } from '@/types';
-import { useRouter } from 'next/navigation';
 
 // Dummy data - replace with actual data fetching
 const summaryData = {
@@ -25,99 +21,34 @@ interface ApiData {
   value: number | string;
 }
 const bcsjdApiSampleData: ApiData[] = [
-  { keyMetric: "Overall Progress", value: "75%" },
-  { keyMetric: "Budget Utilization", value: "60%" },
+  { keyMetric: "Progreso General", value: "75%" },
+  { keyMetric: "Uso del Presupuesto", value: "60%" },
 ];
 
 
 export default function DashboardPage() {
-  const { user, loading: authLoading } = useAuth();
-  const router = useRouter();
-  const [userProfile, setUserProfile] = useState<UserFirestoreProfile | null>(null);
-  const [loadingProfile, setLoadingProfile] = useState(true);
-  const [profileError, setProfileError] = useState<string | null>(null);
-
-  useEffect(() => {
-    // The middleware is now responsible for ensuring only authenticated users reach this page.
-    // So, we expect the `user` object to be available shortly after `authLoading` is false.
-    if (user) {
-      console.log(`Dashboard: User authenticated. Fetching profile for UID: ${user.uid}`);
-      setLoadingProfile(true);
-      setProfileError(null);
-      getUserProfileById(user.uid)
-        .then(profile => {
-          if (profile) {
-            console.log("Dashboard: Successfully fetched profile data:", profile);
-            setUserProfile(profile);
-          } else {
-            console.error("Dashboard: getUserProfileById returned null. This means no profile document was found for the UID in 'user_profiles' collection or there was a permission issue.");
-            setProfileError("Your user profile could not be found in the database. This might be a permission issue. Please contact an administrator.");
-            setUserProfile(null);
-          }
-        })
-        .catch(err => {
-          console.error("Dashboard: An error occurred while fetching user profile:", err);
-          setProfileError("An error occurred while loading your profile. Please try again later.");
-          setUserProfile(null);
-        })
-        .finally(() => {
-          console.log("Dashboard: Finished fetching profile.");
-          setLoadingProfile(false);
-        });
-    } else if (!authLoading && !user) {
-      // This is a failsafe. If for any reason an unauthenticated user gets here
-      // (e.g., session expires while on page), redirect them.
-      console.warn("Dashboard: Failsafe triggered. Unauthenticated user detected. Redirecting to login.");
-      router.replace('/login');
-    }
-  }, [user, authLoading, router]);
-
-  // A single, reliable loading state. Middleware ensures we don't need an "unauthenticated" UI here.
-  // We wait for auth to be confirmed (`!authLoading && user`) before proceeding to render the dashboard.
-  if (authLoading || !user) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)]">
-        <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-        <h1 className="text-2xl font-headline font-semibold">Verifying Session...</h1>
-        <p className="text-muted-foreground">Please wait.</p>
-      </div>
-    );
-  }
+  const { user, profile, loading: authLoading } = useAuth();
 
   const renderClubManagement = () => {
-    if (loadingProfile) {
+    if (authLoading || !profile) {
       return (
         <div className="flex items-center">
           <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-          <span>Loading user information...</span>
-        </div>
-      );
-    }
-
-    if (profileError) {
-      return (
-        <div className="flex items-center text-destructive p-4 bg-destructive/10 rounded-md">
-          <AlertTriangle className="mr-3 h-5 w-5 flex-shrink-0" />
-          <span>{profileError}</span>
+          <span>Cargando información de usuario...</span>
         </div>
       );
     }
     
-    if (userProfile?.profileTypeId === 'super_admin') {
+    if (profile.profileTypeId === 'super_admin') {
       return (
         <>
           <p className="text-sm text-muted-foreground">
-            As a Super Admin, you have full control over clubs and teams.
+            Como Super Admin, tienes control total sobre clubs y equipos.
           </p>
           <div className="flex flex-col sm:flex-row gap-2 pt-2">
             <Button asChild>
-              <Link href={`/clubs/new`}>
-                <PlusCircle className="mr-2 h-5 w-5" /> Create New Club
-              </Link>
-            </Button>
-            <Button asChild variant="outline">
               <Link href={`/clubs`}>
-                <Building className="mr-2 h-5 w-5" /> Manage Clubs
+                <Building className="mr-2 h-5 w-5" /> Gestionar Clubs
               </Link>
             </Button>
           </div>
@@ -125,42 +56,49 @@ export default function DashboardPage() {
       );
     }
     
-    if (userProfile?.clubId) {
+    if (profile.clubId) {
        return (
         <>
           <p className="text-sm text-muted-foreground">
-            You are associated with club <code className="font-mono bg-muted px-1 py-0.5 rounded">{userProfile.clubId}</code>.
-            You can create a new team for your club now.
+            Puedes gestionar los equipos de tu club.
           </p>
           <Button asChild>
-            <Link href={`/clubs/${userProfile.clubId}/teams/new`}>
-              <PlusCircle className="mr-2 h-5 w-5" /> Create New Team
+            <Link href={`/clubs/${profile.clubId}`}>
+              <Users className="mr-2 h-5 w-5" /> Gestionar mi Club
             </Link>
           </Button>
         </>
       );
     }
 
-    // Fallback for non-super-admin users without a clubId, or if profile is somehow empty but not errored.
     return (
       <div className="flex items-center text-muted-foreground">
         <AlertTriangle className="mr-2 h-5 w-5 text-yellow-500" />
-        <span>Your profile is not associated with a club. Team creation is disabled.</span>
+        <span>Tu perfil no está asociado a un club.</span>
       </div>
     );
   };
   
-  // From here on, we can safely assume `user` exists.
+  if (authLoading || !user) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)]">
+        <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
+        <h1 className="text-2xl font-headline font-semibold">Verificando sesión...</h1>
+        <p className="text-muted-foreground">Por favor, espera.</p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-8">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 p-6 bg-card rounded-lg shadow-lg">
         <div>
-          <h1 className="text-4xl font-headline font-bold text-primary">Welcome, {user.displayName || user.email}!</h1>
-          <p className="text-lg text-muted-foreground mt-1">Here&apos;s a summary of your Hoop Control workspace.</p>
+          <h1 className="text-4xl font-headline font-bold text-primary">¡Bienvenido, {user.displayName || user.email}!</h1>
+          <p className="text-lg text-muted-foreground mt-1">Este es un resumen de tu espacio de trabajo en Hoop Control.</p>
         </div>
         <Image 
           src="https://placehold.co/150x150.png" 
-          alt="User avatar or decorative image" 
+          alt="Avatar de usuario o imagen decorativa" 
           width={100} 
           height={100} 
           className="rounded-full shadow-md hidden sm:block"
@@ -168,71 +106,68 @@ export default function DashboardPage() {
         />
       </div>
 
-      {/* Summary Cards */}
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
         <Card className="shadow-md hover:shadow-lg transition-shadow">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Active Projects</CardTitle>
+            <CardTitle className="text-sm font-medium">Proyectos Activos</CardTitle>
             <Building className="h-5 w-5 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-bold text-primary">{summaryData.activeProjects}</div>
-            <p className="text-xs text-muted-foreground">+2 from last month</p>
+            <p className="text-xs text-muted-foreground">+2 desde el mes pasado</p>
           </CardContent>
         </Card>
         <Card className="shadow-md hover:shadow-lg transition-shadow">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Tasks Completed</CardTitle>
+            <CardTitle className="text-sm font-medium">Tareas Completadas</CardTitle>
             <CheckSquare className="h-5 w-5 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-bold text-primary">{summaryData.completedTasks}</div>
-            <p className="text-xs text-muted-foreground">+15 this week</p>
+            <p className="text-xs text-muted-foreground">+15 esta semana</p>
           </CardContent>
         </Card>
         <Card className="shadow-md hover:shadow-lg transition-shadow">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Team Members</CardTitle>
+            <CardTitle className="text-sm font-medium">Miembros del Equipo</CardTitle>
             <Users className="h-5 w-5 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-bold text-primary">{summaryData.teamMembers}</div>
-            <p className="text-xs text-muted-foreground">All active</p>
+            <p className="text-xs text-muted-foreground">Todos activos</p>
           </CardContent>
         </Card>
         <Card className="shadow-md hover:shadow-lg transition-shadow">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Critical Alerts (Sample)</CardTitle>
+            <CardTitle className="text-sm font-medium">Alertas Críticas (Ejemplo)</CardTitle>
             <AlertTriangle className="h-5 w-5 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-bold">{summaryData.alerts}</div>
-            <p className="text-xs text-muted-foreground">This is a sample card</p>
+            <p className="text-xs text-muted-foreground">Esto es una tarjeta de ejemplo</p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Club & Team Management Section */}
       <Card className="shadow-lg">
         <CardHeader>
           <CardTitle className="text-2xl font-headline flex items-center">
-            Club & Team Management
+            Gestión de Club y Equipos
           </CardTitle>
-          <CardDescription>Manage your club details and create new teams.</CardDescription>
+          <CardDescription>Gestiona los detalles de tu club y crea nuevos equipos.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {renderClubManagement()}
         </CardContent>
       </Card>
 
-      {/* Hoop Control API Data Section (Placeholder) */}
       <Card className="shadow-lg">
         <CardHeader>
           <CardTitle className="text-2xl font-headline flex items-center">
             <BarChart className="mr-3 h-6 w-6 text-accent" />
-            Hoop Control API Overview
+            Resumen de la API
           </CardTitle>
-          <CardDescription>Key metrics from the integrated API.</CardDescription>
+          <CardDescription>Métricas clave obtenidas de la API integrada.</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4 md:grid-cols-2">
           {bcsjdApiSampleData.map((item) => (
@@ -244,7 +179,7 @@ export default function DashboardPage() {
            <div className="p-4 border rounded-md bg-secondary/30 flex items-center justify-center">
              <Image 
                 src="https://placehold.co/300x150.png" 
-                alt="Chart Placeholder" 
+                alt="Gráfico de ejemplo" 
                 width={300} 
                 height={150} 
                 className="rounded shadow"

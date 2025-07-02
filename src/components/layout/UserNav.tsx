@@ -25,8 +25,6 @@ export function UserNav() {
   const handleLogout = async () => {
     await logout();
     toast({ title: "Sesión Cerrada" });
-    router.push('/login');
-    router.refresh();
   };
 
   if (!user) {

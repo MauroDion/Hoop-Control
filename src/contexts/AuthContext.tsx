@@ -15,11 +15,11 @@ interface AuthContextType {
   user: FirebaseUser | null;
   profile: UserFirestoreProfile | null;
   loading: boolean;
-  logout: () => Promise<void>;
+  logout: (silent?: boolean) => Promise<void>;
   branding: BrandingSettings;
 }
 
-export const AuthContext = createContext<AuthContextType | undefined>(undefined);
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const useAuth = () => {
     const context = useContext(AuthContext);
@@ -35,17 +35,21 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [branding, setBranding] = useState<BrandingSettings>({});
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
+  const router = useRouter();
 
-  const handleLogout = useCallback(async () => {
+  const handleLogout = useCallback(async (silent = false) => {
     try {
       await fetch('/api/auth/session-logout', { method: 'POST' }); 
       await signOut(auth);
-      // State will be cleared by onIdTokenChanged listener
+      if (!silent) {
+        toast({ title: "Sesión Cerrada" });
+        router.push('/login');
+      }
     } catch (error) {
        console.error("Logout failed:", error);
-       toast({ variant: 'destructive', title: 'Error al cerrar sesión' });
+       if (!silent) toast({ variant: 'destructive', title: 'Error al cerrar sesión' });
     }
-  }, [toast]);
+  }, [toast, router]);
 
   useEffect(() => {
     getBrandingSettings().then(setBranding);
@@ -55,30 +59,37 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const unsubscribe = onIdTokenChanged(auth, async (firebaseUser) => {
         setLoading(true);
         if (firebaseUser) {
-            try {
-                // Ensure session cookie exists by calling our login endpoint.
-                // This syncs client auth state with server session state.
-                const idToken = await firebaseUser.getIdToken(true);
-                const response = await fetch('/api/auth/session-login', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ idToken }),
-                });
+            const userProfile = await getUserProfileById(firebaseUser.uid);
 
-                if (!response.ok) {
-                   const errorData = await response.json();
-                   console.warn(`Session sync failed with reason: ${errorData.reason}`);
-                   throw new Error(errorData.error || "Session login failed");
+            if (!userProfile) {
+                // This can happen if a user is created in Auth but the profile creation fails.
+                // Or if a user is from a previous version of the app without a profile.
+                if (window.location.pathname !== '/profile/complete-registration') {
+                    router.push('/profile/complete-registration');
                 }
-                
-                const userProfile = await getUserProfileById(firebaseUser.uid);
-                setUser(firebaseUser);
-                setProfile(userProfile);
-                
-            } catch(error) {
-                console.error("Auth state sync failed, forcing logout:", error);
-                await handleLogout();
+                setUser(firebaseUser); // Set user so they can complete registration
+                setProfile(null);
+                setLoading(false);
+                return;
             }
+
+            if (userProfile.status !== 'approved') {
+                await handleLogout(true); // Silent logout
+                const reason = userProfile.status || 'not_approved';
+                router.push(`/login?status=${reason}`);
+                setLoading(false);
+                return;
+            }
+            
+            if (userProfile.profileTypeId === 'parent_guardian' && !userProfile.onboardingCompleted) {
+                 if (window.location.pathname !== '/profile/my-children') {
+                    router.push('/profile/my-children');
+                 }
+            }
+            
+            setUser(firebaseUser);
+            setProfile(userProfile);
+            
         } else {
             setUser(null);
             setProfile(null);
@@ -86,7 +97,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setLoading(false);
     });
     return () => unsubscribe();
-  }, [handleLogout]);
+  }, [handleLogout, router]);
 
   if (loading) {
     return (
