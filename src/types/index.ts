@@ -20,7 +20,7 @@ export interface TaskFormData {
   dueDate?: string | null;
 }
 
-export interface BcsjdApiDataItem {
+export interface ApiDataItem {
   id: string | number;
   name: string;
   value: string | number;

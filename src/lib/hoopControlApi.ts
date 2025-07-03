@@ -1,4 +1,4 @@
-import type { BcsjdApiDataItem } from '@/types';
+import type { ApiDataItem } from '@/types';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_HOOP_CONTROL_API_BASE_URL || "https://api.hoopcontrol.example.com/v1";
 const PUBLIC_API_KEY = process.env.NEXT_PUBLIC_HOOP_CONTROL_API_KEY;
@@ -34,9 +34,9 @@ async function fetchFromHoopControlApi<T>(endpoint: string, options: FetchOption
 }
 
 
-export async function getKeyMetrics(): Promise<{data: BcsjdApiDataItem[], isMock: boolean}> {
+export async function getKeyMetrics(): Promise<{data: ApiDataItem[], isMock: boolean}> {
   try {
-    const data = await fetchFromHoopControlApi<BcsjdApiDataItem[]>('/key-metrics');
+    const data = await fetchFromHoopControlApi<ApiDataItem[]>('/key-metrics');
     return { data, isMock: false };
   } catch (error) {
     console.warn("Hoop Control API fetch failed, returning mock data for UI purposes.");

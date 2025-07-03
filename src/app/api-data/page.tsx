@@ -1,8 +1,8 @@
-"use client";
+"use client"; // This page needs to be a client component for useEffect and useState
 
 import React, { useEffect, useState } from 'react';
 import { getKeyMetrics } from '@/lib/hoopControlApi';
-import type { BcsjdApiDataItem } from '@/types';
+import type { ApiDataItem } from '@/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { BarChart3, AlertTriangle, Loader2, RefreshCw, HelpCircle, Info } from 'lucide-react';
@@ -12,7 +12,7 @@ import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 
 export default function ApiDataPage() {
-  const [data, setData] = useState<BcsjdApiDataItem[]>([]);
+  const [data, setData] = useState<ApiDataItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isForbiddenError, setIsForbiddenError] = useState(false);
