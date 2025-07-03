@@ -8,7 +8,7 @@ import type { User as FirebaseUser } from 'firebase/auth';
 
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '@/lib/firebase/client';
-import { updateLiveGameState, recordGameEvent, substitutePlayer, assignScorer, endCurrentPeriod } from '@/app/games/actions';
+import { updateLiveGameState, endCurrentPeriod, substitutePlayer, assignScorer, recordGameEvent } from '@/app/games/actions';
 import { getGameFormatById } from '@/app/game-formats/actions';
 import { getPlayersByTeamId } from '@/app/players/actions';
 import type { Game, GameFormat, Player, GameEventAction, PlayerGameStats, UserFirestoreProfile, ProfileType, StatCategory, GameEvent } from '@/types';
@@ -21,6 +21,8 @@ import { Separator } from '@/components/ui/separator';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import Image from 'next/image';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
 
 const PlayerStatCard = ({ player, stats, onClick, userProfileType, isChild }: { player: Player; stats: PlayerGameStats; onClick?: () => void, userProfileType?: ProfileType, isChild: boolean }) => {
     
@@ -36,7 +38,7 @@ const PlayerStatCard = ({ player, stats, onClick, userProfileType, isChild }: { 
     const pirValue = stats.pir || 0;
 
     return (
-        <Card onClick={onClick} className={`p-2 relative aspect-[3/4] flex flex-col items-center justify-center overflow-hidden transition-all duration-300 bg-card ${onClick ? "hover:shadow-xl hover:scale-105 cursor-pointer" : "cursor-default"}`}>
+        <Card onClick={onClick} className={`p-2 relative h-40 flex flex-col items-center justify-center overflow-hidden transition-all duration-300 bg-card ${onClick ? "hover:shadow-xl hover:scale-105 cursor-pointer" : "cursor-default"}`}>
             <div className='absolute top-2 left-2 text-2xl font-black text-green-600'>{stats.points}</div>
             {stats.fouls > 0 && <div className='absolute top-2 right-2 flex items-center justify-center px-1.5 h-6 bg-destructive border-2 border-white/70 rounded-sm shadow-lg z-20'><span className="text-yellow-300 text-sm font-extrabold" style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.5)' }}>F: {stats.fouls}</span></div>}
             
@@ -61,7 +63,7 @@ const PlayerStatCard = ({ player, stats, onClick, userProfileType, isChild }: { 
                 </>
             )}
 
-            <div className="text-8xl font-black text-destructive" style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.1)' }}>{player.jerseyNumber || 'S/N'}</div>
+            <div className="text-7xl font-black text-destructive" style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.1)' }}>{player.jerseyNumber || 'S/N'}</div>
             <div className="absolute bottom-1 text-xs text-center font-semibold w-full px-1 bg-gradient-to-t from-background via-background to-transparent pt-8 pb-1">
                 <p className="truncate">{player.firstName} {player.lastName}</p>
                 <p className="font-mono text-muted-foreground">T: {formatTime(stats.timePlayedSeconds || 0)} | P: {stats.periodsPlayed || 0}</p>
@@ -196,36 +198,24 @@ export default function LiveGamePage() {
     }, [gameId, toast, user]);
 
     useEffect(() => {
-        let timerId: NodeJS.Timeout | undefined;
-    
-        if (game?.isTimerRunning && game.timerStartedAt) {
-            const serverStartTime = new Date(game.timerStartedAt).getTime();
-            const serverRemainingSeconds = game.periodTimeRemainingSeconds || 0;
-            
-            const updateDisplay = () => {
-                const elapsedSeconds = Math.floor((Date.now() - serverStartTime) / 1000);
-                const newDisplayTime = Math.max(0, serverRemainingSeconds - elapsedSeconds);
-                setDisplayTime(newDisplayTime);
-                 if (newDisplayTime <= 0) {
-                    if (game.isTimerRunning) {
-                        handleUpdate({ isTimerRunning: false, periodTimeRemainingSeconds: 0 });
-                    }
-                    if (timerId) clearInterval(timerId);
-                }
-            };
-    
-            updateDisplay();
-            timerId = setInterval(updateDisplay, 1000);
-        } else {
-            setDisplayTime(game?.periodTimeRemainingSeconds || 0);
+        if (game?.isTimerRunning) {
+            const timerId = setInterval(() => setDisplayTime(prev => prev > 0 ? prev - 1 : 0), 1000);
+            return () => clearInterval(timerId);
         }
+    }, [game?.isTimerRunning]);
+
+    useEffect(() => {
+        if (displayTime <= 0 && game?.isTimerRunning) {
+            handleUpdate({ isTimerRunning: false, periodTimeRemainingSeconds: 0 });
+        }
+    }, [displayTime, game?.isTimerRunning, handleUpdate]);
     
-        return () => {
-            if (timerId) {
-                clearInterval(timerId);
-            }
-        };
-    }, [game, handleUpdate]);
+    useEffect(() => {
+        if (game?.periodTimeRemainingSeconds !== undefined && !game.isTimerRunning) {
+            setDisplayTime(game.periodTimeRemainingSeconds);
+        }
+    }, [game?.periodTimeRemainingSeconds, game?.isTimerRunning]);
+    
 
     useEffect(() => {
         if (authLoading) return;
@@ -438,7 +428,7 @@ export default function LiveGamePage() {
     
     const canRecordAnyStat = myAssignments.size > 0 || isSuperAdmin;
     const canRecordShots = myAssignments.has('shots') || isSuperAdmin;
-    const canRecordOther = myAssignments.has('turnovers') || myAssignments.has('fouls') || isSuperAdmin;
+    const canRecordOther = myAssignments.has('fouls') || myAssignments.has('turnovers') || isSuperAdmin;
 
     const TeamPanel = ({ teamType, playersList }: { teamType: 'home' | 'away', playersList: Player[] }) => {
         const teamName = teamType === 'home' ? game.homeTeamName : game.awayTeamName;
@@ -559,11 +549,8 @@ export default function LiveGamePage() {
                                     {game.isTimerRunning ? <Pause className="mr-2"/> : <Play className="mr-2"/>}
                                     {game.isTimerRunning ? 'Pausar' : 'Iniciar'}
                                 </Button>
-                                <Button onClick={handleEndPeriod} disabled={game.status !== 'inprogress' || !game.isTimerRunning} variant="outline" size="lg">
+                                <Button onClick={handleEndPeriod} disabled={game.status !== 'inprogress'} variant="outline" size="lg">
                                     <FastForward className="mr-2"/> Finalizar Período
-                                </Button>
-                                <Button onClick={handleNextPeriod} disabled={game.status !== 'inprogress' || game.isTimerRunning || game.currentPeriod! >= (gameFormat?.numPeriods || 4)} variant="outline" size="sm">
-                                    Siguiente Per.
                                 </Button>
                                 <Button onClick={handleResetTimer} disabled={game.status !== 'inprogress'} variant="secondary" size="icon" aria-label="Reiniciar cronómetro"><TimerReset/></Button>
                             </div>
