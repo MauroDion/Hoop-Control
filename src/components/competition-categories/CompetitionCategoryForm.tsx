@@ -22,11 +22,13 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Loader2 } from "lucide-react";
 import { useEffect } from "react";
 
+const NULL_VALUE = "none";
+
 const categoryFormSchema = z.object({
   name: z.string().min(3, "El nombre debe tener al menos 3 caracteres."),
   description: z.string().optional(),
   level: z.coerce.number().optional(),
-  gameFormatId: z.string().optional().nullable(),
+  gameFormatId: z.string().optional().nullable().transform(val => val === NULL_VALUE ? null : val),
 });
 
 interface CompetitionCategoryFormProps {
@@ -134,14 +136,14 @@ export function CompetitionCategoryForm({ onFormSubmit, gameFormats, category }:
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Formato de Partido por Defecto</FormLabel>
-                <Select onValueChange={field.onChange} value={field.value || ""}>
+                <Select onValueChange={field.onChange} value={field.value ?? NULL_VALUE}>
                   <FormControl>
                     <SelectTrigger>
                       <SelectValue placeholder="Selecciona un formato" />
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
-                    <SelectItem value="">Ninguno</SelectItem>
+                    <SelectItem value={NULL_VALUE}>Ninguno</SelectItem>
                     {gameFormats.map(format => (
                         <SelectItem key={format.id} value={format.id}>{format.name}</SelectItem>
                     ))}
