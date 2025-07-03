@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
@@ -38,7 +39,7 @@ const PlayerStatCard = ({ player, stats, onClick, userProfileType, isChild }: { 
     const pirValue = stats.pir || 0;
 
     return (
-        <Card onClick={onClick} className={`p-2 relative h-40 flex flex-col items-center justify-center overflow-hidden transition-all duration-300 bg-card ${onClick ? "hover:shadow-xl hover:scale-105 cursor-pointer" : "cursor-default"}`}>
+        <Card onClick={onClick} className={`p-2 relative h-full flex flex-col items-center justify-center overflow-hidden transition-all duration-300 bg-card ${onClick ? "hover:shadow-xl hover:scale-105 cursor-pointer" : "cursor-default"}`}>
             <div className='absolute top-2 left-2 text-2xl font-black text-green-600'>{stats.points}</div>
             {stats.fouls > 0 && <div className='absolute top-2 right-2 flex items-center justify-center px-1.5 h-6 bg-destructive border-2 border-white/70 rounded-sm shadow-lg z-20'><span className="text-yellow-300 text-sm font-extrabold" style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.5)' }}>F: {stats.fouls}</span></div>}
             
@@ -208,7 +209,8 @@ export default function LiveGamePage() {
         if (displayTime <= 0 && game?.isTimerRunning) {
             handleUpdate({ isTimerRunning: false, periodTimeRemainingSeconds: 0 });
         }
-    }, [displayTime, game?.isTimerRunning, handleUpdate]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [displayTime, game?.isTimerRunning]);
     
     useEffect(() => {
         if (game?.periodTimeRemainingSeconds !== undefined && !game.isTimerRunning) {
@@ -327,19 +329,6 @@ export default function LiveGamePage() {
         handleUpdate({ isTimerRunning: !game.isTimerRunning });
     }, [game, handleUpdate]);
     
-    const handleNextPeriod = useCallback(() => {
-        if (!game || !gameFormat) return;
-        const currentPeriod = game.currentPeriod || 1;
-        const maxPeriods = gameFormat.numPeriods || 4;
-        if (currentPeriod < maxPeriods) {
-            handleUpdate({
-                currentPeriod: currentPeriod + 1,
-                isTimerRunning: false,
-                periodTimeRemainingSeconds: (gameFormat.periodDurationMinutes || 10) * 60,
-            });
-        }
-    }, [game, gameFormat, handleUpdate]);
-    
     const handleEndPeriod = useCallback(async () => {
         if (!game || !user) return;
         const result = await endCurrentPeriod(game.id, user.uid);
@@ -445,21 +434,21 @@ export default function LiveGamePage() {
                     <div className="text-8xl font-bold text-primary text-center">{teamType === 'home' ? game.homeTeamScore : game.awayTeamScore}</div>
                     <Separator/>
                     <h4 className="font-semibold text-center">Jugadores en Pista</h4>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 min-h-[10rem]">
                         {onCourtPlayers.length > 0 ? onCourtPlayers.map(p => {
                              const stats = game.playerStats?.[p.id] || { ...defaultStats, playerId: p.id, playerName: `${p.firstName} ${p.lastName}` };
                              const isChild = parentChildInfo.childIds.has(p.id);
                              return <PlayerStatCard key={p.id} player={p} stats={stats} onClick={canRecordAnyStat ? () => setActionPlayerInfo({ player: p, teamType }) : undefined} userProfileType={profile.profileTypeId} isChild={isChild} />
-                        }) : <p className="text-sm text-muted-foreground text-center italic col-span-full">Sin jugadores en pista</p>}
+                        }) : <p className="text-sm text-muted-foreground text-center italic col-span-full self-center">Sin jugadores en pista</p>}
                     </div>
                     <Separator/>
                     <h4 className="font-semibold text-center">Banquillo</h4>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 min-h-[10rem]">
                        {onBenchPlayers.length > 0 ? onBenchPlayers.map(p => {
                            const stats = game.playerStats?.[p.id] || { ...defaultStats, playerId: p.id, playerName: `${p.firstName} ${p.lastName}` };
                            const isChild = parentChildInfo.childIds.has(p.id);
                            return <PlayerStatCard key={p.id} player={p} stats={stats} onClick={canManageControls ? () => handleBenchPlayerClick(p, teamType) : undefined} userProfileType={profile.profileTypeId} isChild={isChild} />
-                       }) : <p className="text-sm text-muted-foreground text-center italic col-span-full">Banquillo vacío</p>}
+                       }) : <p className="text-sm text-muted-foreground text-center italic col-span-full self-center">Banquillo vacío</p>}
                     </div>
                 </CardContent>
             </Card>

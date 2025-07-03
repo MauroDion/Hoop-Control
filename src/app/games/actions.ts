@@ -1,3 +1,4 @@
+
 'use server';
 import { adminDb } from '@/lib/firebase/admin';
 import admin from 'firebase-admin';
@@ -592,26 +593,16 @@ export async function endCurrentPeriod(gameId: string, userId: string): Promise<
             let playerStatsCopy = JSON.parse(JSON.stringify(gameData.playerStats || {}));
             const serverTimestamp = admin.firestore.FieldValue.serverTimestamp();
 
-            // 1. Sync time right up to this moment
+            // 1. Sync time right up to this moment, if the timer was running.
             const { timeUpdates, playerStatsUpdates } = applyTimerSync(gameData, playerStatsCopy);
+            playerStatsCopy = playerStatsUpdates;
             
-            // 2. Add the remaining time to the players who were on court.
-            const remainingSecondsAfterSync = timeUpdates.periodTimeRemainingSeconds || 0;
-            const onCourtIds = [...(gameData.homeTeamOnCourtPlayerIds || []), ...(gameData.awayTeamOnCourtPlayerIds || [])];
-            onCourtIds.forEach(pId => {
-                if (playerStatsUpdates[pId]) {
-                    playerStatsUpdates[pId].timePlayedSeconds = (playerStatsUpdates[pId].timePlayedSeconds || 0) + remainingSecondsAfterSync;
-                }
-            });
-
-            // 3. Prepare final updates object
             const finalUpdates: { [key: string]: any } = {
+                ...timeUpdates,
                 isTimerRunning: false,
                 timerStartedAt: null,
-                playerStats: playerStatsUpdates,
+                playerStats: playerStatsCopy,
                 updatedAt: serverTimestamp,
-                homeTeamOnCourtPlayerIds: [], // Clear the court for the next period
-                awayTeamOnCourtPlayerIds: [],
             };
             
             const currentPeriod = gameData.currentPeriod || 1;
