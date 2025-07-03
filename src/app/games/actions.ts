@@ -546,11 +546,22 @@ export async function updateLiveGameState(
             finalUpdates.timerStartedAt = null;
         } 
         // Timer is being started
-        else if (updates.isTimerRunning === true && !gameData.isTimerRunning) { 
+        else if (updates.isTimerRunning === true && !gameData.isTimerRunning) {
+            if(!gameData.gameFormatId) throw new Error("Game format not defined for this game.");
+            const gameFormatDoc = await adminDb.collection('gameFormats').doc(gameData.gameFormatId).get();
+            if (!gameFormatDoc.exists) throw new Error("Game format not found.");
+            const gameFormat = gameFormatDoc.data() as GameFormat;
+            
+            const requiredPlayers = gameFormat.name?.includes('3v3') ? 3 : 5;
+            const homeCount = gameData.homeTeamOnCourtPlayerIds?.length ?? 0;
+            const awayCount = gameData.awayTeamOnCourtPlayerIds?.length ?? 0;
+            if (homeCount !== requiredPlayers || awayCount !== requiredPlayers) {
+                throw new Error(`Ambos equipos deben tener ${requiredPlayers} jugadores en pista para iniciar el cronómetro.`);
+            }
+
             finalUpdates.timerStartedAt = serverTimestamp;
         }
         
-        // When advancing to the next period
         if (updates.currentPeriod && updates.currentPeriod > (gameData.currentPeriod || 0)) {
             const onCourtIds = [...(gameData.homeTeamOnCourtPlayerIds || []), ...(gameData.awayTeamOnCourtPlayerIds || [])];
             onCourtIds.forEach(pId => {
@@ -590,10 +601,17 @@ export async function endCurrentPeriod(gameId: string, userId: string): Promise<
             if (!gameFormatSnap.exists) throw new Error("Game format not found");
             const gameFormat = gameFormatSnap.data() as GameFormat;
             
+            const requiredPlayers = gameFormat?.name?.includes('3v3') ? 3 : 5;
+            const homeOnCourtCount = gameData.homeTeamOnCourtPlayerIds?.length ?? 0;
+            const awayOnCourtCount = gameData.awayTeamOnCourtPlayerIds?.length ?? 0;
+
+            if (homeOnCourtCount !== requiredPlayers || awayOnCourtCount !== requiredPlayers) {
+                throw new Error(`No se puede avanzar de período. Ambos equipos deben tener ${requiredPlayers} jugadores en pista.`);
+            }
+
             let playerStatsCopy = JSON.parse(JSON.stringify(gameData.playerStats || {}));
             const serverTimestamp = admin.firestore.FieldValue.serverTimestamp();
 
-            // 1. Sync time right up to this moment, if the timer was running.
             const { timeUpdates, playerStatsUpdates } = applyTimerSync(gameData, playerStatsCopy);
             playerStatsCopy = playerStatsUpdates;
             
@@ -680,7 +698,6 @@ export async function recordGameEvent(
             let playerStatsCopy = JSON.parse(JSON.stringify(gameData.playerStats || {}));
             let finalUpdates: { [key: string]: any } = { updatedAt: admin.firestore.FieldValue.serverTimestamp() };
 
-            // Apply timer sync before anything else
             const { timeUpdates, playerStatsUpdates } = applyTimerSync(gameData, playerStatsCopy);
             Object.assign(finalUpdates, timeUpdates);
             playerStatsCopy = playerStatsUpdates;
@@ -697,6 +714,17 @@ export async function recordGameEvent(
             const scoreField = `${teamId}TeamScore`;
             const statsField = `${teamId}TeamStats`;
             
+             if (action === 'timeout') {
+                const gameFormatSnap = await adminDb.collection('gameFormats').doc(gameData.gameFormatId).get();
+                if (!gameFormatSnap.exists) throw new Error("Game format not found");
+                const gameFormat = gameFormatSnap.data() as GameFormat;
+                const requiredPlayers = gameFormat.name?.includes('3v3') ? 3 : 5;
+                const teamOnCourtCount = (teamId === 'home' ? gameData.homeTeamOnCourtPlayerIds?.length : gameData.awayTeamOnCourtPlayerIds?.length) ?? 0;
+                if (teamOnCourtCount !== requiredPlayers) {
+                    throw new Error(`El equipo debe tener ${requiredPlayers} jugadores en pista para pedir tiempo muerto.`);
+                }
+            }
+
             const actionHandlers: Partial<Record<GameEventAction, () => void>> = {
                 shot_made_1p: () => { if(currentPlayerStats) { currentPlayerStats.points+=1; currentPlayerStats.shots_made_1p+=1; currentPlayerStats.shots_attempted_1p+=1; finalUpdates[scoreField] = (finalUpdates[scoreField] ?? gameData[scoreField] ?? 0) + 1; }},
                 shot_miss_1p: () => { if(currentPlayerStats) { currentPlayerStats.shots_attempted_1p+=1; }},
@@ -819,3 +847,4 @@ export async function substitutePlayer(
     return { success: false, error: error.message };
   }
 }
+```
