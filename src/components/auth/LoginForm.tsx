@@ -40,13 +40,11 @@ export function LoginForm() {
   async function onSubmit(values: z.infer<typeof formSchema>) {
     try {
       await signInWithEmailAndPassword(auth, values.email, values.password);
-      // AuthContext's onIdTokenChanged will handle the redirection and session logic.
+      // AuthContext will handle redirection now.
       toast({
         title: "Inicio de Sesión Exitoso",
         description: "¡Bienvenido de nuevo!",
       });
-      // A small delay to allow AuthContext to potentially redirect first.
-      setTimeout(() => router.push('/dashboard'), 100);
     } catch (error: any) {
       console.error("Error de inicio de sesión: ", error);
       toast({

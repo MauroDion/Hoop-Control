@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 const PUBLIC_ONLY_PATHS = ['/login', '/register', '/reset-password'];
+const ONBOARDING_PATHS = ['/profile/complete-registration', '/profile/my-children'];
 const PROTECTED_PATHS_PREFIX = ['/dashboard', '/games', '/analysis', '/tasks', '/profile', '/admin', '/clubs', '/seasons'];
 
 export async function middleware(request: NextRequest) {
@@ -14,19 +15,19 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
   
-  const isPublicOnlyPath = PUBLIC_ONLY_PATHS.some(p => pathname.startsWith(p));
-  const isProtectedRoute = PROTECTED_PATHS_PREFIX.some(p => pathname.startsWith(p));
+  const isPublicOnlyPath = PUBLIC_ONLY_PATHS.includes(pathname);
+  const isOnboardingPath = ONBOARDING_PATHS.includes(pathname);
+  const isProtectedRoute = PROTECTED_PATHS_PREFIX.some(p => pathname.startsWith(p)) && !isOnboardingPath;
   const isRootPath = pathname === '/';
 
   if (isAuthed) {
     if (isPublicOnlyPath || isRootPath) {
         return NextResponse.redirect(new URL('/dashboard', request.url));
     }
-  } else {
+  } else { // Not authenticated
     if (isProtectedRoute) {
         // If the request is for a Server Action from an unauthenticated user,
         // don't redirect, but return an authorization error.
-        // Server Actions use POST requests.
         if (request.method === 'POST') {
              return new NextResponse(
                 JSON.stringify({ success: false, message: 'Authentication required.' }),

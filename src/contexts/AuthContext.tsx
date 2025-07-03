@@ -3,7 +3,7 @@
 import type { User as FirebaseUser } from 'firebase/auth';
 import { auth } from '@/lib/firebase/client';
 import { onIdTokenChanged, signOut } from 'firebase/auth';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import React, { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
@@ -15,7 +15,7 @@ interface AuthContextType {
   user: FirebaseUser | null;
   profile: UserFirestoreProfile | null;
   loading: boolean;
-  logout: (silent?: boolean) => Promise<void>;
+  logout: () => Promise<void>;
   branding: BrandingSettings;
 }
 
@@ -36,68 +36,53 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
   const router = useRouter();
+  const pathname = usePathname();
 
-  const handleLogout = useCallback(async (silent = false) => {
+  const handleLogout = useCallback(async () => {
     try {
       await fetch('/api/auth/session-logout', { method: 'POST' }); 
       await signOut(auth);
-      if (!silent) {
-        toast({ title: "Sesión Cerrada" });
-        router.push('/login');
-      }
+      // No explicit toast on logout, as redirection is the main feedback
+      router.push('/login');
     } catch (error) {
        console.error("Logout failed:", error);
-       if (!silent) toast({ variant: 'destructive', title: 'Error al cerrar sesión' });
+       toast({ variant: 'destructive', title: 'Error al cerrar sesión' });
     }
   }, [toast, router]);
 
   useEffect(() => {
     getBrandingSettings().then(setBranding);
-  }, []);
 
-  useEffect(() => {
     const unsubscribe = onIdTokenChanged(auth, async (firebaseUser) => {
         setLoading(true);
-        if (firebaseUser) {
-            const userProfile = await getUserProfileById(firebaseUser.uid);
 
+        if (firebaseUser) {
+            setUser(firebaseUser);
+            const userProfile = await getUserProfileById(firebaseUser.uid);
+            setProfile(userProfile);
+            
+            // --- Redirection Logic ---
             if (!userProfile) {
-                // This can happen if a user is created in Auth but the profile creation fails.
-                // Or if a user is from a previous version of the app without a profile.
-                if (window.location.pathname !== '/profile/complete-registration') {
+                if (pathname !== '/profile/complete-registration') {
                     router.push('/profile/complete-registration');
                 }
-                setUser(firebaseUser); // Set user so they can complete registration
-                setProfile(null);
-                setLoading(false);
-                return;
-            }
-
-            if (userProfile.status !== 'approved') {
-                await handleLogout(true); // Silent logout
+            } else if (userProfile.status !== 'approved') {
+                await handleLogout();
                 const reason = userProfile.status || 'not_approved';
                 router.push(`/login?status=${reason}`);
-                setLoading(false);
-                return;
-            }
-            
-            if (userProfile.profileTypeId === 'parent_guardian' && !userProfile.onboardingCompleted) {
-                 if (window.location.pathname !== '/profile/my-children') {
+            } else if (userProfile.profileTypeId === 'parent_guardian' && !userProfile.onboardingCompleted) {
+                 if (pathname !== '/profile/my-children') {
                     router.push('/profile/my-children');
                  }
             }
-            
-            setUser(firebaseUser);
-            setProfile(userProfile);
-            
-        } else {
+        } else { // No Firebase user
             setUser(null);
             setProfile(null);
         }
         setLoading(false);
     });
     return () => unsubscribe();
-  }, [handleLogout, router]);
+  }, []); // Run only once on mount
 
   if (loading) {
     return (
