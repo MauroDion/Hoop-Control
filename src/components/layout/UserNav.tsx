@@ -1,7 +1,6 @@
 "use client";
 
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import {
@@ -19,7 +18,6 @@ import { LogOut, UserCircle, Settings, Users } from 'lucide-react';
 
 export function UserNav() {
   const { user, profile, logout } = useAuth();
-  const router = useRouter();
   const { toast } = useToast();
 
   const handleLogout = async () => {

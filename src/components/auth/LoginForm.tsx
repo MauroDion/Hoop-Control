@@ -40,7 +40,7 @@ export function LoginForm() {
   async function onSubmit(values: z.infer<typeof formSchema>) {
     try {
       await signInWithEmailAndPassword(auth, values.email, values.password);
-      // AuthContext will handle redirection now.
+      // The AuthContext's onIdTokenChanged listener now handles redirection and session creation.
       toast({
         title: "Inicio de Sesión Exitoso",
         description: "¡Bienvenido de nuevo!",
