@@ -35,7 +35,6 @@ export default function Header() {
   const { appName, logoHeaderUrl } = branding;
 
   const showAdminTools = profile && ['super_admin'].includes(profile.profileTypeId);
-  const showClubTools = profile && ['super_admin', 'club_admin', 'coordinator'].includes(profile.profileTypeId);
   const showGameTools = profile && ['super_admin', 'club_admin', 'coordinator', 'coach'].includes(profile.profileTypeId);
   const showAnalysisTools = profile && ['super_admin', 'club_admin', 'coordinator', 'coach', 'parent_guardian'].includes(profile.profileTypeId);
 

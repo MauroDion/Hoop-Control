@@ -33,7 +33,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<FirebaseUser | null>(null);
   const [profile, setProfile] = useState<UserFirestoreProfile | null>(null);
   const [branding, setBranding] = useState<BrandingSettings>({});
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(true); // Start as true
   const { toast } = useToast();
   const router = useRouter();
   const pathname = usePathname();
@@ -42,7 +42,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       await fetch('/api/auth/session-logout', { method: 'POST' }); 
       await signOut(auth);
-      // No explicit toast on logout, as redirection is the main feedback
       router.push('/login');
     } catch (error) {
        console.error("Logout failed:", error);
@@ -50,40 +49,48 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [toast, router]);
 
+  // Effect 1: Handle auth state changes from Firebase
   useEffect(() => {
-    getBrandingSettings().then(setBranding);
-
     const unsubscribe = onIdTokenChanged(auth, async (firebaseUser) => {
         setLoading(true);
-
         if (firebaseUser) {
             setUser(firebaseUser);
             const userProfile = await getUserProfileById(firebaseUser.uid);
             setProfile(userProfile);
-            
-            // --- Redirection Logic ---
-            if (!userProfile) {
-                if (pathname !== '/profile/complete-registration') {
-                    router.push('/profile/complete-registration');
-                }
-            } else if (userProfile.status !== 'approved') {
-                await handleLogout();
-                const reason = userProfile.status || 'not_approved';
-                router.push(`/login?status=${reason}`);
-            } else if (userProfile.profileTypeId === 'parent_guardian' && !userProfile.onboardingCompleted) {
-                 if (pathname !== '/profile/my-children') {
-                    router.push('/profile/my-children');
-                 }
-            }
-        } else { // No Firebase user
+        } else {
             setUser(null);
             setProfile(null);
         }
         setLoading(false);
     });
     return () => unsubscribe();
-  }, []); // Run only once on mount
+  }, []);
 
+  // Effect 2: Handle business logic and redirections based on state
+  useEffect(() => {
+      if (loading) return; // Wait until initial auth check is done
+
+      if (user) {
+          if (!profile) {
+              if (pathname !== '/profile/complete-registration') {
+                  router.push('/profile/complete-registration');
+              }
+          } else if (profile.status !== 'approved') {
+              handleLogout();
+              router.push(`/login?status=${profile.status || 'not_approved'}`);
+          } else if (profile.profileTypeId === 'parent_guardian' && !profile.onboardingCompleted) {
+              if (pathname !== '/profile/my-children') {
+                  router.push('/profile/my-children');
+              }
+          }
+      }
+  }, [user, profile, loading, pathname, router, handleLogout]);
+
+  // Effect 3: Fetch branding settings once
+  useEffect(() => {
+    getBrandingSettings().then(setBranding);
+  }, []);
+  
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-background">
