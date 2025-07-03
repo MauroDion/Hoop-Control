@@ -206,6 +206,12 @@ export default function LiveGamePage() {
                 const elapsedSeconds = Math.floor((Date.now() - serverStartTime) / 1000);
                 const newDisplayTime = Math.max(0, serverRemainingSeconds - elapsedSeconds);
                 setDisplayTime(newDisplayTime);
+                 if (newDisplayTime <= 0) {
+                    if (game.isTimerRunning) {
+                        handleUpdate({ isTimerRunning: false, periodTimeRemainingSeconds: 0 });
+                    }
+                    if (timerId) clearInterval(timerId);
+                }
             };
     
             updateDisplay();
@@ -219,7 +225,7 @@ export default function LiveGamePage() {
                 clearInterval(timerId);
             }
         };
-    }, [game?.isTimerRunning, game?.timerStartedAt, game?.periodTimeRemainingSeconds]);
+    }, [game, handleUpdate]);
 
     useEffect(() => {
         if (authLoading) return;
@@ -553,7 +559,7 @@ export default function LiveGamePage() {
                                     {game.isTimerRunning ? <Pause className="mr-2"/> : <Play className="mr-2"/>}
                                     {game.isTimerRunning ? 'Pausar' : 'Iniciar'}
                                 </Button>
-                                <Button onClick={handleEndPeriod} disabled={game.status !== 'inprogress' || !game.isTimerRunning || game.currentPeriod! >= (gameFormat?.numPeriods || 4)} variant="outline" size="lg">
+                                <Button onClick={handleEndPeriod} disabled={game.status !== 'inprogress' || !game.isTimerRunning} variant="outline" size="lg">
                                     <FastForward className="mr-2"/> Finalizar Período
                                 </Button>
                                 <Button onClick={handleNextPeriod} disabled={game.status !== 'inprogress' || game.isTimerRunning || game.currentPeriod! >= (gameFormat?.numPeriods || 4)} variant="outline" size="sm">
