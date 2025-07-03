@@ -3,7 +3,7 @@
 import { adminDb } from '@/lib/firebase/admin';
 import admin from 'firebase-admin';
 import { revalidatePath } from 'next/cache';
-import type { Game, GameFormData, Team, TeamStats, Player, GameEventAction, UserFirestoreProfile, StatCategory, PlayerGameStats, Season, GameEvent, GameFormat } from '@/types';
+import type { Game, GameFormData, Team, TeamStats, Player, GameEventAction, UserFirestoreProfile, StatCategory, PlayerGameStats, Season, GameFormat, GameEvent } from '@/types';
 import { getTeamsByCoach as getCoachTeams } from '@/app/teams/actions';
 import { getUserProfileById } from '@/app/users/actions';
 import { getPlayersFromIds } from '../players/actions';
@@ -561,19 +561,7 @@ export async function updateLiveGameState(
 
             finalUpdates.timerStartedAt = serverTimestamp;
         }
-        
-        if (updates.currentPeriod && updates.currentPeriod > (gameData.currentPeriod || 0)) {
-            const onCourtIds = [...(gameData.homeTeamOnCourtPlayerIds || []), ...(gameData.awayTeamOnCourtPlayerIds || [])];
-            onCourtIds.forEach(pId => {
-                if (playerStatsCopy[pId]) {
-                    const periodsPlayedSet = new Set(playerStatsCopy[pId].periodsPlayedSet || []);
-                    periodsPlayedSet.add(updates.currentPeriod!);
-                    playerStatsCopy[pId].periodsPlayedSet = Array.from(periodsPlayedSet);
-                    playerStatsCopy[pId].periodsPlayed = periodsPlayedSet.size;
-                }
-            });
-        }
-        
+                
         finalUpdates.playerStats = playerStatsCopy;
 
         transaction.update(gameRef, finalUpdates);
@@ -612,21 +600,29 @@ export async function endCurrentPeriod(gameId: string, userId: string): Promise<
 
             let playerStatsCopy = JSON.parse(JSON.stringify(gameData.playerStats || {}));
             const serverTimestamp = admin.firestore.FieldValue.serverTimestamp();
+            let finalUpdates: { [key: string]: any } = { updatedAt: serverTimestamp };
 
             const { timeUpdates, playerStatsUpdates } = applyTimerSync(gameData, playerStatsCopy);
+            Object.assign(finalUpdates, timeUpdates);
             playerStatsCopy = playerStatsUpdates;
             
-            const finalUpdates: { [key: string]: any } = {
-                ...timeUpdates,
-                isTimerRunning: false,
-                timerStartedAt: null,
-                playerStats: playerStatsCopy,
-                updatedAt: serverTimestamp,
-            };
+            finalUpdates.isTimerRunning = false;
+            finalUpdates.timerStartedAt = null;
             
             const currentPeriod = gameData.currentPeriod || 1;
             const maxPeriods = gameFormat.numPeriods || 4;
             
+            const onCourtIds = [...(gameData.homeTeamOnCourtPlayerIds || []), ...(gameData.awayTeamOnCourtPlayerIds || [])];
+            onCourtIds.forEach(pId => {
+                if (playerStatsCopy[pId]) {
+                    const periodsPlayedSet = new Set(playerStatsCopy[pId].periodsPlayedSet || []);
+                    periodsPlayedSet.add(currentPeriod);
+                    playerStatsCopy[pId].periodsPlayedSet = Array.from(periodsPlayedSet);
+                    playerStatsCopy[pId].periodsPlayed = periodsPlayedSet.size;
+                }
+            });
+            finalUpdates.playerStats = playerStatsCopy;
+
             if (currentPeriod < maxPeriods) {
                 finalUpdates.currentPeriod = currentPeriod + 1;
                 finalUpdates.periodTimeRemainingSeconds = (gameFormat.periodDurationMinutes || 10) * 60;
@@ -830,11 +826,6 @@ export async function substitutePlayer(
             if (!newPlayerStats[playerIn.id]) {
                 newPlayerStats[playerIn.id] = { ...initialPlayerStats, playerId: playerIn.id, playerName: playerIn.name };
             }
-            const periodsPlayedSet = new Set(newPlayerStats[playerIn.id].periodsPlayedSet || []);
-            periodsPlayedSet.add(period);
-            newPlayerStats[playerIn.id].periodsPlayedSet = Array.from(periodsPlayedSet);
-            newPlayerStats[playerIn.id].periodsPlayed = periodsPlayedSet.size;
-
         } else {
             throw new Error("Player is already on court.");
         }
