@@ -597,11 +597,12 @@ export async function endCurrentPeriod(gameId: string, userId: string): Promise<
             
             const gameData = gameDoc.data()!;
 
+            if(!gameData.gameFormatId) throw new Error("Game format not defined for this game.");
             const gameFormatSnap = await adminDb.collection('gameFormats').doc(gameData.gameFormatId).get();
             if (!gameFormatSnap.exists) throw new Error("Game format not found");
             const gameFormat = gameFormatSnap.data() as GameFormat;
             
-            const requiredPlayers = gameFormat?.name?.includes('3v3') ? 3 : 5;
+            const requiredPlayers = gameFormat.name?.includes('3v3') ? 3 : 5;
             const homeOnCourtCount = gameData.homeTeamOnCourtPlayerIds?.length ?? 0;
             const awayOnCourtCount = gameData.awayTeamOnCourtPlayerIds?.length ?? 0;
 
@@ -715,6 +716,7 @@ export async function recordGameEvent(
             const statsField = `${teamId}TeamStats`;
             
              if (action === 'timeout') {
+                if(!gameData.gameFormatId) throw new Error("Game format not defined for this game.");
                 const gameFormatSnap = await adminDb.collection('gameFormats').doc(gameData.gameFormatId).get();
                 if (!gameFormatSnap.exists) throw new Error("Game format not found");
                 const gameFormat = gameFormatSnap.data() as GameFormat;
@@ -847,4 +849,3 @@ export async function substitutePlayer(
     return { success: false, error: error.message };
   }
 }
-```
