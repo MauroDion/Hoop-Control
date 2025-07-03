@@ -6,8 +6,11 @@ import { BarChart, Building, CheckSquare, Users, AlertTriangle, Loader2 } from '
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
+import { createTestGame, finishAllTestGames } from '../games/actions';
+import { useToast } from '@/hooks/use-toast';
+import React from 'react';
 
-// Dummy data - replace with actual data fetching
+// Dummy data
 const summaryData = {
   activeProjects: 5,
   completedTasks: 120,
@@ -15,12 +18,7 @@ const summaryData = {
   alerts: 2,
 };
 
-// Placeholder for API data state
-interface ApiData {
-  keyMetric: string;
-  value: number | string;
-}
-const bcsjdApiSampleData: ApiData[] = [
+const bcsjdApiSampleData = [
   { keyMetric: "Progreso General", value: "75%" },
   { keyMetric: "Uso del Presupuesto", value: "60%" },
 ];
@@ -28,6 +26,47 @@ const bcsjdApiSampleData: ApiData[] = [
 
 export default function DashboardPage() {
   const { user, profile, loading: authLoading } = useAuth();
+  const { toast } = useToast();
+  const [isCreatingGame, setIsCreatingGame] = React.useState(false);
+  const [isFinishingGames, setIsFinishingGames] = React.useState(false);
+
+  const handleCreateTestGame = async () => {
+    if (!user) return;
+    setIsCreatingGame(true);
+    const result = await createTestGame(user.uid);
+    if (result.success) {
+      toast({
+        title: "Partido de Prueba Creado",
+        description: `El partido ha sido creado con éxito. ID: ${result.gameId}`,
+      });
+    } else {
+      toast({
+        variant: "destructive",
+        title: "Error al Crear Partido",
+        description: result.error || "Ocurrió un error desconocido.",
+      });
+    }
+    setIsCreatingGame(false);
+  };
+  
+  const handleFinishAllGames = async () => {
+      if (!user) return;
+      setIsFinishingGames(true);
+      const result = await finishAllTestGames(user.uid);
+      if (result.success) {
+          toast({
+              title: "Partidos Finalizados",
+              description: `${result.count || 0} partidos de prueba han sido marcados como completados.`,
+          });
+      } else {
+          toast({
+              variant: "destructive",
+              title: "Error al Finalizar Partidos",
+              description: result.error,
+          });
+      }
+      setIsFinishingGames(false);
+  }
 
   const renderClubManagement = () => {
     if (authLoading || !profile) {
@@ -56,7 +95,7 @@ export default function DashboardPage() {
       );
     }
     
-    if (profile.clubId) {
+    if (profile.clubId && ['club_admin', 'coordinator'].includes(profile.profileTypeId)) {
        return (
         <>
           <p className="text-sm text-muted-foreground">
@@ -74,7 +113,7 @@ export default function DashboardPage() {
     return (
       <div className="flex items-center text-muted-foreground">
         <AlertTriangle className="mr-2 h-5 w-5 text-yellow-500" />
-        <span>Tu perfil no está asociado a un club.</span>
+        <span>No tienes permisos de gestión de club.</span>
       </div>
     );
   };
@@ -105,6 +144,25 @@ export default function DashboardPage() {
           data-ai-hint="professional avatar"
         />
       </div>
+      
+      {profile?.profileTypeId === 'super_admin' && (
+           <Card className="shadow-lg">
+             <CardHeader>
+                <CardTitle>Acciones de Desarrollo</CardTitle>
+                <CardDescription>Botones para facilitar las pruebas durante el desarrollo.</CardDescription>
+             </CardHeader>
+              <CardContent className="flex gap-4">
+                <Button onClick={handleCreateTestGame} disabled={isCreatingGame}>
+                    {isCreatingGame && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
+                    Crear Partido de Prueba
+                </Button>
+                 <Button onClick={handleFinishAllGames} variant="destructive" disabled={isFinishingGames}>
+                    {isFinishingGames && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
+                    Finalizar Partidos de Prueba
+                </Button>
+              </CardContent>
+           </Card>
+      )}
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
         <Card className="shadow-md hover:shadow-lg transition-shadow">
