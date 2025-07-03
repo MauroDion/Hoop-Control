@@ -7,7 +7,7 @@ import { revalidatePath } from 'next/cache';
 
 export async function finalizeNewUserProfile(
   idToken: string,
-  data: { profileType: ProfileType; selectedClubId: string; displayName: string; }
+  data: { profileType: ProfileType; selectedClubId?: string; displayName: string; }
 ): Promise<{ success: boolean; error?: string }> {
   if (!adminAuth || !adminDb) {
     console.error("UserActions (finalize): Firebase Admin SDK not initialized. Error:", adminInitError);
@@ -20,21 +20,29 @@ export async function finalizeNewUserProfile(
     await adminAuth.updateUser(uid, { displayName: data.displayName });
     
     const userProfileRef = adminDb.collection('user_profiles').doc(uid);
+    
+    if (data.profileType !== 'super_admin' && !data.selectedClubId) {
+        return { success: false, error: "Club selection is required for this profile type."};
+    }
+
     const profileToSave: any = {
         uid: uid,
         email: decodedToken.email || null,
         displayName: data.displayName,
         photoURL: decodedToken.picture || null,
         profileTypeId: data.profileType,
-        clubId: data.selectedClubId,
+        clubId: data.profileType === 'super_admin' ? null : data.selectedClubId,
         status: 'pending_approval' as UserProfileStatus,
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        isSeeded: false, // Mark as a real user
     };
 
     if (data.profileType === 'parent_guardian') {
       profileToSave.onboardingCompleted = false;
       profileToSave.children = [];
+    } else {
+      profileToSave.onboardingCompleted = true; // Admins and other roles are completed in one step.
     }
     
     await userProfileRef.set(profileToSave);

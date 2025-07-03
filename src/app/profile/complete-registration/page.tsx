@@ -19,10 +19,20 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 
 const formSchema = z.object({
   profileType: z.enum([ 'club_admin', 'coach', 'coordinator', 'parent_guardian', 'player', 'scorer', 'super_admin', 'user' ], {
-    errorMap: () => ({ message: "Please select a valid profile type." })
+    errorMap: () => ({ message: "Por favor, selecciona un tipo de perfil válido." })
   }),
-  selectedClubId: z.string().min(1, { message: "Please select a club." }),
+  selectedClubId: z.string().optional(),
+}).refine((data) => {
+    // selectedClubId is required if the profileType is NOT super_admin
+    if (data.profileType !== 'super_admin') {
+        return !!data.selectedClubId && data.selectedClubId.length > 0;
+    }
+    return true;
+}, {
+    message: "Por favor, selecciona un club.",
+    path: ["selectedClubId"],
 });
+
 
 export default function CompleteRegistrationPage() {
   const { user, loading: authLoading, logout } = useAuth();
@@ -42,7 +52,7 @@ export default function CompleteRegistrationPage() {
         setClubs(Array.isArray(fetchedClubs) ? fetchedClubs : []);
         setProfileTypeOptions(Array.isArray(fetchedProfileTypes) ? fetchedProfileTypes.filter(pt => pt.id !== 'super_admin') : []);
       } catch (error: any) {
-        toast({ variant: "destructive", title: "Error Loading Data", description: error.message || "Could not load data."});
+        toast({ variant: "destructive", title: "Error al Cargar Datos", description: error.message || "No se pudieron cargar los datos."});
       } finally {
         setLoadingClubs(false);
         setLoadingProfileTypes(false);
@@ -55,10 +65,13 @@ export default function CompleteRegistrationPage() {
     resolver: zodResolver(formSchema),
     defaultValues: {},
   });
+  
+  const { watch } = form;
+  const selectedProfileType = watch("profileType");
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     if (!user) {
-        toast({ variant: "destructive", title: "Authentication Error", description: "User not found. Please sign in again." });
+        toast({ variant: "destructive", title: "Error de Autenticación", description: "Usuario no encontrado. Por favor, inicia sesión de nuevo." });
         return;
     }
     
@@ -71,12 +84,12 @@ export default function CompleteRegistrationPage() {
       });
 
       if (!profileResult.success) {
-        throw new Error(profileResult.error || "Failed to create user profile on the server.");
+        throw new Error(profileResult.error || "No se pudo crear el perfil de usuario en el servidor.");
       }
 
       toast({
-        title: "Registration Complete",
-        description: "Your profile has been created and is pending approval.",
+        title: "Registro Completado",
+        description: "Tu perfil ha sido creado y está pendiente de aprobación.",
         duration: 7000,
       });
       
@@ -84,7 +97,7 @@ export default function CompleteRegistrationPage() {
       router.push('/login?status=pending_approval');
 
     } catch (error: any) {
-        toast({ variant: "destructive", title: "Registration Failed", description: error.message });
+        toast({ variant: "destructive", title: "Fallo en el Registro", description: error.message });
     }
   }
 
@@ -132,31 +145,33 @@ export default function CompleteRegistrationPage() {
                   </FormItem>
                 )}
               />
-              <FormField
-                control={form.control}
-                name="selectedClubId"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Tu Club</FormLabel>
-                    <Select
-                      onValueChange={field.onChange}
-                      defaultValue={field.value}
-                      disabled={loadingClubs || clubs.length === 0}
-                    >
-                      <FormControl>
-                        <SelectTrigger><SelectValue placeholder="Selecciona tu club" /></SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {clubs.map((club) => (
-                             <SelectItem key={club.id} value={club.id}>{club.name}</SelectItem>
-                           )
-                        )}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              {selectedProfileType !== 'super_admin' && (
+                <FormField
+                    control={form.control}
+                    name="selectedClubId"
+                    render={({ field }) => (
+                    <FormItem>
+                        <FormLabel>Tu Club</FormLabel>
+                        <Select
+                        onValueChange={field.onChange}
+                        defaultValue={field.value}
+                        disabled={loadingClubs || clubs.length === 0}
+                        >
+                        <FormControl>
+                            <SelectTrigger><SelectValue placeholder="Selecciona tu club" /></SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                            {clubs.map((club) => (
+                                <SelectItem key={club.id} value={club.id}>{club.name}</SelectItem>
+                            ))
+                            }
+                        </SelectContent>
+                        </Select>
+                        <FormMessage />
+                    </FormItem>
+                    )}
+                />
+              )}
               <Button type="submit" className="w-full" disabled={form.formState.isSubmitting || loadingClubs || loadingProfileTypes}>
                 {form.formState.isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Completar Registro

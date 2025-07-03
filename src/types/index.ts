@@ -51,7 +51,7 @@ export interface UserFirestoreProfile {
   displayName: string | null;
   photoURL?: string | null;
   profileTypeId: ProfileType;
-  clubId: string;
+  clubId: string | null;
   status: UserProfileStatus;
   createdAt: string;
   updatedAt: string;
@@ -247,10 +247,9 @@ export interface GameEvent {
     playerName?: string;
     action: GameEventAction;
     period: number;
-    gameTimeSeconds: number; // Time remaining in period when event happened
-    createdAt: string; // ISO string for server timestamp
+    gameTimeSeconds: number;
+    createdAt: string;
     createdBy: string;
-    // For substitutions
     playerIn?: { id: string, name: string };
     playerOut?: { id: string, name: string };
 }
@@ -274,7 +273,7 @@ export interface PlayerGameStats {
   fouls: number;
   blocks_against: number;
   fouls_received: number;
-  pir: number; // Performance Index Rating
+  pir: number;
   plusMinus: number;
 }
 
@@ -306,7 +305,7 @@ export interface Game {
     currentPeriod?: number;
     periodTimeRemainingSeconds?: number;
     isTimerRunning?: boolean;
-    timerStartedAt?: string | null; // ISO String of when timer was last started
+    timerStartedAt?: string | null;
     scorerAssignments?: {
       [key in StatCategory]?: {
         uid: string;

@@ -39,78 +39,58 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const pathname = usePathname();
 
   const handleLogout = useCallback(async () => {
-    // Just sign out client-side. The onIdTokenChanged listener will handle the rest.
+    await fetch('/api/auth/session-logout', { method: 'POST' });
     await signOut(auth);
+    // onIdTokenChanged listener will handle state cleanup
+  }, []);
+
+  useEffect(() => {
+    getBrandingSettings().then(setBranding);
   }, []);
 
   useEffect(() => {
     const unsubscribe = onIdTokenChanged(auth, async (firebaseUser) => {
+        setLoading(true);
         if (firebaseUser) {
-            // User is signed in or token has refreshed.
-            setUser(firebaseUser); // Set Firebase user immediately
+            setUser(firebaseUser);
             try {
-                // Create or refresh server session cookie
                 const idToken = await firebaseUser.getIdToken();
-                const response = await fetch('/api/auth/session-login', {
+                await fetch('/api/auth/session-login', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ idToken }),
                 });
-
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.reason || 'Session login failed');
-                }
                 
                 const userProfile = await getUserProfileById(firebaseUser.uid);
                 setProfile(userProfile);
 
             } catch (error: any) {
                 console.error("Auth context error:", error.message);
-                if (error.message === 'pending_approval' || error.message === 'rejected' || error.message === 'not_found') {
-                    // Force a full logout and redirect with status
-                    await handleLogout(); 
-                    router.push(`/login?status=${error.message}`);
-                } else {
-                    // For other errors, just log out
-                    await handleLogout();
-                }
+                await handleLogout();
             }
         } else {
-            // User is signed out.
             setUser(null);
             setProfile(null);
-            // Ensure server cookie is also cleared
-            await fetch('/api/auth/session-logout', { method: 'POST' });
         }
         setLoading(false);
     });
 
     return () => unsubscribe();
-  }, [router, handleLogout]);
+  }, [handleLogout]);
 
   useEffect(() => {
-      if (loading) return; // Wait until initial auth check and profile fetch are done
+      if (loading) return;
 
-      // Onboarding / state-based redirection logic
-      if (user) { // Only run redirection logic if a user is definitively logged in
-          if (!profile) {
-              // Auth user exists, but no profile in DB -> needs to complete registration
-              if (pathname !== '/profile/complete-registration') {
-                  router.push('/profile/complete-registration');
-              }
-          } else if (profile.profileTypeId === 'parent_guardian' && !profile.onboardingCompleted) {
-              // Parent who hasn't added their children yet
-              if (pathname !== '/profile/my-children') {
-                  router.push('/profile/my-children');
-              }
+      if (user && !profile) {
+          if (pathname !== '/profile/complete-registration') {
+              router.push('/profile/complete-registration');
+          }
+      } else if (user && profile && profile.onboardingCompleted === false) {
+          if (profile.profileTypeId === 'parent_guardian' && pathname !== '/profile/my-children') {
+              router.push('/profile/my-children');
           }
       }
   }, [user, profile, loading, pathname, router]);
-
-  useEffect(() => {
-    getBrandingSettings().then(setBranding);
-  }, []);
   
   if (loading) {
     return (
