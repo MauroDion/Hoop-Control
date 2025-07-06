@@ -21,7 +21,7 @@ const initialPlayerStats: Omit<PlayerGameStats, 'playerId' | 'playerName'> = {
 };
 
 // --- Private Helper function to be used within transactions ---
-async function _syncTimeAndPlayerStatsInTransaction(
+async function applyTimerSync(
     transaction: admin.firestore.Transaction,
     gameRef: admin.firestore.DocumentReference<admin.firestore.DocumentData>,
     gameData: Game
@@ -33,7 +33,6 @@ async function _syncTimeAndPlayerStatsInTransaction(
         return { updates, newGameData };
     }
     
-    // Ensure timerStartedAt is a valid Date object before getting time
     const timerStartedAtMs = new Date(gameData.timerStartedAt).getTime();
     if (isNaN(timerStartedAtMs)) {
          return { updates, newGameData };
@@ -60,6 +59,7 @@ async function _syncTimeAndPlayerStatsInTransaction(
 
         newGameData.periodTimeRemainingSeconds = newRemainingTime;
         newGameData.playerStats = playerStatsCopy;
+        newGameData.timerStartedAt = new Date(nowMs).toISOString();
     }
     
     return { updates, newGameData };
@@ -523,10 +523,19 @@ export async function updateLiveGameState(
         const gameDoc = await transaction.get(gameRef);
         if (!gameDoc.exists) throw new Error("Game not found.");
         let gameData = gameDoc.data() as Game;
+        
+        // Normalize server-side date to string for consistency if needed, but primarily work with gameData
         const normalizedGameData: Game = {
             ...gameData,
+            date: gameData.date, // Keep as ISO string from server
+            createdAt: gameData.createdAt,
+            updatedAt: gameData.updatedAt,
             timerStartedAt: gameData.timerStartedAt ? (gameData.timerStartedAt as any).toDate().toISOString() : null,
         };
+
+        const { updates: timeUpdates, newGameData: gameDataAfterSync } = await applyTimerSync(transaction, gameRef, normalizedGameData);
+
+        let finalUpdates = { ...timeUpdates, ...updates, updatedAt: admin.firestore.FieldValue.serverTimestamp() };
 
         if (updates.isTimerRunning === true) {
             if (!gameData.gameFormatId) throw new Error("Game format not set.");
@@ -535,16 +544,9 @@ export async function updateLiveGameState(
             const gameFormat = gameFormatDoc.data() as GameFormat;
             const requiredPlayers = gameFormat.name?.includes('3v3') ? 3 : 5;
             
-            if ((gameData.homeTeamOnCourtPlayerIds?.length || 0) !== requiredPlayers || (gameData.awayTeamOnCourtPlayerIds?.length || 0) !== requiredPlayers) {
+            if ((gameDataAfterSync.homeTeamOnCourtPlayerIds?.length || 0) < requiredPlayers || (gameDataAfterSync.awayTeamOnCourtPlayerIds?.length || 0) < requiredPlayers) {
                 throw new Error(`Cada equipo debe tener ${requiredPlayers} jugadores en pista para iniciar el reloj.`);
             }
-        }
-
-        const { updates: timeUpdates } = await _syncTimeAndPlayerStatsInTransaction(transaction, gameRef, normalizedGameData);
-
-        let finalUpdates = { ...timeUpdates, ...updates, updatedAt: admin.firestore.FieldValue.serverTimestamp() };
-
-        if (updates.isTimerRunning === true) {
              finalUpdates.timerStartedAt = admin.firestore.FieldValue.serverTimestamp();
         } else if (updates.isTimerRunning === false) {
              finalUpdates.timerStartedAt = null;
@@ -568,19 +570,19 @@ export async function endCurrentPeriod(gameId: string, userId: string): Promise<
             if (!gameDoc.exists) throw new Error("Game not found.");
             
             let gameData = gameDoc.data() as Game;
-            const normalizedGameData: Game = {
+             const normalizedGameData: Game = {
                 ...gameData,
                 timerStartedAt: gameData.timerStartedAt ? (gameData.timerStartedAt as any).toDate().toISOString() : null,
             };
 
-            if(!gameData.gameFormatId) throw new Error("Game format not defined for this game.");
-            const gameFormatDoc = await transaction.get(adminDb.collection('gameFormats').doc(gameData.gameFormatId));
+            const { updates: timeUpdates, newGameData } = await applyTimerSync(transaction, gameRef, normalizedGameData);
+            let finalUpdates: { [key: string]: any } = { ...timeUpdates, updatedAt: admin.firestore.FieldValue.serverTimestamp() };
+
+            if(!newGameData.gameFormatId) throw new Error("Game format not defined for this game.");
+            const gameFormatDoc = await transaction.get(adminDb.collection('gameFormats').doc(newGameData.gameFormatId));
             if (!gameFormatDoc.exists) throw new Error("Game format not found");
             const gameFormat = gameFormatDoc.data() as GameFormat;
             
-            const { updates: timeUpdates, newGameData } = await _syncTimeAndPlayerStatsInTransaction(transaction, gameRef, normalizedGameData);
-            let finalUpdates: { [key: string]: any } = { ...timeUpdates, updatedAt: admin.firestore.FieldValue.serverTimestamp() };
-
             const allOnCourtIds = [...(newGameData.homeTeamOnCourtPlayerIds || []), ...(newGameData.awayTeamOnCourtPlayerIds || [])];
             allOnCourtIds.forEach(pId => {
                  const periodsPlayedSet = new Set(newGameData.playerStats?.[pId]?.periodsPlayedSet || []);
@@ -665,18 +667,41 @@ export async function recordGameEvent(
             const gameDoc = await transaction.get(gameRef);
             if (!gameDoc.exists) throw new Error("Game not found.");
             let gameData = gameDoc.data() as Game;
+            
+            const profile = await getUserProfileById(userId);
+            if (!profile) throw new Error("User profile not found.");
+
+            const assignments = gameData.scorerAssignments || {};
+            const { action } = eventData;
+            
+            const isSuperAdmin = profile.profileTypeId === 'super_admin';
+            
+            let hasPermission = isSuperAdmin;
+            if (!hasPermission) {
+                if (action.includes('shot')) {
+                    hasPermission = assignments.shots?.uid === userId;
+                } else if (action.includes('foul')) {
+                    hasPermission = assignments.fouls?.uid === userId;
+                } else {
+                    hasPermission = assignments.turnovers?.uid === userId;
+                }
+            }
+
+            if (!hasPermission) {
+                throw new Error("Acción no permitida. No tienes asignada esta categoría de estadísticas.");
+            }
+            
             const normalizedGameData: Game = {
                 ...gameData,
-                timerStartedAt: gameData.timerStartedAt ? (gameData.timerStartedAt as any).toDate().toISOString() : null,
+                 timerStartedAt: gameData.timerStartedAt ? (gameData.timerStartedAt as any).toDate().toISOString() : null,
             };
             
-            const { updates: timeUpdates, newGameData } = await _syncTimeAndPlayerStatsInTransaction(transaction, gameRef, normalizedGameData);
+            const { updates: timeUpdates, newGameData: gameDataAfterSync } = await applyTimerSync(transaction, gameRef, normalizedGameData);
             
-            let gameDataAfterSync = newGameData;
             let playerStatsCopy = JSON.parse(JSON.stringify(gameDataAfterSync.playerStats || {}));
             let finalUpdates: { [key: string]: any } = { ...timeUpdates, updatedAt: admin.firestore.FieldValue.serverTimestamp() };
 
-            const { action, teamId, playerId } = eventData;
+            const { teamId, playerId } = eventData;
             
             if (playerId && !playerStatsCopy[playerId]) {
                 const playerDoc = await adminDb.collection('players').doc(playerId).get();
@@ -731,7 +756,7 @@ export async function recordGameEvent(
             finalUpdates.playerStats = playerStatsCopy;
             
             const eventGameTime = finalUpdates.periodTimeRemainingSeconds ?? gameData.periodTimeRemainingSeconds ?? 0;
-            transaction.set(eventRef, { ...eventData, gameId, createdBy: userId, createdAt: serverTimestamp, gameTimeSeconds: eventGameTime });
+            transaction.set(eventRef, { ...eventData, gameId, createdBy: userId, createdAt: admin.firestore.FieldValue.serverTimestamp(), gameTimeSeconds: eventGameTime });
             transaction.update(gameRef, finalUpdates);
         });
         return { success: true };
@@ -767,12 +792,10 @@ export async function substitutePlayer(
         const onCourtField = teamType === 'home' ? 'homeTeamOnCourtPlayerIds' : 'awayTeamOnCourtPlayerIds';
         let onCourtIds = (gameData[onCourtField] as string[] || []);
         
-        const serverTimestamp = admin.firestore.FieldValue.serverTimestamp();
+        const { updates: timeUpdates, newGameData } = await applyTimerSync(transaction, gameRef, normalizedGameData);
+        let finalUpdates: { [key: string]: any } = { ...timeUpdates, updatedAt: admin.firestore.FieldValue.serverTimestamp() };
         
-        const { updates: timeUpdates, newGameData } = await _syncTimeAndPlayerStatsInTransaction(transaction, gameRef, normalizedGameData);
-        let finalUpdates: { [key: string]: any } = { ...timeUpdates, updatedAt: serverTimestamp };
-        
-        const baseEventPayload = { gameId, teamId: teamType, period, gameTimeSeconds, createdAt: serverTimestamp, createdBy: userId };
+        const baseEventPayload = { gameId, teamId: teamType, period, gameTimeSeconds, createdAt: admin.firestore.FieldValue.serverTimestamp(), createdBy: userId };
         
         if (playerOut) {
             onCourtIds = onCourtIds.filter(id => id !== playerOut.id);
@@ -781,8 +804,11 @@ export async function substitutePlayer(
         }
 
         if (!onCourtIds.includes(playerIn.id)) {
-            if (onCourtIds.length >= 5) {
-                if (!playerOut) throw new Error("Court is full (5 players). You must select a player to substitute out.");
+            const gameFormatDoc = await transaction.get(adminDb.collection('gameFormats').doc(newGameData.gameFormatId || ''));
+            const requiredPlayers = gameFormatDoc.data()?.name?.includes('3v3') ? 3 : 5;
+
+            if (onCourtIds.length >= requiredPlayers) {
+                if (!playerOut) throw new Error(`La pista está llena (${requiredPlayers} jugadores). Debes seleccionar a un jugador para sustituir.`);
             }
             onCourtIds.push(playerIn.id);
             const eventInRef = gameRef.collection('events').doc();
@@ -792,7 +818,7 @@ export async function substitutePlayer(
                 finalUpdates[`playerStats.${playerIn.id}`] = { ...initialPlayerStats, playerId: playerIn.id, playerName: playerIn.name };
             }
         } else {
-            throw new Error("Player is already on court.");
+            throw new Error("El jugador ya está en la pista.");
         }
 
         finalUpdates[onCourtField] = onCourtIds;
