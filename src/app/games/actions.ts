@@ -511,23 +511,28 @@ export async function updateLiveGameState(
         let finalUpdates: { [key: string]: any } = { ...updates, updatedAt: admin.firestore.FieldValue.serverTimestamp() };
 
         // Sync time if the timer was running.
-        if (gameData.isTimerRunning) {
-            const { elapsedSeconds, newRemainingTime } = calculateTimePlayedSync(gameData);
-            if (elapsedSeconds > 0) {
-                finalUpdates.periodTimeRemainingSeconds = newRemainingTime;
-                
-                const playerStatsCopy = JSON.parse(JSON.stringify(gameData.playerStats || {}));
-                const onCourtIds = [...(gameData.homeTeamOnCourtPlayerIds || []), ...(gameData.awayTeamOnCourtPlayerIds || [])];
-                onCourtIds.forEach(pId => {
-                    if (playerStatsCopy[pId]) {
-                        playerStatsCopy[pId].timePlayedSeconds = (playerStatsCopy[pId].timePlayedSeconds || 0) + elapsedSeconds;
-                    }
-                });
-                finalUpdates.playerStats = playerStatsCopy;
-            }
+        const { elapsedSeconds, newRemainingTime } = calculateTimePlayedSync(gameData);
+        if (elapsedSeconds > 0) {
+            finalUpdates.periodTimeRemainingSeconds = newRemainingTime;
+            
+            const playerStatsCopy = JSON.parse(JSON.stringify(gameData.playerStats || {}));
+            const onCourtIds = [...(gameData.homeTeamOnCourtPlayerIds || []), ...(gameData.awayTeamOnCourtPlayerIds || [])];
+            onCourtIds.forEach(pId => {
+                if (playerStatsCopy[pId]) {
+                    playerStatsCopy[pId].timePlayedSeconds = (playerStatsCopy[pId].timePlayedSeconds || 0) + elapsedSeconds;
+                }
+            });
+            finalUpdates.playerStats = playerStatsCopy;
         }
         
+        // Handle timer start/stop logic
         if (updates.isTimerRunning === true && !gameData.isTimerRunning) {
+            const gameFormatDoc = await adminDb.collection('gameFormats').doc(gameData.gameFormatId!).get();
+            const gameFormat = gameFormatDoc.data() as GameFormat;
+            const requiredPlayers = gameFormat.name?.includes('3v3') ? 3 : 5;
+            if ((gameData.homeTeamOnCourtPlayerIds?.length ?? 0) !== requiredPlayers || (gameData.awayTeamOnCourtPlayerIds?.length ?? 0) !== requiredPlayers) {
+                throw new Error(`Ambos equipos deben tener ${requiredPlayers} jugadores en pista para iniciar el tiempo.`);
+            }
             finalUpdates.timerStartedAt = admin.firestore.FieldValue.serverTimestamp();
         } else if (updates.isTimerRunning === false) { // Always nullify if stopping
             finalUpdates.timerStartedAt = null;
@@ -567,16 +572,14 @@ export async function endCurrentPeriod(gameId: string, userId: string): Promise<
             const gameFormat = gameFormatSnap.data() as GameFormat;
             
             const playerStatsCopy = JSON.parse(JSON.stringify(gameData.playerStats || {}));
-
-            // Sync time one last time before ending period.
-            let { newRemainingTime } = calculateTimePlayedSync(gameData);
-            let timePlayedInPeriod = (gameData.periodTimeRemainingSeconds || 0) - newRemainingTime;
+            
+            const { elapsedSeconds, newRemainingTime } = calculateTimePlayedSync(gameData);
             
             // Update stats for all players on court
             const onCourtIds = [...(gameData.homeTeamOnCourtPlayerIds || []), ...(gameData.awayTeamOnCourtPlayerIds || [])];
             onCourtIds.forEach(pId => {
                 if (playerStatsCopy[pId]) {
-                    playerStatsCopy[pId].timePlayedSeconds = (playerStatsCopy[pId].timePlayedSeconds || 0) + timePlayedInPeriod;
+                    playerStatsCopy[pId].timePlayedSeconds = (playerStatsCopy[pId].timePlayedSeconds || 0) + elapsedSeconds;
                     
                     const periodsPlayedSet = new Set(playerStatsCopy[pId].periodsPlayedSet || []);
                     periodsPlayedSet.add(gameData.currentPeriod || 1);
@@ -590,7 +593,9 @@ export async function endCurrentPeriod(gameId: string, userId: string): Promise<
                 updatedAt: admin.firestore.FieldValue.serverTimestamp(),
                 isTimerRunning: false,
                 timerStartedAt: null,
-                playerStats: playerStatsCopy
+                playerStats: playerStatsCopy,
+                homeTeamOnCourtPlayerIds: [],
+                awayTeamOnCourtPlayerIds: [],
             };
             
             const currentPeriod = gameData.currentPeriod || 1;
