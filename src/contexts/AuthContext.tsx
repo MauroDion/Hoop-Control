@@ -34,63 +34,72 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [profile, setProfile] = useState<UserFirestoreProfile | null>(null);
   const [branding, setBranding] = useState<BrandingSettings>({});
   const [loading, setLoading] = useState(true);
-  const { toast } = useToast();
   const router = useRouter();
   const pathname = usePathname();
 
-  const handleLogout = useCallback(async () => {
+  const logout = useCallback(async () => {
     await fetch('/api/auth/session-logout', { method: 'POST' });
     await signOut(auth);
-    // onIdTokenChanged listener will handle state cleanup
+    // The onIdTokenChanged listener will handle state cleanup and navigation.
   }, []);
 
   useEffect(() => {
-    getBrandingSettings().then(setBranding);
+    const fetchBranding = async () => {
+        const settings = await getBrandingSettings();
+        setBranding(settings);
+    };
+    fetchBranding();
   }, []);
 
   useEffect(() => {
     const unsubscribe = onIdTokenChanged(auth, async (firebaseUser) => {
-        setLoading(true);
-        if (firebaseUser) {
-            setUser(firebaseUser);
-            try {
-                const idToken = await firebaseUser.getIdToken();
-                await fetch('/api/auth/session-login', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ idToken }),
-                });
-                
-                const userProfile = await getUserProfileById(firebaseUser.uid);
-                setProfile(userProfile);
+      if (firebaseUser) {
+        // User is signed in.
+        setUser(firebaseUser);
+        try {
+          // Verify session on the server
+          const idToken = await firebaseUser.getIdToken();
+          const response = await fetch('/api/auth/session-login', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ idToken }),
+          });
+          
+          if (!response.ok) {
+            // Server rejected the session (e.g. user not approved yet)
+            throw new Error('Session rejected by server.');
+          }
 
-            } catch (error: any) {
-                console.error("Auth context error:", error.message);
-                await handleLogout();
+          const userProfile = await getUserProfileById(firebaseUser.uid);
+          setProfile(userProfile);
+          
+          // Onboarding redirection logic
+          if (!userProfile) {
+            if (pathname !== '/profile/complete-registration') {
+              router.push('/profile/complete-registration');
             }
-        } else {
-            setUser(null);
-            setProfile(null);
+          } else if (userProfile.onboardingCompleted === false) {
+             if (userProfile.profileTypeId === 'parent_guardian' && pathname !== '/profile/my-children') {
+              router.push('/profile/my-children');
+            }
+          }
+
+        } catch (error: any) {
+          console.error("Auth context error:", error.message);
+          await logout();
+        } finally {
+            setLoading(false);
         }
+      } else {
+        // User is signed out.
+        setUser(null);
+        setProfile(null);
         setLoading(false);
+      }
     });
 
     return () => unsubscribe();
-  }, [handleLogout]);
-
-  useEffect(() => {
-      if (loading) return;
-
-      if (user && !profile) {
-          if (pathname !== '/profile/complete-registration') {
-              router.push('/profile/complete-registration');
-          }
-      } else if (user && profile && profile.onboardingCompleted === false) {
-          if (profile.profileTypeId === 'parent_guardian' && pathname !== '/profile/my-children') {
-              router.push('/profile/my-children');
-          }
-      }
-  }, [user, profile, loading, pathname, router]);
+  }, [logout, pathname, router]);
   
   if (loading) {
     return (
@@ -102,7 +111,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }
   
   return (
-    <AuthContext.Provider value={{ user, profile, loading, logout: handleLogout, branding }}>
+    <AuthContext.Provider value={{ user, profile, loading, logout, branding }}>
       {children}
     </AuthContext.Provider>
   );

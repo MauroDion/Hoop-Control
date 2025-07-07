@@ -6,9 +6,9 @@ export interface Task {
   description?: string;
   status: 'todo' | 'inprogress' | 'done';
   priority: 'low' | 'medium' | 'high';
-  dueDate?: string | null;
-  createdAt: string;
-  updatedAt: string;
+  dueDate?: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
   userId: string;
 }
 
@@ -53,8 +53,8 @@ export interface UserFirestoreProfile {
   profileTypeId: ProfileType;
   clubId: string | null;
   status: UserProfileStatus;
-  createdAt: string;
-  updatedAt: string;
+  createdAt: Date;
+  updatedAt: Date;
   isSeeded?: boolean;
   onboardingCompleted?: boolean;
   children?: Child[];
@@ -76,7 +76,7 @@ export interface Club {
   logoUrl?: string;
   approved?: boolean;
   createdBy?: string;
-  createdAt?: string;
+  createdAt?: Date;
 }
 
 export interface ClubFormData {
@@ -106,8 +106,8 @@ export interface Team {
   playerIds?: string[];
   logoUrl?: string | null;
   city?: string | null;
-  createdAt: string;
-  updatedAt: string;
+  createdAt: Date;
+  updatedAt: Date;
   createdByUserId: string;
 }
 
@@ -127,7 +127,7 @@ export interface GameFormat {
   periodDurationMinutes?: number;
   defaultTotalTimeouts?: number;
   minPeriodsPlayerMustPlay?: number;
-  createdAt?: string;
+  createdAt?: Date;
   createdBy?: string;
 }
 
@@ -146,8 +146,8 @@ export interface CompetitionCategory {
   description?: string;
   level?: number;
   gameFormatId?: string | null;
-  createdAt?: string;
-  updatedAt?: string;
+  createdAt?: Date;
+  updatedAt?: Date;
   createdBy?: string;
 }
 
@@ -167,7 +167,7 @@ export interface Player {
   position?: string;
   teamId?: string;
   createdBy?: string;
-  createdAt?: string;
+  createdAt?: Date;
 }
 
 export interface PlayerFormData {
@@ -185,9 +185,9 @@ export interface Season {
         competitionCategoryId: string;
         teamIds: string[];
     }[];
-    createdAt?: string;
+    createdAt?: Date;
     createdBy?: string;
-    updatedAt?: string;
+    updatedAt?: Date;
     updatedBy?: string;
 }
 
@@ -248,7 +248,7 @@ export interface GameEvent {
     action: GameEventAction;
     period: number;
     gameTimeSeconds: number;
-    createdAt: string;
+    createdAt: Date;
     createdBy: string;
     playerIn?: { id: string, name: string };
     playerOut?: { id: string, name: string };
@@ -287,7 +287,7 @@ export interface Game {
     awayTeamName: string;
     homeTeamLogoUrl?: string | null;
     awayTeamLogoUrl?: string | null;
-    date: string;
+    date: Date;
     location: string;
     status: 'scheduled' | 'inprogress' | 'completed' | 'cancelled';
     seasonId: string;
@@ -305,7 +305,7 @@ export interface Game {
     currentPeriod?: number;
     periodTimeRemainingSeconds?: number;
     isTimerRunning?: boolean;
-    timerStartedAt?: string | null;
+    timerStartedAt?: Date | null;
     scorerAssignments?: {
       [key in StatCategory]?: {
         uid: string;
@@ -313,8 +313,8 @@ export interface Game {
       } | null;
     };
     createdBy: string;
-    createdAt: string;
-    updatedAt: string;
+    createdAt: Date;
+    updatedAt: Date;
 }
 
 export interface GameFormData {

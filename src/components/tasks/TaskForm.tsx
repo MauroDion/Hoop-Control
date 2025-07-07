@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button";
 import {
   Form,
   FormControl,
-  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -35,11 +34,10 @@ interface TaskFormProps {
   onFormSubmit?: () => void; // Optional callback after submission
 }
 
-// Helper to convert JS Date to yyyy-MM-dd string
-const formatDateForInput = (dateString?: string | null): string => {
-  if (!dateString) return "";
+const formatDateForInput = (date?: Date | null): string => {
+  if (!date) return "";
   try {
-    return new Date(dateString).toISOString().split('T')[0];
+    return new Date(date).toISOString().split('T')[0];
   } catch(e) {
     return "";
   }

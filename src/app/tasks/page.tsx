@@ -42,8 +42,7 @@ export default function TasksPage() {
     }
   }, [user, authLoading, router]);
 
-  // Show a loader while authentication is in progress or if there's no user yet (and we are about to redirect).
-  if (authLoading || !user) {
+  if (authLoading || (!user && !error)) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)] text-center p-6">
         <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
@@ -52,8 +51,7 @@ export default function TasksPage() {
       </div>
     );
   }
-
-  // If we are still loading the tasks data for an authenticated user.
+  
   if (loading) {
      return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)] text-center p-6">

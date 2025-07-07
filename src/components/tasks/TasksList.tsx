@@ -43,9 +43,9 @@ const priorityText: Record<Task['priority'], string> = {
   high: "Alta",
 };
 
-const formatDate = (dateString?: string | null) => {
-  if (!dateString) return 'N/A';
-  return format(new Date(dateString), 'd MMM, yyyy', { locale: es });
+const formatDate = (date?: Date | null) => {
+  if (!date) return 'N/A';
+  return format(date, 'd MMM, yyyy', { locale: es });
 };
 
 export function TasksList({ tasks }: TasksListProps) {

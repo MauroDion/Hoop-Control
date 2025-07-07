@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { CalendarDays, Tag, Info, Edit, Trash2, ChevronLeft, AlertTriangle, Loader2 } from "lucide-react";
 import { useAuth } from '@/contexts/AuthContext';
-import { useRouter } from 'next/navigation';
+import { useRouter } from 'next/navigation'; 
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { useToast } from '@/hooks/use-toast';
@@ -131,9 +131,9 @@ export default function TaskDetailPage({ params }: { params: { id: string } }) {
     high: 'Alta',
   }
   
-  const formatDate = (dateString?: string | null) => {
-    if (!dateString) return 'N/A';
-    return format(new Date(dateString), 'PPP', { locale: es });
+  const formatDate = (date?: Date | null) => {
+    if (!date) return 'N/A';
+    return format(date, 'PPP', { locale: es });
   };
 
 

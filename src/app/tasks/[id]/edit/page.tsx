@@ -59,7 +59,7 @@ function EditTaskClientPage({ taskId }: { taskId: string }) {
   if (!task) {
      return (
       <div className="max-w-2xl mx-auto text-center py-10">
-        <AlertTriangle className="mx-auto h-12 w-12 text-destructive mb-4" />
+        <AlertTriangle className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
         <h2 className="text-2xl font-semibold text-destructive">Tarea No Encontrada</h2>
         <p className="text-muted-foreground">La tarea solicitada no pudo ser encontrada.</p>
       </div>
