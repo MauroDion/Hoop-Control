@@ -19,7 +19,7 @@ import { auth, signInWithEmailAndPassword, setPersistence, browserSessionPersist
 import { useRouter } from "next/navigation";
 import React from "react";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Label } from "@/components/ui/label";
+import { Label } from "../ui/label";
 
 const formSchema = z.object({
   email: z.string().email({ message: "Dirección de email inválida." }),
