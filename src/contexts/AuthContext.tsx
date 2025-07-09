@@ -1,7 +1,6 @@
 "use client";
 
-import type { FirebaseUser } from '@/lib/firebase/client';
-import { auth, onIdTokenChanged } from '@/lib/firebase/client';
+import { auth, onIdTokenChanged, type FirebaseUser } from '@/lib/firebase/client';
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
 

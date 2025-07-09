@@ -2,7 +2,6 @@
 
 // This file is the single source of truth for client-side Firebase.
 // All other components should import from this file.
-
 import { initializeApp, getApps, type FirebaseApp } from 'firebase/app';
 import { 
     getAuth, 
