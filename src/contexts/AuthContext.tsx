@@ -1,8 +1,7 @@
+
 "use client";
 
-import type { User as FirebaseUser } from 'firebase/auth';
-import { auth } from '@/lib/firebase/client';
-import { onIdTokenChanged, signOut } from 'firebase/auth';
+import { auth, onIdTokenChanged, signOut, type FirebaseUser } from '@/lib/firebase/client';
 import { useRouter, usePathname } from 'next/navigation';
 import React, { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react';
 import { useToast } from '@/hooks/use-toast';

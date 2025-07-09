@@ -1,6 +1,28 @@
 
+"use client";
+
 import { initializeApp, getApps, type FirebaseApp } from 'firebase/app';
-import { getAuth, type Auth } from 'firebase/auth';
+// Import ALL auth functions and types needed across the client app
+import { 
+    getAuth, 
+    onIdTokenChanged, 
+    signOut, 
+    createUserWithEmailAndPassword,
+    signInWithEmailAndPassword,
+    sendPasswordResetEmail,
+    updateProfile,
+    updatePassword,
+    EmailAuthProvider,
+    reauthenticateWithCredential,
+    GoogleAuthProvider,
+    signInWithPopup,
+    setPersistence,
+    browserLocalPersistence,
+    browserSessionPersistence,
+    type Auth, 
+    type User,
+    type UserCredential
+} from 'firebase/auth';
 import { getFirestore, type Firestore } from 'firebase/firestore';
 import { firebaseConfig } from './config';
 
@@ -12,12 +34,10 @@ if (getApps().length === 0) {
   try {
     app = initializeApp(firebaseConfig);
     auth = getAuth(app);
-    // Persistence should be set dynamically before sign-in, not globally here.
     db = getFirestore(app);
   } catch (error) {
     console.error("Error initializing Firebase:", error);
-    // Fallback or dummy objects if initialization fails,
-    // but features relying on Firebase will not work.
+    // Provide dummy objects to prevent crashing on import
     app = {} as FirebaseApp;
     auth = {} as Auth;
     db = {} as Firestore;
@@ -28,4 +48,26 @@ if (getApps().length === 0) {
   db = getFirestore(app);
 }
 
-export { app, auth, db };
+// Re-export everything for a single point of access
+export { 
+    app, 
+    auth, 
+    db,
+    // Auth functions
+    onIdTokenChanged, 
+    signOut, 
+    createUserWithEmailAndPassword,
+    signInWithEmailAndPassword,
+    sendPasswordResetEmail,
+    updateProfile,
+    updatePassword,
+    EmailAuthProvider,
+    reauthenticateWithCredential,
+    GoogleAuthProvider,
+    signInWithPopup,
+    setPersistence,
+    browserLocalPersistence,
+    browserSessionPersistence,
+};
+// Re-export types
+export type { FirebaseApp, Auth, User as FirebaseUser, UserCredential, Firestore };

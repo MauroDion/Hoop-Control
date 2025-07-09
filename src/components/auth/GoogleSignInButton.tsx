@@ -1,8 +1,8 @@
+
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { auth } from "@/lib/firebase/client";
-import { GoogleAuthProvider, signInWithPopup } from "firebase/auth";
+import { auth, GoogleAuthProvider, signInWithPopup, signOut, type UserCredential } from "@/lib/firebase/client";
 import { useToast } from "@/hooks/use-toast";
 
 const GoogleIcon = () => (

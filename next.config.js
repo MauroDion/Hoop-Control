@@ -9,6 +9,7 @@ const nextConfig = {
             },
         ],
     },
+    transpilePackages: ['firebase'],
     webpack: (config, { isServer }) => {
         // This is to polyfill `process` which is not available in the browser.
         if (!isServer) {

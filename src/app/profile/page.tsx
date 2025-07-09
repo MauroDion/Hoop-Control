@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useAuth } from '@/contexts/AuthContext';
@@ -6,15 +7,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { updateProfile, updatePassword, EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
-import { auth } from '@/lib/firebase/client';
+import { auth, updateProfile, updatePassword, EmailAuthProvider, reauthenticateWithCredential } from '@/lib/firebase/client';
 import React, { useState, useEffect } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { UserCircle, Edit3, ShieldAlert, AlertTriangle } from 'lucide-react';
+import { UserCircle, Edit3, ShieldAlert, AlertTriangle, Users } from 'lucide-react';
 import Link from 'next/link';
 
 const profileSchema = z.object({
@@ -131,7 +131,7 @@ export default function ProfilePage() {
       {profile?.profileTypeId === 'parent_guardian' && (
            <Card className="shadow-lg">
               <CardHeader>
-                <CardTitle className="text-2xl font-headline flex items-center"><UserCircle className="mr-2 h-6 w-6 text-accent" />Gestionar Hijos/as</CardTitle>
+                <CardTitle className="text-2xl font-headline flex items-center"><Users className="mr-2 h-6 w-6 text-accent" />Gestionar Hijos/as</CardTitle>
                 <CardDescription>Añade o edita los jugadores asociados a tu cuenta.</CardDescription>
               </CardHeader>
               <CardContent>
