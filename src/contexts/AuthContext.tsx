@@ -1,105 +1,70 @@
 "use client";
 
-import { auth, onIdTokenChanged, signOut, type FirebaseUser } from '@/lib/firebase/client';
-import { useRouter, usePathname } from 'next/navigation';
-import React, { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react';
-import { useToast } from '@/hooks/use-toast';
-import { Loader2 } from 'lucide-react';
-import { getUserProfileById } from '@/app/users/actions';
-import type { UserFirestoreProfile } from '@/types';
+import type { FirebaseUser } from '@/lib/firebase/client';
+import { auth, onIdTokenChanged } from '@/lib/firebase/client';
+import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { Skeleton } from '@/components/ui/skeleton';
 
 interface AuthContextType {
   user: FirebaseUser | null;
-  profile: UserFirestoreProfile | null;
   loading: boolean;
-  logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export const useAuth = () => {
-    const context = useContext(AuthContext);
-    if (context === undefined) {
-      throw new Error('useAuth must be used within an AuthProvider');
-    }
-    return context;
-};
-
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<FirebaseUser | null>(null);
-  const [profile, setProfile] = useState<UserFirestoreProfile | null>(null);
   const [loading, setLoading] = useState(true);
-  const router = useRouter();
-  const pathname = usePathname();
-  const { toast } = useToast();
-
-  const logout = useCallback(async () => {
-    try {
-      await fetch('/api/auth/session-logout', { method: 'POST' });
-    } catch (error) {
-        console.error("Failed to call server logout", error);
-    } finally {
-        await signOut(auth);
-        router.push('/login');
-    }
-  }, [router]);
 
   useEffect(() => {
-    const unsubscribe = onIdTokenChanged(auth, async (firebaseUser) => {
-      if (firebaseUser) {
-        // User is signed in.
-        setUser(firebaseUser);
-        try {
-          const idToken = await firebaseUser.getIdToken(true); // Force refresh
-          const response = await fetch('/api/auth/session-login', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ idToken }),
-          });
-          
-          if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.reason || 'Session rejected by server.');
-          }
-
-          const userProfile = await getUserProfileById(firebaseUser.uid);
-          setProfile(userProfile);
-          
-          if (!userProfile) {
-            if (pathname !== '/profile/complete-registration') {
-              router.push('/profile/complete-registration');
-            }
-          }
-        } catch (error: any) {
-          console.error("Auth context error:", error.message);
-          toast({ variant: 'destructive', title: "Error de Sesión", description: error.message });
-          await logout();
-        } finally {
-            setLoading(false);
-        }
-      } else {
-        // User is signed out.
-        setUser(null);
-        setProfile(null);
-        setLoading(false);
-      }
+    const unsubscribe = onIdTokenChanged(auth, (firebaseUser) => {
+      setUser(firebaseUser);
+      setLoading(false);
+    }, (error) => {
+      console.error("Auth state change error:", error);
+      setUser(null);
+      setLoading(false);
     });
 
     return () => unsubscribe();
-  }, [logout, pathname, router, toast]);
-  
+  }, []);
+
   if (loading) {
+    // Simple full-page loading skeleton
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-background">
-          <Loader2 className="h-12 w-12 animate-spin text-primary" />
-          <p className="text-lg text-muted-foreground mt-4">Cargando aplicación...</p>
+      <div className="flex flex-col min-h-screen">
+        <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+          <div className="container flex h-16 items-center">
+            <Skeleton className="h-8 w-32" />
+            <div className="ml-auto flex items-center space-x-4">
+              <Skeleton className="h-8 w-20" />
+              <Skeleton className="h-10 w-10 rounded-full" />
+            </div>
+          </div>
+        </header>
+        <main className="flex-1 container mx-auto px-4 py-8">
+          <div className="space-y-4">
+            <Skeleton className="h-12 w-1/2" />
+            <Skeleton className="h-64 w-full" />
+            <Skeleton className="h-32 w-full" />
+          </div>
+        </main>
       </div>
     );
   }
   
+
   return (
-    <AuthContext.Provider value={{ user, profile, loading, logout }}>
+    <AuthContext.Provider value={{ user, loading }}>
       {children}
     </AuthContext.Provider>
   );
+};
+
+export const useAuthContext = () => {
+  const context = useContext(AuthContext);
+  if (context === undefined) {
+    throw new Error('useAuthContext must be used within an AuthProvider');
+  }
+  return context;
 };

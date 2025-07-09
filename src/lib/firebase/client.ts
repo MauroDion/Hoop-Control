@@ -1,24 +1,26 @@
 "use client";
 
+// This file is the single source of truth for client-side Firebase.
+// All other components should import from this file.
+
 import { initializeApp, getApps, type FirebaseApp } from 'firebase/app';
-// Import ALL auth functions and types needed across the client app to be re-exported
 import { 
     getAuth, 
-    onIdTokenChanged, 
-    signOut, 
-    createUserWithEmailAndPassword,
+    onIdTokenChanged,
+    signOut,
     signInWithEmailAndPassword,
+    createUserWithEmailAndPassword,
     sendPasswordResetEmail,
+    GoogleAuthProvider,
+    signInWithPopup,
     updateProfile,
     updatePassword,
     EmailAuthProvider,
     reauthenticateWithCredential,
-    GoogleAuthProvider,
-    signInWithPopup,
     setPersistence,
-    browserLocalPersistence,
     browserSessionPersistence,
-    type Auth, 
+    browserLocalPersistence,
+    type Auth,
     type User as FirebaseUser,
     type UserCredential
 } from 'firebase/auth';
@@ -36,7 +38,7 @@ if (getApps().length === 0) {
     db = getFirestore(app);
   } catch (error) {
     console.error("Error initializing Firebase:", error);
-    // Provide dummy objects to prevent crashing on import
+    // Provide dummy objects if initialization fails
     app = {} as FirebaseApp;
     auth = {} as Auth;
     db = {} as Firestore;
@@ -47,26 +49,28 @@ if (getApps().length === 0) {
   db = getFirestore(app);
 }
 
-// Re-export everything for a single point of access
+// Re-export everything needed
 export { 
     app, 
     auth, 
     db,
-    // Auth functions
-    onIdTokenChanged, 
-    signOut, 
-    createUserWithEmailAndPassword,
+    onIdTokenChanged,
+    signOut,
     signInWithEmailAndPassword,
+    createUserWithEmailAndPassword,
     sendPasswordResetEmail,
+    GoogleAuthProvider,
+    signInWithPopup,
     updateProfile,
     updatePassword,
     EmailAuthProvider,
     reauthenticateWithCredential,
-    GoogleAuthProvider,
-    signInWithPopup,
     setPersistence,
-    browserLocalPersistence,
     browserSessionPersistence,
+    browserLocalPersistence,
+    type FirebaseUser,
+    type UserCredential,
+    type Auth,
+    type FirebaseApp,
+    type Firestore
 };
-// Re-export types
-export type { FirebaseApp, Auth, FirebaseUser, UserCredential, Firestore };

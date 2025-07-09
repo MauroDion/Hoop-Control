@@ -1,7 +1,8 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { auth, GoogleAuthProvider, signInWithPopup, type UserCredential } from "@/lib/firebase/client";
+import { auth, GoogleAuthProvider, signInWithPopup, signOut, type UserCredential } from "@/lib/firebase/client";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useToast } from "@/hooks/use-toast";
 
 const GoogleIcon = () => (
@@ -16,20 +17,51 @@ const GoogleIcon = () => (
 
 
 export function GoogleSignInButton() {
+  const router = useRouter();
   const { toast } = useToast();
+  const searchParams = useSearchParams();
+  const redirectUrl = searchParams.get("redirect") || "/dashboard";
 
   const handleSignIn = async () => {
     const provider = new GoogleAuthProvider();
     try {
       const result: UserCredential = await signInWithPopup(auth, provider);
-      // The onIdTokenChanged listener in AuthContext will handle everything else.
-      toast({ title: "Sesión iniciada con Google", description: `¡Bienvenido, ${result.user.displayName}!` });
+      
+      if (!result.user) {
+        throw new Error("Google Sign-In failed, user object not found.");
+      }
+
+      const idToken = await result.user.getIdToken();
+      const response = await fetch('/api/auth/session-login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ idToken }),
+      });
+
+      const responseData = await response.json();
+
+      if (!response.ok) {
+        // If server rejects session, sign out client-side
+        await signOut(auth);
+
+        if (responseData.reason) {
+          router.push(`/login?status=${responseData.reason}`);
+          return;
+        }
+        throw new Error(responseData.error || 'Session login failed for Google Sign-In.');
+      }
+
+      toast({ title: "Signed in with Google", description: `Welcome, ${result.user.displayName}!` });
+      router.push(redirectUrl);
+      router.refresh(); 
     } catch (error: any) {
-      console.error("Error de inicio de sesión con Google: ", error);
+      console.error("Google Sign-In error: ", error);
       toast({
         variant: "destructive",
-        title: "Fallo en el Inicio de Sesión con Google",
-        description: error.message || "Ocurrió un error inesperado.",
+        title: "Google Sign-In Failed",
+        description: error.message || "An unexpected error occurred.",
       });
     }
   };
@@ -37,7 +69,7 @@ export function GoogleSignInButton() {
   return (
     <Button variant="outline" type="button" onClick={handleSignIn} className="w-full">
       <GoogleIcon />
-      Iniciar sesión con Google
+      Sign in with Google
     </Button>
   );
 }

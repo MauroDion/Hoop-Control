@@ -15,51 +15,84 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { auth, signInWithEmailAndPassword, setPersistence, browserSessionPersistence, browserLocalPersistence } from "@/lib/firebase/client";
-import { useRouter } from "next/navigation";
+import { 
+    auth, 
+    signInWithEmailAndPassword, 
+    setPersistence, 
+    browserSessionPersistence, 
+    browserLocalPersistence, 
+    signOut 
+} from "@/lib/firebase/client";
+import { useRouter, useSearchParams } from "next/navigation";
 import React from "react";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Label } from "../ui/label";
+import { Label } from "@/components/ui/label";
 
 const formSchema = z.object({
-  email: z.string().email({ message: "Dirección de email inválida." }),
-  password: z.string().min(6, { message: "La contraseña debe tener al menos 6 caracteres." }),
+  email: z.string().email({ message: "Invalid email address." }),
+  password: z.string().min(6, { message: "Password must be at least 6 characters." }),
   rememberMe: z.boolean().default(false).optional(),
 });
 
 export function LoginForm() {
   const { toast } = useToast();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirectUrl = searchParams.get("redirect") || "/dashboard";
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       email: "",
       password: "",
-      rememberMe: true, // Default to persistent
+      rememberMe: true,
     },
   });
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     try {
-      // Set persistence BEFORE signing in. This is crucial.
       await setPersistence(auth, values.rememberMe ? browserLocalPersistence : browserSessionPersistence);
+      const userCredential = await signInWithEmailAndPassword(auth, values.email, values.password);
       
-      await signInWithEmailAndPassword(auth, values.email, values.password);
-      
-      // The AuthContext's onIdTokenChanged listener now handles redirection and session creation.
-      toast({
-        title: "Inicio de Sesión Exitoso",
-        description: "¡Bienvenido de nuevo!",
+      if (!userCredential.user) {
+        throw new Error("Login failed, user object not found.");
+      }
+
+      const idToken = await userCredential.user.getIdToken();
+      const response = await fetch('/api/auth/session-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ idToken }),
       });
+
+      const responseData = await response.json();
+
+      if (!response.ok) {
+        // If server rejects session (e.g. pending approval), sign out client-side
+        await signOut(auth);
+
+        if (responseData.reason) {
+          router.push(`/login?status=${responseData.reason}`);
+          return;
+        }
+        // Fallback for other errors from the session-login endpoint
+        throw new Error(responseData.error || 'Session login failed.');
+      }
+      
+      toast({
+        title: "Login Successful",
+        description: "Welcome back!",
+      });
+      router.push(redirectUrl);
+      router.refresh(); 
     } catch (error: any) {
-      console.error("Error de inicio de sesión: ", error);
+      console.error("Login error: ", error);
       toast({
         variant: "destructive",
-        title: "Fallo en el Inicio de Sesión",
+        title: "Login Failed",
         description: error.code === 'auth/invalid-credential' 
-          ? "Email o contraseña inválidos." 
-          : error.message || "Email o contraseña inválidos.",
+          ? "Invalid email or password." 
+          : error.message || "Invalid email or password.",
       });
     }
   }
@@ -74,7 +107,7 @@ export function LoginForm() {
             <FormItem>
               <FormLabel>Email</FormLabel>
               <FormControl>
-                <Input placeholder="tu@email.com" {...field} />
+                <Input placeholder="your@email.com" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -85,7 +118,7 @@ export function LoginForm() {
           name="password"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Contraseña</FormLabel>
+              <FormLabel>Password</FormLabel>
               <FormControl>
                 <Input type="password" placeholder="••••••••" {...field} />
               </FormControl>
@@ -94,7 +127,7 @@ export function LoginForm() {
           )}
         />
         <div className="flex items-center justify-between">
-           <FormField
+          <FormField
             control={form.control}
             name="rememberMe"
             render={({ field }) => (
@@ -111,7 +144,7 @@ export function LoginForm() {
                     htmlFor="rememberMeLogin"
                     className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
                   >
-                    Recordarme
+                    Remember me
                   </Label>
                 </div>
               </FormItem>
@@ -119,16 +152,13 @@ export function LoginForm() {
           />
           <Link href="/reset-password" passHref>
             <Button variant="link" type="button" className="px-0 text-sm">
-              ¿Olvidaste tu contraseña?
+              Forgot password?
             </Button>
           </Link>
         </div>
         <Button type="submit" className="w-full" disabled={form.formState.isSubmitting}>
-          {form.formState.isSubmitting ? "Iniciando sesión..." : "Iniciar Sesión"}
+          {form.formState.isSubmitting ? "Logging in..." : "Login"}
         </Button>
-         <Button type="button" variant="outline" className="w-full" onClick={() => router.push('/')}>
-            Cancelar
-          </Button>
       </form>
     </Form>
   );
