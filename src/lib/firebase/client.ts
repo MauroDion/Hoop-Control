@@ -53,6 +53,7 @@ export {
     app, 
     auth, 
     db,
+    // Auth exports
     onIdTokenChanged,
     signOut,
     signInWithEmailAndPassword,
@@ -67,8 +68,10 @@ export {
     setPersistence,
     browserSessionPersistence,
     browserLocalPersistence,
+    // Firestore exports
     doc,
     onSnapshot,
+    // Types
     type FirebaseUser,
     type UserCredential,
     type Auth,

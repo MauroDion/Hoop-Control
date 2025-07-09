@@ -13,43 +13,10 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useAuth } from '@/contexts/AuthContext';
-import { auth, signOut } from '@/lib/firebase/client';
-import { useRouter } from 'next/navigation';
 import { LogOut, UserCircle, Settings } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
 
 export function UserNav() {
-  const { user } = useAuth();
-  const router = useRouter();
-  const { toast } = useToast();
-
-  const handleLogout = async () => {
-    console.log("UserNav: Logout process initiated.");
-    try {
-      const response = await fetch('/api/auth/session-logout', { method: 'POST' });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.error('UserNav: Server-side session logout failed.', errorData.error);
-        toast({ variant: "destructive", title: "Logout Warning", description: "Could not clear server session. Logging out locally." });
-      }
-    } catch (error: any) {
-      console.error('UserNav: API call to /api/auth/session-logout failed:', error);
-      toast({ variant: "destructive", title: "Logout Error", description: `Could not contact logout service: ${error.message}` });
-    } finally {
-      try {
-        await signOut(auth);
-        toast({ title: "Logged out", description: "You have been successfully logged out." });
-        router.push('/login'); 
-        router.refresh(); 
-      } catch (clientSignOutError: any) {
-        console.error('UserNav: Critical error during client-side signOut:', clientSignOutError);
-        toast({ variant: "destructive", title: "Client Logout Failed", description: clientSignOutError.message });
-        router.push('/login');
-        router.refresh();
-      }
-    }
-  };
+  const { user, logout } = useAuth();
 
   if (!user) {
     return null;
@@ -98,7 +65,7 @@ export function UserNav() {
           </DropdownMenuItem>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={handleLogout} className="flex items-center cursor-pointer">
+        <DropdownMenuItem onClick={() => logout()} className="flex items-center cursor-pointer">
           <LogOut className="mr-2 h-4 w-4" />
           Cerrar Sesión
         </DropdownMenuItem>
