@@ -1,19 +1,15 @@
-
 "use client";
 
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import Link from 'next/link';
-import type { User as FirebaseUser } from 'firebase/auth';
-
-import { doc, onSnapshot } from 'firebase/firestore';
+import { type FirebaseUser, doc, onSnapshot } from '@/lib/firebase/client';
 import { db } from '@/lib/firebase/client';
 import { updateLiveGameState, endCurrentPeriod, substitutePlayer, assignScorer, recordGameEvent } from '@/app/games/actions';
 import { getGameFormatById } from '@/app/game-formats/actions';
 import { getPlayersByTeamId } from '@/app/players/actions';
-import type { Game, GameFormat, Player, GameEventAction, PlayerGameStats, UserFirestoreProfile, ProfileType, StatCategory, GameEvent } from '@/types';
-
+import type { Game, GameFormat, Player, GameEventAction, PlayerGameStats, UserFirestoreProfile, ProfileType, StatCategory } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Loader2, AlertTriangle, ChevronLeft, Gamepad2, Minus, Plus, Play, Flag, Pause, TimerReset, FastForward, Timer as TimerIcon, CheckCircle, Ban, Users, Dribbble, UserCheck } from 'lucide-react';
@@ -235,10 +231,10 @@ export default function LiveGamePage() {
                 const gameData = {
                     ...data,
                     id: docSnap.id,
-                    date: (data.date as any).toDate().toISOString(),
-                    createdAt: data.createdAt?.toDate().toISOString(),
-                    updatedAt: data.updatedAt?.toDate().toISOString(),
-                    timerStartedAt: data.timerStartedAt?.toDate().toISOString() || null,
+                    date: (data.date as any).toDate(),
+                    createdAt: data.createdAt?.toDate(),
+                    updatedAt: data.updatedAt?.toDate(),
+                    timerStartedAt: data.timerStartedAt?.toDate() || null,
                 } as Game;
                 setGame(gameData);
                 

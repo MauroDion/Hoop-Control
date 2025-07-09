@@ -26,9 +26,9 @@ import type { Club, ProfileType, ProfileTypeOption } from "@/types";
 import { Loader2 } from "lucide-react";
 
 const formSchema = z.object({
-  name: z.string().min(2, { message: "Name must be at least 2 characters." }),
-  email: z.string().email({ message: "Invalid email address." }),
-  password: z.string().min(6, { message: "Password must be at least 6 characters." }),
+  name: z.string().min(2, { message: "El nombre debe tener al menos 2 caracteres." }),
+  email: z.string().email({ message: "Dirección de email inválida." }),
+  password: z.string().min(6, { message: "La contraseña debe tener al menos 6 caracteres." }),
   profileType: z.enum([
     'club_admin',
     'coach',
@@ -39,9 +39,9 @@ const formSchema = z.object({
     'super_admin',
     'user'
     ], {
-    errorMap: () => ({ message: "Please select a valid profile type." })
+    errorMap: () => ({ message: "Por favor, selecciona un tipo de perfil válido." })
   }),
-  selectedClubId: z.string().min(1, { message: "Please select a club." }),
+  selectedClubId: z.string().min(1, { message: "Por favor, selecciona un club." }),
 });
 
 export function RegisterForm() {
@@ -70,7 +70,7 @@ export function RegisterForm() {
 
       } catch (error: any) {
         console.error("RegisterForm: Failed to fetch data for form:", error);
-        toast({ variant: "destructive", title: "Error Loading Data", description: error.message || "Could not load clubs or profile types."});
+        toast({ variant: "destructive", title: "Error al Cargar Datos", description: error.message || "No se pudieron cargar los clubs o tipos de perfil."});
         setClubs([]);
         setProfileTypeOptions([]);
       } finally {
@@ -94,19 +94,15 @@ export function RegisterForm() {
     let userCredential: UserCredential | undefined;
     
     try {
-      // Step 1: Create the user in Firebase Auth client-side
       userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
       const firebaseUser = userCredential.user;
 
       if (!firebaseUser) {
-        throw new Error("User creation failed, user object is null.");
+        throw new Error("La creación del usuario falló, el objeto de usuario es nulo.");
       }
       
-      console.log("RegisterForm: Auth user created. Getting ID token...");
       const idToken = await firebaseUser.getIdToken();
-      console.log("RegisterForm: Got ID token. Calling server action to finalize profile.");
 
-      // Step 2: Call the robust server action to create the Firestore profile
       const profileResult = await finalizeNewUserProfile(idToken, {
         displayName: values.name,
         profileType: values.profileType,
@@ -114,14 +110,12 @@ export function RegisterForm() {
       });
 
       if (!profileResult.success) {
-        // If the backend fails, this is a critical error. The `catch` block will handle cleanup.
-        throw new Error(profileResult.error || "Failed to create user profile on the server.");
+        throw new Error(profileResult.error || "No se pudo crear el perfil de usuario en el servidor.");
       }
 
-      // Step 3: Success! Inform the user, sign out, and redirect.
       toast({
-        title: "Registration Submitted",
-        description: "Your registration has been submitted. An administrator will review it shortly. You will be able to log in once your account is approved.",
+        title: "Registro Enviado",
+        description: "Tu registro ha sido enviado. Un administrador lo revisará pronto. Podrás iniciar sesión una vez que tu cuenta sea aprobada.",
         duration: 7000,
       });
       
@@ -132,9 +126,6 @@ export function RegisterForm() {
     } catch (error: any) {
       console.error("RegisterForm: ERROR during registration process:", error);
 
-      // --- Cleanup on Failure ---
-      // If we created an auth user but the process failed later, delete the auth user
-      // to prevent creating a "ghost" user with no profile.
       if (userCredential?.user) {
           console.warn("RegisterForm: Deleting partially created user due to subsequent error...");
           try {
@@ -145,16 +136,15 @@ export function RegisterForm() {
           }
       }
 
-      // --- Inform User of Failure ---
-      let description = "An unexpected error occurred during registration.";
+      let description = "Ocurrió un error inesperado durante el registro.";
       if (error.code === 'auth/email-already-in-use') {
-        description = "This email address is already in use. Please use a different email or try logging in.";
+        description = "Esta dirección de email ya está en uso. Por favor, usa un email diferente o intenta iniciar sesión.";
       } else if (error.message) {
         description = error.message;
       }
       toast({
         variant: "destructive",
-        title: "Registration Failed",
+        title: "Fallo en el Registro",
         description: description,
         duration: 9000,
       });
@@ -170,9 +160,9 @@ export function RegisterForm() {
             name="name"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Full Name</FormLabel>
+                <FormLabel>Nombre Completo</FormLabel>
                 <FormControl>
-                  <Input placeholder="John Doe" {...field} />
+                  <Input placeholder="Juan Pérez" {...field} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -185,7 +175,7 @@ export function RegisterForm() {
               <FormItem>
                 <FormLabel>Email</FormLabel>
                 <FormControl>
-                  <Input placeholder="your@email.com" {...field} />
+                  <Input placeholder="tu@email.com" {...field} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -196,7 +186,7 @@ export function RegisterForm() {
             name="password"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Password</FormLabel>
+                <FormLabel>Contraseña</FormLabel>
                 <FormControl>
                   <Input type="password" placeholder="••••••••" {...field} />
                 </FormControl>
@@ -209,7 +199,7 @@ export function RegisterForm() {
             name="profileType"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Profile Type</FormLabel>
+                <FormLabel>Tipo de Perfil</FormLabel>
                 <Select
                   onValueChange={field.onChange}
                   defaultValue={field.value}
@@ -219,17 +209,17 @@ export function RegisterForm() {
                     <SelectTrigger>
                       <SelectValue placeholder={
                         loadingProfileTypes
-                          ? "Loading profile types..."
+                          ? "Cargando tipos de perfil..."
                           : profileTypeOptions.length === 0
-                            ? "No profile types available"
-                            : "Select your profile type"
+                            ? "No hay tipos de perfil disponibles"
+                            : "Selecciona tu tipo de perfil"
                         } />
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
                     {profileTypeOptions.map((type) => (
                         <SelectItem key={type.id} value={type.id}>
-                          {type.label || `Unnamed Type ID: ${type.id}`}
+                          {type.label || `Tipo sin nombre ID: ${type.id}`}
                         </SelectItem>
                       )
                     )}
@@ -244,7 +234,7 @@ export function RegisterForm() {
             name="selectedClubId"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Select Your Club</FormLabel>
+                <FormLabel>Selecciona tu Club</FormLabel>
                 <Select
                   onValueChange={field.onChange}
                   defaultValue={field.value}
@@ -255,10 +245,10 @@ export function RegisterForm() {
                       <SelectValue
                         placeholder={
                           loadingClubs
-                            ? "Loading clubs..."
+                            ? "Cargando clubs..."
                             : clubs.length === 0
-                            ? "No clubs available"
-                            : "Select the club you belong to"
+                            ? "No hay clubs disponibles"
+                            : "Selecciona el club al que perteneces"
                         }
                       />
                     </SelectTrigger>
@@ -266,7 +256,7 @@ export function RegisterForm() {
                   <SelectContent>
                     {clubs.map((club) => (
                          <SelectItem key={club.id} value={club.id}>
-                           {club.name || `Unnamed Club ID: ${club.id}`}
+                           {club.name || `Club sin nombre ID: ${club.id}`}
                          </SelectItem>
                        )
                     )}
@@ -278,7 +268,7 @@ export function RegisterForm() {
           />
           <Button type="submit" className="w-full" disabled={form.formState.isSubmitting || loadingClubs || loadingProfileTypes}>
             {(form.formState.isSubmitting || loadingClubs || loadingProfileTypes) ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-            {form.formState.isSubmitting ? "Registering..." : "Create Account"}
+            {form.formState.isSubmitting ? "Registrando..." : "Crear Cuenta"}
           </Button>
         </form>
       </Form>

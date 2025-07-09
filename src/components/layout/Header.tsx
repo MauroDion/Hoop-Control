@@ -1,3 +1,4 @@
+
 "use client";
 
 import Link from 'next/link';
@@ -32,7 +33,7 @@ import {
 
 export default function Header() {
   const { user, loading, profile, branding } = useAuth();
-  const { appName, logoHeaderUrl } = branding;
+  const { appName, logoHeaderUrl } = branding || {};
 
   const showAdminTools = profile && ['super_admin'].includes(profile.profileTypeId);
   const showGameTools = profile && ['super_admin', 'club_admin', 'coordinator', 'coach'].includes(profile.profileTypeId);

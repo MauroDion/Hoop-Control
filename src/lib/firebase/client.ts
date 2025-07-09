@@ -23,7 +23,7 @@ import {
     type User as FirebaseUser,
     type UserCredential
 } from 'firebase/auth';
-import { getFirestore, type Firestore } from 'firebase/firestore';
+import { getFirestore, type Firestore, doc, onSnapshot } from 'firebase/firestore';
 import { firebaseConfig } from './config';
 
 let app: FirebaseApp;
@@ -67,6 +67,8 @@ export {
     setPersistence,
     browserSessionPersistence,
     browserLocalPersistence,
+    doc,
+    onSnapshot,
     type FirebaseUser,
     type UserCredential,
     type Auth,

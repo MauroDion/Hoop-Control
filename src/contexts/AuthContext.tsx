@@ -1,43 +1,77 @@
+
 "use client";
 
-import { auth, onIdTokenChanged, type FirebaseUser } from '@/lib/firebase/client';
+import { auth, onIdTokenChanged, signOut, type FirebaseUser } from '@/lib/firebase/client';
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useRouter } from 'next/navigation';
+import { getUserProfileById } from '@/app/users/actions';
+import { getBrandingSettings } from '@/app/admin/settings/actions';
+import type { UserFirestoreProfile, BrandingSettings } from '@/types';
 
 interface AuthContextType {
   user: FirebaseUser | null;
+  profile: UserFirestoreProfile | null;
   loading: boolean;
+  branding: BrandingSettings;
+  logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<FirebaseUser | null>(null);
+  const [profile, setProfile] = useState<UserFirestoreProfile | null>(null);
+  const [branding, setBranding] = useState<BrandingSettings>({});
   const [loading, setLoading] = useState(true);
+  const router = useRouter();
+
+  const logout = async () => {
+      try {
+        await fetch('/api/auth/session-logout', { method: 'POST' });
+      } catch (error) {
+        console.error("Failed to clear server session on logout:", error);
+      } finally {
+        await signOut(auth);
+        router.push('/login');
+      }
+  };
 
   useEffect(() => {
-    const unsubscribe = onIdTokenChanged(auth, (firebaseUser) => {
+    getBrandingSettings().then(setBranding);
+
+    const unsubscribe = onIdTokenChanged(auth, async (firebaseUser) => {
+      setLoading(true);
       setUser(firebaseUser);
-      setLoading(false);
-    }, (error) => {
-      console.error("Auth state change error:", error);
-      setUser(null);
+      if (firebaseUser) {
+        const userProfile = await getUserProfileById(firebaseUser.uid);
+        setProfile(userProfile);
+
+        if (userProfile && !userProfile.onboardingCompleted) {
+           if (userProfile.profileTypeId === 'parent_guardian') {
+               router.push('/profile/my-children');
+           }
+        } else if (userProfile && userProfile.status === 'pending_approval') {
+            await logout();
+        }
+      } else {
+        setProfile(null);
+      }
       setLoading(false);
     });
 
     return () => unsubscribe();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   if (loading) {
-    // Simple full-page loading skeleton
     return (
       <div className="flex flex-col min-h-screen">
         <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-          <div className="container flex h-16 items-center">
-            <Skeleton className="h-8 w-32" />
+          <div className="container flex h-20 items-center">
+            <Skeleton className="h-8 w-40" />
             <div className="ml-auto flex items-center space-x-4">
-              <Skeleton className="h-8 w-20" />
-              <Skeleton className="h-10 w-10 rounded-full" />
+              <Skeleton className="h-8 w-24" />
             </div>
           </div>
         </header>
@@ -45,25 +79,23 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           <div className="space-y-4">
             <Skeleton className="h-12 w-1/2" />
             <Skeleton className="h-64 w-full" />
-            <Skeleton className="h-32 w-full" />
           </div>
         </main>
       </div>
     );
   }
-  
 
   return (
-    <AuthContext.Provider value={{ user, loading }}>
+    <AuthContext.Provider value={{ user, profile, loading, branding, logout }}>
       {children}
     </AuthContext.Provider>
   );
 };
 
-export const useAuthContext = () => {
+export const useAuth = () => {
   const context = useContext(AuthContext);
   if (context === undefined) {
-    throw new Error('useAuthContext must be used within an AuthProvider');
+    throw new Error('useAuth must be used within an AuthProvider');
   }
   return context;
 };
