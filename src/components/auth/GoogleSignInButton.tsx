@@ -1,8 +1,7 @@
-
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { auth, GoogleAuthProvider, signInWithPopup, signOut, type UserCredential } from "@/lib/firebase/client";
+import { auth, GoogleAuthProvider, signInWithPopup, type UserCredential } from "@/lib/firebase/client";
 import { useToast } from "@/hooks/use-toast";
 
 const GoogleIcon = () => (
@@ -22,7 +21,7 @@ export function GoogleSignInButton() {
   const handleSignIn = async () => {
     const provider = new GoogleAuthProvider();
     try {
-      const result = await signInWithPopup(auth, provider);
+      const result: UserCredential = await signInWithPopup(auth, provider);
       // The onIdTokenChanged listener in AuthContext will handle everything else.
       toast({ title: "Sesión iniciada con Google", description: `¡Bienvenido, ${result.user.displayName}!` });
     } catch (error: any) {

@@ -1,4 +1,3 @@
-
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -35,6 +34,7 @@ const formSchema = z.object({
   }),
   selectedClubId: z.string().optional(),
 }).refine((data) => {
+    // selectedClubId is required if the profileType is NOT super_admin
     if (data.profileType !== 'super_admin') {
         return !!data.selectedClubId && data.selectedClubId.length > 0;
     }

@@ -1,4 +1,3 @@
-
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -16,13 +15,16 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { auth, signInWithEmailAndPassword } from "@/lib/firebase/client";
+import { auth, signInWithEmailAndPassword, setPersistence, browserSessionPersistence, browserLocalPersistence } from "@/lib/firebase/client";
 import { useRouter } from "next/navigation";
 import React from "react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 
 const formSchema = z.object({
   email: z.string().email({ message: "Dirección de email inválida." }),
   password: z.string().min(6, { message: "La contraseña debe tener al menos 6 caracteres." }),
+  rememberMe: z.boolean().default(false).optional(),
 });
 
 export function LoginForm() {
@@ -34,12 +36,17 @@ export function LoginForm() {
     defaultValues: {
       email: "",
       password: "",
+      rememberMe: true, // Default to persistent
     },
   });
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     try {
+      // Set persistence BEFORE signing in. This is crucial.
+      await setPersistence(auth, values.rememberMe ? browserLocalPersistence : browserSessionPersistence);
+      
       await signInWithEmailAndPassword(auth, values.email, values.password);
+      
       // The AuthContext's onIdTokenChanged listener now handles redirection and session creation.
       toast({
         title: "Inicio de Sesión Exitoso",
@@ -59,7 +66,7 @@ export function LoginForm() {
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
         <FormField
           control={form.control}
           name="email"
@@ -82,26 +89,46 @@ export function LoginForm() {
               <FormControl>
                 <Input type="password" placeholder="••••••••" {...field} />
               </FormControl>
-               <div className="flex justify-end">
-                 <Link href="/reset-password" passHref>
-                    <Button variant="link" type="button" className="px-0 text-sm h-auto py-0">
-                    ¿Olvidaste tu contraseña?
-                    </Button>
-                </Link>
-               </div>
               <FormMessage />
             </FormItem>
           )}
         />
-
-        <div className="space-y-2 pt-2">
-            <Button type="submit" className="w-full" disabled={form.formState.isSubmitting}>
-            {form.formState.isSubmitting ? "Iniciando sesión..." : "Iniciar Sesión"}
+        <div className="flex items-center justify-between">
+           <FormField
+            control={form.control}
+            name="rememberMe"
+            render={({ field }) => (
+              <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                <FormControl>
+                  <Checkbox
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                    id="rememberMeLogin"
+                  />
+                </FormControl>
+                <div className="space-y-1 leading-none">
+                  <Label
+                    htmlFor="rememberMeLogin"
+                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                  >
+                    Recordarme
+                  </Label>
+                </div>
+              </FormItem>
+            )}
+          />
+          <Link href="/reset-password" passHref>
+            <Button variant="link" type="button" className="px-0 text-sm">
+              ¿Olvidaste tu contraseña?
             </Button>
-            <Button type="button" variant="outline" className="w-full" onClick={() => router.push('/')}>
-                Cancelar
-            </Button>
+          </Link>
         </div>
+        <Button type="submit" className="w-full" disabled={form.formState.isSubmitting}>
+          {form.formState.isSubmitting ? "Iniciando sesión..." : "Iniciar Sesión"}
+        </Button>
+         <Button type="button" variant="outline" className="w-full" onClick={() => router.push('/')}>
+            Cancelar
+          </Button>
       </form>
     </Form>
   );

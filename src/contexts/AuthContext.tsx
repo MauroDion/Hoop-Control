@@ -1,4 +1,3 @@
-
 "use client";
 
 import { auth, onIdTokenChanged, signOut, type FirebaseUser } from '@/lib/firebase/client';
@@ -7,15 +6,13 @@ import React, { createContext, useContext, useEffect, useState, ReactNode, useCa
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
 import { getUserProfileById } from '@/app/users/actions';
-import type { UserFirestoreProfile, BrandingSettings } from '@/types';
-import { getBrandingSettings } from '@/app/admin/settings/actions';
+import type { UserFirestoreProfile } from '@/types';
 
 interface AuthContextType {
   user: FirebaseUser | null;
   profile: UserFirestoreProfile | null;
   loading: boolean;
   logout: () => Promise<void>;
-  branding: BrandingSettings;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -31,24 +28,21 @@ export const useAuth = () => {
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<FirebaseUser | null>(null);
   const [profile, setProfile] = useState<UserFirestoreProfile | null>(null);
-  const [branding, setBranding] = useState<BrandingSettings>({});
   const [loading, setLoading] = useState(true);
   const router = useRouter();
   const pathname = usePathname();
+  const { toast } = useToast();
 
   const logout = useCallback(async () => {
-    await fetch('/api/auth/session-logout', { method: 'POST' });
-    await signOut(auth);
-    // The onIdTokenChanged listener will handle state cleanup and navigation.
-  }, []);
-
-  useEffect(() => {
-    const fetchBranding = async () => {
-        const settings = await getBrandingSettings();
-        setBranding(settings);
-    };
-    fetchBranding();
-  }, []);
+    try {
+      await fetch('/api/auth/session-logout', { method: 'POST' });
+    } catch (error) {
+        console.error("Failed to call server logout", error);
+    } finally {
+        await signOut(auth);
+        router.push('/login');
+    }
+  }, [router]);
 
   useEffect(() => {
     const unsubscribe = onIdTokenChanged(auth, async (firebaseUser) => {
@@ -56,8 +50,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         // User is signed in.
         setUser(firebaseUser);
         try {
-          // Verify session on the server
-          const idToken = await firebaseUser.getIdToken();
+          const idToken = await firebaseUser.getIdToken(true); // Force refresh
           const response = await fetch('/api/auth/session-login', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -65,26 +58,21 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           });
           
           if (!response.ok) {
-            // Server rejected the session (e.g. user not approved yet)
-            throw new Error('Session rejected by server.');
+            const errorData = await response.json();
+            throw new Error(errorData.reason || 'Session rejected by server.');
           }
 
           const userProfile = await getUserProfileById(firebaseUser.uid);
           setProfile(userProfile);
           
-          // Onboarding redirection logic
           if (!userProfile) {
             if (pathname !== '/profile/complete-registration') {
               router.push('/profile/complete-registration');
             }
-          } else if (userProfile.onboardingCompleted === false) {
-             if (userProfile.profileTypeId === 'parent_guardian' && pathname !== '/profile/my-children') {
-              router.push('/profile/my-children');
-            }
           }
-
         } catch (error: any) {
           console.error("Auth context error:", error.message);
+          toast({ variant: 'destructive', title: "Error de Sesión", description: error.message });
           await logout();
         } finally {
             setLoading(false);
@@ -98,7 +86,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     });
 
     return () => unsubscribe();
-  }, [logout, pathname, router]);
+  }, [logout, pathname, router, toast]);
   
   if (loading) {
     return (
@@ -110,7 +98,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }
   
   return (
-    <AuthContext.Provider value={{ user, profile, loading, logout, branding }}>
+    <AuthContext.Provider value={{ user, profile, loading, logout }}>
       {children}
     </AuthContext.Provider>
   );

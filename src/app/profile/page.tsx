@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useAuth } from '@/contexts/AuthContext';
@@ -14,8 +13,7 @@ import { useForm } from 'react-hook-form';
 import * as z from 'zod';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { UserCircle, Edit3, ShieldAlert, AlertTriangle, Users } from 'lucide-react';
-import Link from 'next/link';
+import { UserCircle, Edit3, ShieldAlert, AlertTriangle } from 'lucide-react';
 
 const profileSchema = z.object({
   displayName: z.string().min(2, "El nombre debe tener al menos 2 caracteres.").optional(),
@@ -33,7 +31,7 @@ const passwordSchema = z.object({
 
 
 export default function ProfilePage() {
-  const { user, profile, loading } = useAuth();
+  const { user, loading } = useAuth();
   const { toast } = useToast();
   const [isEditingProfile, setIsEditingProfile] = useState(false);
 
@@ -128,18 +126,6 @@ export default function ProfilePage() {
         </div>
       </div>
       
-      {profile?.profileTypeId === 'parent_guardian' && (
-           <Card className="shadow-lg">
-              <CardHeader>
-                <CardTitle className="text-2xl font-headline flex items-center"><Users className="mr-2 h-6 w-6 text-accent" />Gestionar Hijos/as</CardTitle>
-                <CardDescription>Añade o edita los jugadores asociados a tu cuenta.</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Button asChild><Link href="/profile/my-children">Gestionar</Link></Button>
-              </CardContent>
-            </Card>
-      )}
-
       <Card className="shadow-lg">
         <CardHeader className="flex flex-row justify-between items-center">
           <div>

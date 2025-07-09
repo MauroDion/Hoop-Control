@@ -1,8 +1,7 @@
-
 "use client";
 
 import { initializeApp, getApps, type FirebaseApp } from 'firebase/app';
-// Import ALL auth functions and types needed across the client app
+// Import ALL auth functions and types needed across the client app to be re-exported
 import { 
     getAuth, 
     onIdTokenChanged, 
@@ -20,7 +19,7 @@ import {
     browserLocalPersistence,
     browserSessionPersistence,
     type Auth, 
-    type User,
+    type User as FirebaseUser,
     type UserCredential
 } from 'firebase/auth';
 import { getFirestore, type Firestore } from 'firebase/firestore';
@@ -70,4 +69,4 @@ export {
     browserSessionPersistence,
 };
 // Re-export types
-export type { FirebaseApp, Auth, User as FirebaseUser, UserCredential, Firestore };
+export type { FirebaseApp, Auth, FirebaseUser, UserCredential, Firestore };
