@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
@@ -7,8 +8,8 @@ import Link from 'next/link';
 import { type FirebaseUser, doc, onSnapshot } from '@/lib/firebase/client';
 import { db } from '@/lib/firebase/client';
 import { updateLiveGameState, endCurrentPeriod, substitutePlayer, assignScorer, recordGameEvent } from '@/app/games/actions';
-import { getGameFormatById } from '@/lib/actions/game-formats';
-import { getPlayersByTeamId } from '@/lib/actions/players';
+import { getGameFormatById } from '@/app/game-formats/actions';
+import { getPlayersByTeamId } from '@/app/players/actions';
 import type { Game, GameFormat, Player, GameEventAction, PlayerGameStats, UserFirestoreProfile, ProfileType, StatCategory } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -417,7 +418,7 @@ export default function LiveGamePage() {
     
     const canRecordAnyStat = myAssignments.size > 0 || isSuperAdmin;
     const canRecordShots = myAssignments.has('shots') || isSuperAdmin;
-    const canRecordOther = myAssignments.has('fouls') || myAssignments.has('turnovers') || isSuperAdmin;
+    const canRecordOther = myAssignments.has('turnovers') || myAssignments.has('fouls') || isSuperAdmin;
 
     const TeamPanel = ({ teamType, playersList }: { teamType: 'home' | 'away', playersList: Player[] }) => {
         const teamName = teamType === 'home' ? game.homeTeamName : game.awayTeamName;
