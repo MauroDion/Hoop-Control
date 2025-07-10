@@ -1,9 +1,8 @@
-
 "use client";
 
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { getTaskById } from "@/app/tasks/actions";
+import { getTaskById } from "@/lib/actions/tasks";
 import type { Task } from "@/types";
 import { TaskForm } from "@/components/tasks/TaskForm";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";

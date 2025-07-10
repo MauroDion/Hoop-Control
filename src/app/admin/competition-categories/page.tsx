@@ -3,9 +3,9 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
-import { getUserProfileById } from '@/app/users/actions';
-import { getCompetitionCategories, deleteCompetitionCategory } from '@/app/competition-categories/actions';
-import { getGameFormats } from '@/app/game-formats/actions';
+import { getUserProfileById } from '@/lib/actions/users';
+import { getCompetitionCategories, deleteCompetitionCategory } from '@/lib/actions/competition-categories';
+import { getGameFormats } from '@/lib/actions/game-formats';
 import type { CompetitionCategory, GameFormat } from '@/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';

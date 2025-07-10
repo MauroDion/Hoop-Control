@@ -19,9 +19,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { auth, createUserWithEmailAndPassword, signOut, type UserCredential } from "@/lib/firebase/client"; 
 import { useRouter } from "next/navigation";
-import { finalizeNewUserProfile } from "@/app/users/actions";
-import { getApprovedClubs } from "@/app/clubs/actions";
-import { getProfileTypeOptions } from "@/app/profile-types/actions";
+import { finalizeNewUserProfile } from "@/lib/actions/users";
+import { getApprovedClubs } from "@/lib/actions/clubs";
+import { getProfileTypeOptions } from "@/lib/actions/profile-types";
 import type { Club, ProfileType, ProfileTypeOption } from "@/types";
 import { Loader2 } from "lucide-react";
 
@@ -218,9 +218,7 @@ export function RegisterForm() {
                   </FormControl>
                   <SelectContent>
                     {profileTypeOptions.map((type) => (
-                        <SelectItem key={type.id} value={type.id}>
-                          {type.label || `Tipo sin nombre ID: ${type.id}`}
-                        </SelectItem>
+                        <SelectItem key={type.id} value={type.id}>{type.label}</SelectItem>
                       )
                     )}
                   </SelectContent>
@@ -255,9 +253,7 @@ export function RegisterForm() {
                   </FormControl>
                   <SelectContent>
                     {clubs.map((club) => (
-                         <SelectItem key={club.id} value={club.id}>
-                           {club.name || `Club sin nombre ID: ${club.id}`}
-                         </SelectItem>
+                         <SelectItem key={club.id} value={club.id}>{club.name}</SelectItem>
                        )
                     )}
                   </SelectContent>

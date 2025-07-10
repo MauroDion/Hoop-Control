@@ -8,9 +8,9 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { v4 as uuidv4 } from 'uuid';
 
-import { getUserProfileById, updateUserChildren } from '@/app/users/actions';
-import { getTeamsByClubId } from '@/app/teams/actions';
-import { getPlayersByClub } from '@/app/players/actions';
+import { getUserProfileById, updateUserChildren } from '@/lib/actions/users';
+import { getTeamsByClubId } from '@/lib/actions/teams';
+import { getPlayersByClub } from '@/lib/actions/players';
 
 import type { UserFirestoreProfile, Child, Player, Team } from '@/types';
 
@@ -69,8 +69,8 @@ export default function MyChildrenPage() {
             setProfile(fetchedProfile);
             
             const [fetchedTeams, fetchedPlayers] = await Promise.all([
-                getTeamsByClubId(fetchedProfile.clubId),
-                getPlayersByClub(fetchedProfile.clubId)
+                getTeamsByClubId(fetchedProfile.clubId!),
+                getPlayersByClub(fetchedProfile.clubId!)
             ]);
 
             setTeams(fetchedTeams);

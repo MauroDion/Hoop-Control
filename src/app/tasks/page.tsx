@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from 'react';
-import { getTasks } from "@/app/tasks/actions";
+import { getTasks } from "@/lib/actions/tasks";
 import type { Task } from "@/types";
 import { TasksList } from "@/components/tasks/TasksList";
 import { Button } from "@/components/ui/button";
@@ -19,7 +19,6 @@ export default function TasksPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Client-side guard: If auth is resolved and there is no user, redirect.
     if (!authLoading && !user) {
       router.replace('/login?redirect=/tasks');
       return;
@@ -29,7 +28,7 @@ export default function TasksPage() {
        async function fetchTasks() {
         try {
           setLoading(true);
-          const fetchedTasks = await getTasks(user.uid); // Pass user.uid to fetch tasks for this user
+          const fetchedTasks = await getTasks(user.uid);
           setTasks(fetchedTasks);
         } catch (e: any) {
           console.error("Failed to fetch tasks:", e);

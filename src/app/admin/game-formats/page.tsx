@@ -3,8 +3,8 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
-import { getUserProfileById } from '@/app/users/actions';
-import { getGameFormats, deleteGameFormat } from '@/app/game-formats/actions';
+import { getUserProfileById } from '@/lib/actions/users';
+import { getGameFormats, deleteGameFormat } from '@/lib/actions/game-formats';
 import type { GameFormat } from '@/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';

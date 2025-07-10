@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -18,7 +19,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import type { Task, TaskFormData } from "@/types";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/hooks/use-toast";
-import { createTask, updateTask } from "@/app/tasks/actions";
+import { createTask, updateTask } from "@/lib/actions/tasks";
 import { useAuth } from '@/contexts/AuthContext';
 
 const taskFormSchema = z.object({
@@ -34,7 +35,7 @@ interface TaskFormProps {
   onFormSubmit?: () => void; // Optional callback after submission
 }
 
-const formatDateForInput = (date?: Date | null): string => {
+const formatDateForInput = (date?: string | Date | null): string => {
   if (!date) return "";
   try {
     return new Date(date).toISOString().split('T')[0];

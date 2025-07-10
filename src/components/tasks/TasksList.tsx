@@ -9,7 +9,7 @@ import { Edit, Eye, Trash2, PlusCircle, AlertTriangle, ListFilter, CalendarDays 
 import { useState, useMemo } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import { deleteTask } from "@/app/tasks/actions";
+import { deleteTask } from "@/lib/actions/tasks";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from "next/navigation"; 
@@ -43,9 +43,9 @@ const priorityText: Record<Task['priority'], string> = {
   high: "Alta",
 };
 
-const formatDate = (date?: Date | null) => {
+const formatDate = (date?: string | Date | null) => {
   if (!date) return 'N/A';
-  return format(date, 'd MMM, yyyy', { locale: es });
+  return format(new Date(date), 'd MMM, yyyy', { locale: es });
 };
 
 export function TasksList({ tasks }: TasksListProps) {

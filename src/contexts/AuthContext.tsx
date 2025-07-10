@@ -4,8 +4,8 @@ import { auth, onIdTokenChanged, signOut, type FirebaseUser } from '@/lib/fireba
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useRouter } from 'next/navigation';
-import { getUserProfileById } from '@/app/users/actions';
-import { getBrandingSettings } from '@/app/admin/settings/actions';
+import { getUserProfileById } from '@/lib/actions/users';
+import { getBrandingSettings } from '@/lib/actions/admin/settings';
 import type { UserFirestoreProfile, BrandingSettings } from '@/types';
 
 interface AuthContextType {
@@ -50,7 +50,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
            if (userProfile.profileTypeId === 'parent_guardian') {
                router.push('/profile/my-children');
            }
-        } else if (userProfile && userProfile.status === 'pending_approval') {
+        } else if (!userProfile) { // A new user from social sign in
+            router.push('/profile/complete-registration');
+        } else if (userProfile.status === 'pending_approval') {
             await logout();
         }
       } else {

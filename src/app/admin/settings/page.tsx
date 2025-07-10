@@ -3,8 +3,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
-import { getUserProfileById } from '@/app/users/actions';
-import { saveBrandingSettings, getBrandingSettings } from './actions';
+import { getUserProfileById } from '@/lib/actions/users';
+import { saveBrandingSettings, getBrandingSettings } from '@/lib/actions/admin/settings';
 import type { BrandingSettings } from '@/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';

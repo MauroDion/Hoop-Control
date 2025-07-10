@@ -17,7 +17,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { CompetitionCategoryFormData, GameFormat, CompetitionCategory } from "@/types";
 import { useToast } from "@/hooks/use-toast";
-import { createCompetitionCategory, updateCompetitionCategory } from "@/app/competition-categories/actions";
+import { createCompetitionCategory, updateCompetitionCategory } from "@/lib/actions/competition-categories";
 import { useAuth } from '@/contexts/AuthContext';
 import { Loader2 } from "lucide-react";
 import { useEffect } from "react";

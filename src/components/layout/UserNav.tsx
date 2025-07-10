@@ -13,10 +13,10 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useAuth } from '@/contexts/AuthContext';
-import { LogOut, UserCircle, Settings } from 'lucide-react';
+import { LogOut, UserCircle, Settings, Users } from 'lucide-react';
 
 export function UserNav() {
-  const { user, logout } = useAuth();
+  const { user, profile, logout } = useAuth();
 
   if (!user) {
     return null;
@@ -58,6 +58,14 @@ export function UserNav() {
               Perfil
             </Link>
           </DropdownMenuItem>
+          {profile?.profileTypeId === 'parent_guardian' && (
+             <DropdownMenuItem asChild>
+                <Link href="/profile/my-children" className="flex items-center">
+                    <Users className="mr-2 h-4 w-4" />
+                    Mis Hijos/as
+                </Link>
+            </DropdownMenuItem>
+          )}
           <DropdownMenuItem disabled className="flex items-center cursor-not-allowed">
             <Settings className="mr-2 h-4 w-4" />
             Configuración

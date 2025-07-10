@@ -3,10 +3,10 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
-import { getAllUserProfiles, updateUserProfileStatus } from './actions';
-import { getUserProfileById } from '@/app/users/actions';
-import { getApprovedClubs } from '@/app/clubs/actions';
-import { getProfileTypeOptions } from '@/app/profile-types/actions';
+import { getAllUserProfiles, updateUserProfileStatus } from '@/lib/actions/admin/users';
+import { getUserProfileById } from '@/lib/actions/users';
+import { getApprovedClubs } from '@/lib/actions/clubs';
+import { getProfileTypeOptions } from '@/lib/actions/profile-types';
 import type { UserFirestoreProfile, UserProfileAdminView, Club, ProfileTypeOption, UserProfileStatus } from '@/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
@@ -42,7 +42,6 @@ export default function UserManagementPage() {
   const [error, setError] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
-    // No establecer 'loading' aquí si ya estamos cargando desde el efecto principal
     try {
       const [fetchedProfiles, fetchedClubs, fetchedProfileTypes] = await Promise.all([
         getAllUserProfiles(),
@@ -91,7 +90,7 @@ export default function UserManagementPage() {
     const result = await updateUserProfileStatus(uid, newStatus);
     if (result.success) {
       toast({ title: "Estado Actualizado", description: `El estado del usuario ${displayName || uid} cambió a ${newStatus}.` });
-      loadData(); // Recargar todos los datos para mantener consistencia
+      loadData();
     } else {
       toast({ variant: "destructive", title: "Fallo al Actualizar", description: result.error });
     }

@@ -15,8 +15,8 @@ import {
 import { Input } from "@/components/ui/input";
 import type { ClubFormData } from "@/types";
 import { useToast } from "@/hooks/use-toast";
-import { createClub } from "@/app/clubs/actions";
-import { useAuth } from "@/contexts/AuthContext";
+import { createClub } from "@/lib/actions/clubs";
+import { useAuth } from '@/contexts/AuthContext';
 import { Loader2 } from "lucide-react";
 
 const clubFormSchema = z.object({

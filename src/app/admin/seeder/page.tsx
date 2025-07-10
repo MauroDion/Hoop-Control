@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Loader2, AlertTriangle, Database, Wand2 } from 'lucide-react';
-import { seedDatabase } from './actions';
+import { seedDatabase } from '@/lib/actions/admin/seeder';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
 import {

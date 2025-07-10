@@ -1,8 +1,7 @@
-
 "use client";
 
 import React, { useEffect, useState } from 'react';
-import { getTaskById, deleteTask } from "@/app/tasks/actions";
+import { getTaskById, deleteTask } from "@/lib/actions/tasks";
 import type { Task } from "@/types";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -45,7 +44,7 @@ export default function TaskDetailPage({ params }: { params: { id: string } }) {
     async function fetchTask() {
       try {
         setLoading(true);
-        const fetchedTask = await getTaskById(params.id, user.uid);
+        const fetchedTask = await getTaskById(params.id, user!.uid);
         if (fetchedTask) {
           setTask(fetchedTask);
         } else {
@@ -131,9 +130,9 @@ export default function TaskDetailPage({ params }: { params: { id: string } }) {
     high: 'Alta',
   }
   
-  const formatDate = (date?: Date | null) => {
-    if (!date) return 'N/A';
-    return format(date, 'PPP', { locale: es });
+  const formatDate = (dateString?: string | Date | null) => {
+    if (!dateString) return 'N/A';
+    return format(new Date(dateString), 'PPP', { locale: es });
   };
 
 
