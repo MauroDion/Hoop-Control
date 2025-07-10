@@ -753,6 +753,3 @@ export async function substitutePlayer(
     return { success: false, error: error.message };
   }
 }
-
-
-    

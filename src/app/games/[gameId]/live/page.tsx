@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
@@ -75,8 +74,6 @@ const PlayerStatCard = ({ player, stats, onClick, userProfileType, isChild, isTi
         </Card>
     );
 };
-
-// ... Resto de los componentes (ShotActionButtons, OtherActionButtons, etc. sin cambios) ...
 
 const ShotActionButtons = ({ onAction, disabled }: { onAction: (action: GameEventAction) => void, disabled: boolean }) => (
     <div className="space-y-3">
@@ -204,14 +201,12 @@ export default function LiveGamePage() {
         }
     }, [gameId, toast, user]);
 
-    // This effect runs when the game data from Firestore changes.
     useEffect(() => {
       if (game) {
         setDisplayTime(game.periodTimeRemainingSeconds || 0);
       }
     }, [game]);
     
-    // This effect handles the local, visual countdown timer.
     useEffect(() => {
         let timerId: NodeJS.Timeout | undefined;
         if (game?.isTimerRunning && game.timerStartedAt) {
@@ -225,7 +220,7 @@ export default function LiveGamePage() {
                 setDisplayTime(Math.max(0, newDisplayTime));
             };
             
-            updateDisplay(); // Update immediately
+            updateDisplay();
             timerId = setInterval(updateDisplay, 1000);
         } else {
             setTimeSinceTimerStart(0);
@@ -339,9 +334,16 @@ export default function LiveGamePage() {
     };
 
     const handleToggleTimer = useCallback(() => {
-        if (!game) return;
-        handleUpdate({ isTimerRunning: !game.isTimerRunning });
-    }, [game, handleUpdate]);
+        if (!game || !user) return;
+        const newIsTimerRunning = !game.isTimerRunning;
+        
+        const updates: Partial<Game> = { isTimerRunning: newIsTimerRunning };
+        if (!newIsTimerRunning) {
+             updates.periodTimeRemainingSeconds = displayTime;
+        }
+
+        handleUpdate(updates);
+    }, [game, user, displayTime, handleUpdate]);
     
     const handleEndPeriod = useCallback(async () => {
         if (!game || !user) return;
@@ -352,12 +354,12 @@ export default function LiveGamePage() {
     }, [game, user, toast]);
 
     const handleResetTimer = useCallback(() => {
-        if (!game || !gameFormat) return;
+        if (!game || !gameFormat || !user) return;
         handleUpdate({
             isTimerRunning: false,
             periodTimeRemainingSeconds: (gameFormat.periodDurationMinutes || 10) * 60,
         });
-    }, [game, gameFormat, handleUpdate]);
+    }, [game, gameFormat, user, handleUpdate]);
     
     const handleGameStatusChange = async (status: 'inprogress' | 'completed') => {
         if (!game || !user) return;
@@ -568,4 +570,3 @@ export default function LiveGamePage() {
         </div>
     )
 }
-
