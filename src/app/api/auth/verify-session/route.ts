@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminInitError } from '@/lib/firebase/admin';
-import { getUserProfileById } from '@/lib/actions/users';
+import { getUserProfileById } from '@/app/users/actions';
 
 export async function POST(request: NextRequest) {
   // Add a defensive check right at the beginning
@@ -22,6 +22,7 @@ export async function POST(request: NextRequest) {
     const decodedClaims = await adminAuth.verifySessionCookie(sessionCookie, true /* checkRevoked */);
     console.log(`API (verify-session): Cookie verification SUCCESS for UID: ${decodedClaims.uid}. Now checking profile status...`);
 
+    // --- NEW LOGIC: Check Firestore profile status ---
     const userProfile = await getUserProfileById(decodedClaims.uid);
 
     if (userProfile && userProfile.status === 'approved') {
@@ -30,15 +31,17 @@ export async function POST(request: NextRequest) {
     } else {
       const reason = userProfile ? `status is '${userProfile.status}'` : 'profile not found';
       console.warn(`API (verify-session): Authentication FAILED for UID: ${decodedClaims.uid} because ${reason}.`);
+      // User is not approved or doesn't have a profile. Send back a structured error.
       return NextResponse.json({ 
           isAuthenticated: false, 
           error: 'User account not active.', 
-          reason: userProfile?.status || 'not_found'
-        }, { status: 403 });
+          reason: userProfile?.status || 'not_found' // e.g., 'pending_approval', 'rejected'
+        }, { status: 403 }); // 403 Forbidden is appropriate for a valid user who lacks rights
     }
 
   } catch (error: any) {
     console.warn(`API (verify-session): Cookie verification FAILED. Error Code: ${error.code}. Message: ${error.message}`);
+    // This catches invalid/expired cookies.
     return NextResponse.json({ 
         isAuthenticated: false, 
         error: 'Invalid session cookie.', 

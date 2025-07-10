@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminInitError } from '@/lib/firebase/admin';
-import { getUserProfileById } from '@/lib/actions/users';
+import { getUserProfileById } from '@/app/users/actions';
 
 export async function POST(request: NextRequest) {
   if (!adminAuth) {
