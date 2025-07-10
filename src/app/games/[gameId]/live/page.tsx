@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
@@ -21,7 +22,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 
-const PlayerStatCard = ({ player, stats, onClick, userProfileType, isChild, timeSinceTimerStart }: { player: Player; stats: PlayerGameStats; onClick?: () => void, userProfileType?: ProfileType, isChild: boolean, timeSinceTimerStart: number }) => {
+const PlayerStatCard = ({ player, stats, onClick, userProfileType, isChild, isTimerRunning, timeSinceTimerStart }: { player: Player; stats: PlayerGameStats; onClick?: () => void, userProfileType?: ProfileType, isChild: boolean, isTimerRunning: boolean, timeSinceTimerStart: number }) => {
     
     const canSeeAdvancedStats = userProfileType !== 'parent_guardian' || isChild;
 
@@ -31,8 +32,7 @@ const PlayerStatCard = ({ player, stats, onClick, userProfileType, isChild, time
         return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
     };
     
-    // Total time is saved time + time elapsed in the current running session
-    const totalTimePlayed = (stats.timePlayedSeconds || 0) + timeSinceTimerStart;
+    const timePlayed = (stats.timePlayedSeconds || 0) + (isTimerRunning ? timeSinceTimerStart : 0);
 
     const plusMinusValue = stats.plusMinus || 0;
     const pirValue = stats.pir || 0;
@@ -69,8 +69,8 @@ const PlayerStatCard = ({ player, stats, onClick, userProfileType, isChild, time
             <div className="text-7xl font-black text-destructive" style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.1)' }}>{player.jerseyNumber || 'S/N'}</div>
             <div className="absolute bottom-1 text-xs text-center font-semibold w-full px-1 bg-gradient-to-t from-background via-background to-transparent pt-8 pb-1">
                 <p className="truncate">{player.firstName} {player.lastName}</p>
-                <p className="font-mono text-muted-foreground">{formatTime(totalTimePlayed)}</p>
-                <p className="font-mono text-[10px] text-muted-foreground">Períodos: {periodsPlayedString} ({periodsPlayedCount})</p>
+                <p className="font-mono text-muted-foreground">{formatTime(timePlayed)}</p>
+                <p className="font-mono text-[10px] text-muted-foreground">{periodsPlayedString} ({periodsPlayedCount})</p>
             </div>
         </Card>
     );
@@ -214,21 +214,24 @@ export default function LiveGamePage() {
     // This effect handles the local, visual countdown timer.
     useEffect(() => {
         let timerId: NodeJS.Timeout | undefined;
-        if (game?.isTimerRunning) {
-            const clientTimerStart = Date.now();
-            timerId = setInterval(() => {
-                const elapsedMs = Date.now() - clientTimerStart;
+        if (game?.isTimerRunning && game.timerStartedAt) {
+            const serverStartTimeMs = new Date(game.timerStartedAt).getTime();
+            
+            const updateDisplay = () => {
+                const elapsedMs = Date.now() - serverStartTimeMs;
                 setTimeSinceTimerStart(Math.floor(elapsedMs / 1000));
                 
                 const newDisplayTime = (game.periodTimeRemainingSeconds || 0) - Math.floor(elapsedMs / 1000);
                 setDisplayTime(Math.max(0, newDisplayTime));
-            }, 1000);
+            };
+            
+            updateDisplay(); // Update immediately
+            timerId = setInterval(updateDisplay, 1000);
         } else {
             setTimeSinceTimerStart(0);
         }
         return () => clearInterval(timerId);
-    }, [game?.isTimerRunning, game?.periodTimeRemainingSeconds]);
-    
+    }, [game?.isTimerRunning, game?.timerStartedAt, game?.periodTimeRemainingSeconds]);
 
     useEffect(() => {
         if (authLoading) return;
@@ -249,6 +252,7 @@ export default function LiveGamePage() {
                     date: (data.date as any).toDate(),
                     createdAt: data.createdAt?.toDate(),
                     updatedAt: data.updatedAt?.toDate(),
+                    timerStartedAt: data.timerStartedAt?.toDate(),
                 } as Game;
                 setGame(gameData);
                 
@@ -448,7 +452,7 @@ export default function LiveGamePage() {
                         {onCourtPlayers.length > 0 ? onCourtPlayers.map(p => {
                              const stats = game.playerStats?.[p.id] || { ...defaultStats, playerId: p.id, playerName: `${p.firstName} ${p.lastName}` };
                              const isChild = parentChildInfo.childIds.has(p.id);
-                             return <PlayerStatCard key={p.id} player={p} stats={stats} onClick={canRecordAnyStat ? () => setActionPlayerInfo({ player: p, teamType }) : undefined} userProfileType={profile.profileTypeId} isChild={isChild} timeSinceTimerStart={timeSinceTimerStart}/>
+                             return <PlayerStatCard key={p.id} player={p} stats={stats} onClick={canRecordAnyStat ? () => setActionPlayerInfo({ player: p, teamType }) : undefined} userProfileType={profile.profileTypeId} isChild={isChild} isTimerRunning={!!game.isTimerRunning} timeSinceTimerStart={timeSinceTimerStart}/>
                         }) : <p className="text-sm text-muted-foreground text-center italic col-span-full self-center">Sin jugadores en pista</p>}
                     </div>
                     <Separator/>
@@ -457,7 +461,7 @@ export default function LiveGamePage() {
                        {onBenchPlayers.length > 0 ? onBenchPlayers.map(p => {
                            const stats = game.playerStats?.[p.id] || { ...defaultStats, playerId: p.id, playerName: `${p.firstName} ${p.lastName}` };
                            const isChild = parentChildInfo.childIds.has(p.id);
-                           return <PlayerStatCard key={p.id} player={p} stats={stats} onClick={canManageControls ? () => handleBenchPlayerClick(p, teamType) : undefined} userProfileType={profile.profileTypeId} isChild={isChild} timeSinceTimerStart={0}/>
+                           return <PlayerStatCard key={p.id} player={p} stats={stats} onClick={canManageControls ? () => handleBenchPlayerClick(p, teamType) : undefined} userProfileType={profile.profileTypeId} isChild={isChild} isTimerRunning={false} timeSinceTimerStart={0}/>
                        }) : <p className="text-sm text-muted-foreground text-center italic col-span-full self-center">Banquillo vacío</p>}
                     </div>
                 </CardContent>
@@ -492,7 +496,7 @@ export default function LiveGamePage() {
                                 .map(player => {
                                     const stats = game.playerStats?.[player.id] || { ...defaultStats, playerId: player.id, playerName: `${player.firstName} ${player.lastName}` };
                                     const isChild = parentChildInfo.childIds.has(player.id);
-                                    return <PlayerStatCard key={player.id} player={player} stats={stats} onClick={() => handleCourtPlayerClickInSubDialog(player)} userProfileType={profile.profileTypeId} isChild={isChild} timeSinceTimerStart={timeSinceTimerStart}/>
+                                    return <PlayerStatCard key={player.id} player={player} stats={stats} onClick={() => handleCourtPlayerClickInSubDialog(player)} userProfileType={profile.profileTypeId} isChild={isChild} isTimerRunning={!!game.isTimerRunning} timeSinceTimerStart={timeSinceTimerStart}/>
                                 })
                             }
                         </div>
@@ -564,3 +568,4 @@ export default function LiveGamePage() {
         </div>
     )
 }
+
