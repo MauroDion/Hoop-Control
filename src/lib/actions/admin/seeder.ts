@@ -1,4 +1,3 @@
-
 'use server';
 
 import { adminDb, adminAuth } from '@/lib/firebase/admin';
@@ -145,7 +144,7 @@ export async function seedDatabase(): Promise<{ success: boolean; error?: string
             userCounter++;
             
             for(const category of categories) {
-                const coachIds: string[] = [];
+                 const coachIds: string[] = [];
                 for (let i = 0; i < 2; i++) {
                     const coachName = `${getRandomItem(firstNamesFeminine)} ${getRandomItem(lastNames)}`;
                     const coachId = `user-coach-${userCounter}`;
