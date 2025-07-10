@@ -542,20 +542,14 @@ export async function endCurrentPeriod(gameId: string, userId: string): Promise<
             if (gameData.isTimerRunning && gameData.timerStartedAt) {
                 const timerStartedAtMs = (gameData.timerStartedAt as admin.firestore.Timestamp).toMillis();
                 const elapsedSeconds = Math.max(0, Math.floor((Date.now() - timerStartedAtMs) / 1000));
+                const remainingTime = (gameData.periodTimeRemainingSeconds || 0) - elapsedSeconds;
+                const timePlayedThisSession = (gameData.periodTimeRemainingSeconds || 0) - remainingTime;
                 
                 const onCourtIds = [...(gameData.homeTeamOnCourtPlayerIds || []), ...(gameData.awayTeamOnCourtPlayerIds || [])];
                 onCourtIds.forEach(pId => {
-                    finalUpdates[`playerStats.${pId}.timePlayedSeconds`] = admin.firestore.FieldValue.increment(elapsedSeconds);
+                    finalUpdates[`playerStats.${pId}.timePlayedSeconds`] = admin.firestore.FieldValue.increment(timePlayedThisSession);
                 });
             }
-
-            const onCourtIds = [...(gameData.homeTeamOnCourtPlayerIds || []), ...(gameData.awayTeamOnCourtPlayerIds || [])];
-            onCourtIds.forEach(pId => {
-                const currentPeriods = new Set(gameData.playerStats?.[pId]?.periodsPlayedSet || []);
-                currentPeriods.add(currentPeriod);
-                finalUpdates[`playerStats.${pId}.periodsPlayedSet`] = Array.from(currentPeriods);
-                finalUpdates[`playerStats.${pId}.periodsPlayed`] = currentPeriods.size;
-            });
             
             const maxPeriods = gameFormat.numPeriods || 4;
 
@@ -727,14 +721,14 @@ export async function substitutePlayer(
     await adminDb.runTransaction(async (transaction) => {
         const gameDoc = await transaction.get(gameRef);
         if (!gameDoc.exists) throw new Error("Game not found.");
-        const gameData = gameDoc.data() as Game;
         
+        const gameData = gameDoc.data() as Game;
         const gameFormatDoc = gameData.gameFormatId 
             ? await transaction.get(adminDb.collection('gameFormats').doc(gameData.gameFormatId)) 
             : null;
+        if (gameFormatDoc && !gameFormatDoc.exists) throw new Error("Game format not found");
 
         let playerStatsCopy = JSON.parse(JSON.stringify(gameData.playerStats || {}));
-        
         const onCourtField = teamType === 'home' ? 'homeTeamOnCourtPlayerIds' : 'awayTeamOnCourtPlayerIds';
         let onCourtIds = (gameData[onCourtField] as string[] || []);
         
@@ -747,18 +741,27 @@ export async function substitutePlayer(
         }
 
         if (!onCourtIds.includes(playerIn.id)) {
-            const requiredPlayers = gameFormatDoc?.exists && gameFormatDoc.data()?.name?.includes('3v3') ? 3 : 5;
-
+            const requiredPlayers = gameFormatDoc?.data()?.name?.includes('3v3') ? 3 : 5;
             if (onCourtIds.length >= requiredPlayers) {
                 if (!playerOut) throw new Error(`La pista está llena (${requiredPlayers} jugadores). Debes seleccionar a un jugador para sustituir.`);
             }
             onCourtIds.push(playerIn.id);
+            
             const eventInRef = gameRef.collection('events').doc();
             transaction.set(eventInRef, { ...baseEventPayload, action: 'substitution_in', playerId: playerIn.id, playerName: playerIn.name });
 
             if (!playerStatsCopy[playerIn.id]) {
                 playerStatsCopy[playerIn.id] = { ...initialPlayerStats, playerId: playerIn.id, playerName: playerIn.name };
             }
+            
+            // Add current period to player's played periods set if not already present
+            const currentPeriods = new Set(playerStatsCopy[playerIn.id]?.periodsPlayedSet || []);
+            if (!currentPeriods.has(period)) {
+                currentPeriods.add(period);
+                playerStatsCopy[playerIn.id].periodsPlayedSet = Array.from(currentPeriods);
+                playerStatsCopy[playerIn.id].periodsPlayed = currentPeriods.size;
+            }
+
         } else {
             throw new Error("El jugador ya está en la pista.");
         }

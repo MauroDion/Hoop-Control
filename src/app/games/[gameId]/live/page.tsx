@@ -33,6 +33,7 @@ const PlayerStatCard = ({ player, stats, onClick, userProfileType, isChild }: { 
 
     const plusMinusValue = stats.plusMinus || 0;
     const pirValue = stats.pir || 0;
+    const periodsPlayed = stats.periodsPlayedSet ? `P: ${stats.periodsPlayedSet.join(', ')}` : `P: ${stats.periodsPlayed || 0}`
 
     return (
         <Card onClick={onClick} className={`p-2 relative h-full flex flex-col items-center justify-center overflow-hidden transition-all duration-300 bg-card ${onClick ? "hover:shadow-xl hover:scale-105 cursor-pointer" : "cursor-default"}`}>
@@ -63,7 +64,7 @@ const PlayerStatCard = ({ player, stats, onClick, userProfileType, isChild }: { 
             <div className="text-7xl font-black text-destructive" style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.1)' }}>{player.jerseyNumber || 'S/N'}</div>
             <div className="absolute bottom-1 text-xs text-center font-semibold w-full px-1 bg-gradient-to-t from-background via-background to-transparent pt-8 pb-1">
                 <p className="truncate">{player.firstName} {player.lastName}</p>
-                <p className="font-mono text-muted-foreground">T: {formatTime(stats.timePlayedSeconds || 0)} | P: {stats.periodsPlayed || 0}</p>
+                <p className="font-mono text-muted-foreground">T: {formatTime(stats.timePlayedSeconds || 0)} | {periodsPlayed}</p>
             </div>
         </Card>
     );
