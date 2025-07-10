@@ -727,9 +727,11 @@ export async function substitutePlayer(
     await adminDb.runTransaction(async (transaction) => {
         const gameDoc = await transaction.get(gameRef);
         if (!gameDoc.exists) throw new Error("Game not found.");
-
         const gameData = gameDoc.data() as Game;
-        const gameFormatDoc = await transaction.get(adminDb.collection('gameFormats').doc(gameData.gameFormatId || ''));
+        
+        const gameFormatDoc = gameData.gameFormatId 
+            ? await transaction.get(adminDb.collection('gameFormats').doc(gameData.gameFormatId)) 
+            : null;
 
         let playerStatsCopy = JSON.parse(JSON.stringify(gameData.playerStats || {}));
         
@@ -745,7 +747,7 @@ export async function substitutePlayer(
         }
 
         if (!onCourtIds.includes(playerIn.id)) {
-            const requiredPlayers = gameFormatDoc.exists() && gameFormatDoc.data()?.name?.includes('3v3') ? 3 : 5;
+            const requiredPlayers = gameFormatDoc?.exists && gameFormatDoc.data()?.name?.includes('3v3') ? 3 : 5;
 
             if (onCourtIds.length >= requiredPlayers) {
                 if (!playerOut) throw new Error(`La pista está llena (${requiredPlayers} jugadores). Debes seleccionar a un jugador para sustituir.`);
