@@ -509,9 +509,9 @@ export async function endCurrentPeriod(gameId: string, userId: string): Promise<
             if (!gameDoc.exists) throw new Error("Game not found.");
             
             const gameData = gameDoc.data() as Game;
-            const gameFormatDocSnap = gameData.gameFormatId ? await adminDb.collection('gameFormats').doc(gameData.gameFormatId).get() : null;
-            if (gameFormatDocSnap && !gameFormatDocSnap.exists) throw new Error("Game format not found");
-            const gameFormat = gameFormatDocSnap?.data() as GameFormat;
+            const gameFormatDoc = gameData.gameFormatId ? await adminDb.collection('gameFormats').doc(gameData.gameFormatId).get() : null;
+            if (gameFormatDoc && !gameFormatDoc.exists) throw new Error("Game format not found");
+            const gameFormat = gameFormatDoc?.data() as GameFormat;
             
             const totalPeriodDuration = (gameFormat?.periodDurationMinutes || 10) * 60;
             const finalUpdates: { [key: string]: any } = {};
@@ -684,8 +684,10 @@ export async function substitutePlayer(
         const gameDoc = await transaction.get(gameRef);
         if (!gameDoc.exists) throw new Error("Game not found.");
         
-        let gameData = gameDoc.data() as Game;
-        const gameFormatDoc = gameData.gameFormatId ? await adminDb.collection('gameFormats').doc(gameData.gameFormatId).get() : null;
+        const gameData = gameDoc.data() as Game;
+
+        const gameFormatRef = adminDb.collection('gameFormats').doc(gameData.gameFormatId!);
+        const gameFormatDoc = gameData.gameFormatId ? await transaction.get(gameFormatRef) : null;
         if (gameFormatDoc && !gameFormatDoc.exists) throw new Error("Game format not found");
 
         let playerStatsCopy = JSON.parse(JSON.stringify(gameData.playerStats || {}));
@@ -751,3 +753,6 @@ export async function substitutePlayer(
     return { success: false, error: error.message };
   }
 }
+
+
+    
