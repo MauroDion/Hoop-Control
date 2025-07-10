@@ -484,7 +484,7 @@ export async function updateLiveGameState(
                 updatedAt: admin.firestore.FieldValue.serverTimestamp(),
             };
 
-            if (updates.isTimerRunning === true) {
+            if (updates.isTimerRunning === true && !gameData.isTimerRunning) {
                 if (!gameData.gameFormatId) throw new Error("Game format not set.");
                 const gameFormatDoc = await transaction.get(adminDb.collection('gameFormats').doc(gameData.gameFormatId));
                 if (!gameFormatDoc.exists) throw new Error("Game format details not found.");
@@ -494,8 +494,8 @@ export async function updateLiveGameState(
                     throw new Error(`Cada equipo debe tener ${requiredPlayers} jugadores en pista para iniciar el reloj.`);
                 }
                 finalUpdates.timerStartedAt = admin.firestore.FieldValue.serverTimestamp();
-            } else if (updates.isTimerRunning === false) {
-                if (gameData.isTimerRunning && gameData.timerStartedAt) {
+            } else if (updates.isTimerRunning === false && gameData.isTimerRunning) {
+                if (gameData.timerStartedAt) {
                     const timerStartedAtMs = (gameData.timerStartedAt as admin.firestore.Timestamp).toMillis();
                     const elapsedSeconds = Math.max(0, Math.floor((Date.now() - timerStartedAtMs) / 1000));
                     finalUpdates.periodTimeRemainingSeconds = Math.max(0, (gameData.periodTimeRemainingSeconds || 0) - elapsedSeconds);
@@ -535,13 +535,13 @@ export async function endCurrentPeriod(gameId: string, userId: string): Promise<
             
             const totalPeriodDuration = (gameFormat.periodDurationMinutes || 10) * 60;
             
-            const timeAlreadyPlayedInPeriod = totalPeriodDuration - (gameData.periodTimeRemainingSeconds || totalPeriodDuration);
+            const timePlayedInPeriod = totalPeriodDuration - (gameData.periodTimeRemainingSeconds || totalPeriodDuration);
 
             const finalUpdates: { [key: string]: any } = {};
             
             const onCourtIds = [...(gameData.homeTeamOnCourtPlayerIds || []), ...(gameData.awayTeamOnCourtPlayerIds || [])];
             onCourtIds.forEach(pId => {
-                finalUpdates[`playerStats.${pId}.timePlayedSeconds`] = admin.firestore.FieldValue.increment(timeAlreadyPlayedInPeriod);
+                finalUpdates[`playerStats.${pId}.timePlayedSeconds`] = admin.firestore.FieldValue.increment(timePlayedInPeriod);
                 const currentPeriods = new Set(gameData.playerStats?.[pId]?.periodsPlayedSet || []);
                 currentPeriods.add(gameData.currentPeriod || 1);
                 finalUpdates[`playerStats.${pId}.periodsPlayedSet`] = Array.from(currentPeriods);
@@ -645,7 +645,21 @@ export async function recordGameEvent(
                 throw new Error("Acción no permitida. No tienes asignada esta categoría de estadísticas.");
             }
             
-            let finalUpdates: { [key: string]: any } = { updatedAt: admin.firestore.FieldValue.serverTimestamp() };
+            const now = admin.firestore.FieldValue.serverTimestamp();
+            let finalUpdates: { [key: string]: any } = { updatedAt: now };
+
+            if(gameData.isTimerRunning && gameData.timerStartedAt) {
+                const timerStartedAtMs = (gameData.timerStartedAt as admin.firestore.Timestamp).toMillis();
+                const elapsedSeconds = Math.floor((Date.now() - timerStartedAtMs) / 1000);
+                
+                if (elapsedSeconds > 0) {
+                    const onCourtIds = [...(gameData.homeTeamOnCourtPlayerIds || []), ...(gameData.awayTeamOnCourtPlayerIds || [])];
+                    onCourtIds.forEach(pId => {
+                        finalUpdates[`playerStats.${pId}.timePlayedSeconds`] = admin.firestore.FieldValue.increment(elapsedSeconds);
+                    });
+                }
+                finalUpdates.timerStartedAt = now;
+            }
 
             const pStatsPrefix = `playerStats.${playerId}`;
             const tStatsPrefix = `${teamId}TeamStats`;
@@ -755,3 +769,5 @@ export async function substitutePlayer(
     return { success: false, error: error.message };
   }
 }
+
+    
