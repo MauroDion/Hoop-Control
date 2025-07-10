@@ -4,9 +4,9 @@ import { adminDb } from '@/lib/firebase/admin';
 import admin from 'firebase-admin';
 import { revalidatePath } from 'next/cache';
 import type { Game, GameFormData, Team, TeamStats, Player, GameEventAction, UserFirestoreProfile, StatCategory, PlayerGameStats, Season, GameFormat, GameEvent } from '@/types';
-import { getTeamsByCoach as getCoachTeams } from '@/lib/actions/teams';
-import { getUserProfileById } from '@/lib/actions/users';
-import { getPlayersFromIds } from '@/lib/actions/players';
+import { getTeamsByCoach as getCoachTeams } from '@/app/teams/actions';
+import { getUserProfileById } from '@/app/users/actions';
+import { getPlayersFromIds } from '@/app/players/actions';
 
 const initialPlayerStats: Omit<PlayerGameStats, 'playerId' | 'playerName'> = {
     timePlayedSeconds: 0,
@@ -787,6 +787,3 @@ export async function substitutePlayer(
     return { success: false, error: error.message };
   }
 }
-```
-
-```
