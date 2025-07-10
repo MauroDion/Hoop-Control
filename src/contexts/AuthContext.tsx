@@ -41,8 +41,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     const unsubscribe = onIdTokenChanged(auth, async (firebaseUser) => {
       setLoading(true);
-      setUser(firebaseUser);
       if (firebaseUser) {
+        setUser(firebaseUser);
         const userProfile = await getUserProfileById(firebaseUser.uid);
         setProfile(userProfile);
 
@@ -56,6 +56,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             await logout();
         }
       } else {
+        setUser(null);
         setProfile(null);
       }
       setLoading(false);

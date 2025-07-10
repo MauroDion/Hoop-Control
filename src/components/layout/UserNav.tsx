@@ -73,7 +73,7 @@ export function UserNav() {
           </DropdownMenuItem>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={() => logout()} className="flex items-center cursor-pointer">
+        <DropdownMenuItem onClick={logout} className="flex items-center cursor-pointer">
           <LogOut className="mr-2 h-4 w-4" />
           Cerrar Sesión
         </DropdownMenuItem>

@@ -1,7 +1,5 @@
 "use client";
 
-// This file is the single source of truth for client-side Firebase.
-// All other components should import from this file.
 import { initializeApp, getApps, type FirebaseApp } from 'firebase/app';
 import { 
     getAuth, 
@@ -37,7 +35,6 @@ if (getApps().length === 0) {
     db = getFirestore(app);
   } catch (error) {
     console.error("Error initializing Firebase:", error);
-    // Provide dummy objects if initialization fails
     app = {} as FirebaseApp;
     auth = {} as Auth;
     db = {} as Firestore;
@@ -48,12 +45,10 @@ if (getApps().length === 0) {
   db = getFirestore(app);
 }
 
-// Re-export everything needed
 export { 
     app, 
     auth, 
     db,
-    // Auth exports
     onIdTokenChanged,
     signOut,
     signInWithEmailAndPassword,
@@ -68,10 +63,8 @@ export {
     setPersistence,
     browserSessionPersistence,
     browserLocalPersistence,
-    // Firestore exports
     doc,
     onSnapshot,
-    // Types
     type FirebaseUser,
     type UserCredential,
     type Auth,
