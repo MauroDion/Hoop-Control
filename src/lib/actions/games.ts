@@ -761,9 +761,8 @@ export async function substitutePlayer(
     return { success: false, error: error.message };
   }
 }
-
 ```
-- src/lib/actions/players/index.ts:
+- src/lib/actions/players.ts:
 ```ts
 'use server';
 
@@ -918,42 +917,19 @@ export async function getPlayersByClub(clubId: string): Promise<Player[]> {
     const teamIds = teamsSnap.docs.map(doc => doc.id);
     if (teamIds.length === 0) return [];
 
-    const playerChunks: Promise<admin.firestore.QuerySnapshot<admin.firestore.DocumentData>>[] = [];
-    for (let i = 0; i < teamIds.length; i += 30) {
-        const chunk = teamIds.slice(i, i + 30);
-        const playersRef = adminDb.collection('players');
-        const playersQuery = playersRef.where('teamId', 'in', chunk);
-        playerChunks.push(playersQuery.get());
-    }
-    
-    const allPlayersSnapshots = await Promise.all(playerChunks);
-    const players: Player[] = [];
-    
-    allPlayersSnapshots.forEach(snapshot => {
-        snapshot.docs.forEach(doc => {
-            const data = doc.data();
-            players.push({
-                id: doc.id,
-                ...data,
-                createdAt: data.createdAt ? (data.createdAt as admin.firestore.Timestamp).toDate().toISOString() : undefined,
-            } as Player);
-        });
-    });
-
-    players.sort((a, b) => (a.lastName || '').localeCompare(b.lastName || '') || (a.firstName || '').localeCompare(b.firstName || ''));
-    
-    return players;
+    return getPlayersFromIds(teamIds, 'teamId');
 }
 
-export async function getPlayersFromIds(playerIds: string[]): Promise<Player[]> {
-    if (!adminDb || playerIds.length === 0) return [];
+export async function getPlayersFromIds(ids: string[], field: 'id' | 'teamId' = 'id'): Promise<Player[]> {
+    if (!adminDb || ids.length === 0) return [];
 
     try {
         const playerChunks: Promise<admin.firestore.QuerySnapshot<admin.firestore.DocumentData>>[] = [];
-        for (let i = 0; i < playerIds.length; i += 30) {
-            const chunk = playerIds.slice(i, i + 30);
+        for (let i = 0; i < ids.length; i += 30) {
+            const chunk = ids.slice(i, i + 30);
             const playersRef = adminDb.collection('players');
-            const playersQuery = playersRef.where(admin.firestore.FieldPath.documentId(), 'in', chunk);
+            const whereField = field === 'id' ? admin.firestore.FieldPath.documentId() : 'teamId';
+            const playersQuery = playersRef.where(whereField, 'in', chunk);
             playerChunks.push(playersQuery.get());
         }
 
@@ -977,6 +953,7 @@ export async function getPlayersFromIds(playerIds: string[]): Promise<Player[]> 
         return [];
     }
 }
+
 ```
 - src/lib/actions/seasons.ts:
 ```ts
@@ -1074,9 +1051,157 @@ export async function updateSeason(
         return { success: false, error: error.message };
     }
 }
+
+```
+- src/lib/actions/tasks.ts:
+```ts
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { adminDb } from "@/lib/firebase/admin";
+import admin from 'firebase-admin';
+import type { Task, TaskFormData } from "@/types";
+
+export async function createTask(formData: TaskFormData, userId: string): Promise<{ success: boolean; error?: string, id?: string }> {
+  if (!userId) {
+    return { success: false, error: "User not authenticated." };
+  }
+  if (!adminDb) {
+    return { success: false, error: "Database not initialized."};
+  }
+
+  try {
+    const newTaskData = {
+      ...formData,
+      dueDate: formData.dueDate ? admin.firestore.Timestamp.fromDate(new Date(formData.dueDate)) : null,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      userId: userId,
+    };
+    const docRef = await adminDb.collection("tasks").add(newTaskData);
+    revalidatePath("/tasks");
+    return { success: true, id: docRef.id };
+  } catch (error: any) {
+    console.error("Error creating task:", error);
+    return { success: false, error: error.message || "Failed to create task." };
+  }
+}
+
+export async function updateTask(id: string, formData: Partial<TaskFormData>, userId: string): Promise<{ success: boolean; error?: string }> {
+   if (!userId) {
+    return { success: false, error: "User not authenticated." };
+  }
+  if (!adminDb) {
+    return { success: false, error: "Database not initialized."};
+  }
+  try {
+    const taskRef = adminDb.collection("tasks").doc(id);
+    const taskSnap = await taskRef.get();
+    
+    if (!taskSnap.exists || taskSnap.data()?.userId !== userId) {
+      return { success: false, error: "Permission denied or task not found."};
+    }
+
+    const updateData: { [key: string]: any } = { ...formData, updatedAt: admin.firestore.FieldValue.serverTimestamp() };
+    if (formData.dueDate) {
+      updateData.dueDate = admin.firestore.Timestamp.fromDate(new Date(formData.dueDate));
+    } else if (formData.dueDate === null) {
+      updateData.dueDate = null;
+    }
+    
+    await taskRef.update(updateData);
+    revalidatePath("/tasks");
+    revalidatePath(`/tasks/${id}`);
+    revalidatePath(`/tasks/${id}/edit`);
+    return { success: true };
+  } catch (error: any) {
+    console.error("Error updating task:", error);
+    return { success: false, error: error.message || "Failed to update task." };
+  }
+}
+
+export async function deleteTask(id: string, userId: string): Promise<{ success: boolean; error?: string }> {
+  if (!userId) {
+    return { success: false, error: "User not authenticated." };
+  }
+  if (!adminDb) {
+    return { success: false, error: "Database not initialized."};
+  }
+  try {
+    const taskRef = adminDb.collection("tasks").doc(id);
+    const taskSnap = await taskRef.get();
+    if (!taskSnap.exists() || taskSnap.data()?.userId !== userId) {
+      return { success: false, error: "Permission denied or task not found."};
+    }
+    await taskRef.delete();
+    revalidatePath("/tasks");
+    return { success: true };
+  } catch (error: any) {
+    console.error("Error deleting task:", error);
+    return { success: false, error: error.message || "Failed to delete task." };
+  }
+}
+
+export async function getTasks(userId: string): Promise<Task[]> {
+  if (!userId) {
+    console.warn("getTasks called without userId.");
+    return [];
+  }
+  if (!adminDb) {
+    return [];
+  }
+  try {
+    const q = adminDb.collection("tasks").where("userId", "==", userId);
+    const querySnapshot = await q.get();
+    return querySnapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+            id: doc.id,
+            ...data,
+            dueDate: data.dueDate ? (data.dueDate as admin.firestore.Timestamp).toDate().toISOString() : null,
+            createdAt: (data.createdAt as admin.firestore.Timestamp).toDate().toISOString(),
+            updatedAt: (data.updatedAt as admin.firestore.Timestamp).toDate().toISOString(),
+        } as Task
+    });
+  } catch (error) {
+    console.error("Error fetching tasks:", error);
+    return [];
+  }
+}
+
+export async function getTaskById(id: string, userId: string): Promise<Task | null> {
+  if (!userId) {
+     console.warn("getTaskById called without userId.");
+    return null;
+  }
+  if (!adminDb) {
+    return null;
+  }
+  try {
+    const taskRef = adminDb.collection("tasks").doc(id);
+    const taskSnap = await taskRef.get();
+    
+    if (taskSnap.exists() && taskSnap.data()?.userId === userId) {
+       const data = taskSnap.data()!;
+       return {
+            id: taskSnap.id,
+            ...data,
+            dueDate: data.dueDate ? (data.dueDate as admin.firestore.Timestamp).toDate().toISOString() : null,
+            createdAt: (data.createdAt as admin.firestore.Timestamp).toDate().toISOString(),
+            updatedAt: (data.updatedAt as admin.firestore.Timestamp).toDate().toISOString(),
+        } as Task;
+    }
+    return null;
+  } catch (error) {
+    console.error("Error fetching task by ID:", error);
+    return null;
+  }
+}
+
 ```
 - src/lib/actions/teams.ts:
 ```ts
+
 'use server';
 
 import { revalidatePath } from "next/cache";
@@ -1301,417 +1426,3 @@ export async function getTeamsByCoach(userId: string): Promise<Team[]> {
     }
 }
 ```
-- src/lib/actions/users/index.ts:
-```ts
-'use server';
-
-import { v4 as uuidv4 } from 'uuid';
-import { adminAuth, adminDb, adminInitError } from '@/lib/firebase/admin';
-import type { UserFirestoreProfile, ProfileType, UserProfileStatus, Child } from '@/types';
-import { revalidatePath } from 'next/cache';
-import admin from 'firebase-admin';
-
-// This new server action uses the Admin SDK to securely create the user profile,
-// bypassing client-side security rules which are a common point of failure.
-export async function finalizeNewUserProfile(
-  idToken: string,
-  data: { displayName: string; profileType?: ProfileType; selectedClubId?: string | null; }
-): Promise<{ success: boolean; error?: string }> {
-  if (!adminAuth || !adminDb) {
-    return { success: false, error: `Server configuration error: ${adminInitError || 'Unknown admin SDK error.'}` };
-  }
-
-  try {
-    const decodedToken = await adminAuth.verifyIdToken(idToken);
-    const uid = decodedToken.uid;
-    
-    await adminAuth.updateUser(uid, { displayName: data.displayName });
-
-    const userProfileRef = adminDb.collection('user_profiles').doc(uid);
-    const doc = await userProfileRef.get();
-
-    if (doc.exists) {
-      // User profile exists, this is likely the completion of onboarding
-      await userProfileRef.update({
-        profileTypeId: data.profileType,
-        clubId: data.selectedClubId,
-        onboardingCompleted: true,
-        updatedAt: admin.firestore.FieldValue.serverTimestamp()
-      });
-    } else {
-      // New user from email/password, create stub profile
-      const profileToSave: Omit<UserFirestoreProfile, 'createdAt' | 'updatedAt' | 'id'> = {
-          uid: uid,
-          email: decodedToken.email,
-          displayName: data.displayName,
-          photoURL: decodedToken.picture || null,
-          profileTypeId: null,
-          clubId: null,
-          status: 'pending_approval' as UserProfileStatus,
-          isSeeded: false,
-          onboardingCompleted: false,
-      };
-      await userProfileRef.set({
-        ...profileToSave, 
-        createdAt: admin.firestore.FieldValue.serverTimestamp(), 
-        updatedAt: admin.firestore.FieldValue.serverTimestamp() 
-      });
-    }
-    
-    return { success: true };
-
-  } catch (error: any) {
-    console.error(`Error finalizing user profile for user: ${idToken.substring(0, 10)}...:`, error);
-    return { success: false, error: `Failed to finalize profile on server: ${error.message}` };
-  }
-}
-
-export async function updateUserChildren(userId: string, children: Child[]): Promise<{ success: boolean; error?: string }> {
-    if (!adminDb) {
-        return { success: false, error: 'La base de datos no está inicializada.' };
-    }
-    try {
-        const profileRef = adminDb.collection('user_profiles').doc(userId);
-        await profileRef.update({
-            children: children,
-            onboardingCompleted: true, // Mark onboarding as complete once children are added/updated
-            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-        });
-        revalidatePath('/profile/my-children');
-        return { success: true };
-    } catch(err: any) {
-        return { success: false, error: "No se pudo actualizar la información."};
-    }
-}
-
-
-export async function getUserProfileById(uid: string): Promise<UserFirestoreProfile | null> {
-  if (!adminDb) {
-    console.error("UserActions (getProfile): Firebase Admin SDK not initialized. Error:", adminInitError);
-    return null;
-  }
-  
-  if (!uid) return null;
-
-  try {
-    const userProfileRef = adminDb.collection('user_profiles').doc(uid);
-    const docSnap = await userProfileRef.get();
-
-    if (docSnap.exists) {
-      const data = docSnap.data() as any;
-      
-      const serializableProfile = {
-        ...data,
-        createdAt: data.createdAt?.toDate()?.toISOString() || new Date().toISOString(),
-        updatedAt: data.updatedAt?.toDate()?.toISOString() || new Date().toISOString(),
-      };
-
-      return { uid: docSnap.id, ...serializableProfile } as UserFirestoreProfile;
-    } else {
-      console.warn(`UserActions: No profile found for UID: ${uid} using Admin SDK.`);
-      return null;
-    }
-  } catch (error: any) {
-    console.error(`UserActions: Error fetching user profile for UID ${uid} with Admin SDK:`, error.message, error.stack);
-    return null;
-  }
-}
-
-export async function getUsersByProfileTypeAndClub(
-  profileType: ProfileType,
-  clubId: string
-): Promise<UserFirestoreProfile[]> {
-  if (!adminDb) {
-    console.error("UserActions (getUsersByProfileTypeAndClub): Admin SDK not initialized.");
-    return [];
-  }
-  try {
-    const usersRef = adminDb.collection('user_profiles');
-    const q = usersRef.where('clubId', '==', clubId).where('profileTypeId', '==', profileType).where('status', '==', 'approved');
-    const querySnapshot = await q.get();
-
-    if (querySnapshot.empty) {
-      return [];
-    }
-    
-    const users = querySnapshot.docs.map(doc => {
-      const data = doc.data();
-      return {
-        uid: doc.id,
-        ...data,
-        createdAt: (data.createdAt as admin.firestore.Timestamp).toDate().toISOString(),
-        updatedAt: (data.updatedAt as admin.firestore.Timestamp).toDate().toISOString(),
-      } as UserFirestoreProfile;
-    });
-
-    users.sort((a, b) => (a.displayName || '').localeCompare(b.displayName || ''));
-    return users;
-
-  } catch (error: any) {
-    console.error(`Error fetching users by profile type '${profileType}' for club '${clubId}':`, error.message);
-    if (error.code === 'failed-precondition' && error.message.includes("index")) {
-        console.error("Firestore query failed. This is likely due to a missing composite index. Please create an index on 'clubId', 'profileTypeId', and 'status' for the 'user_profiles' collection.");
-    }
-    return [];
-  }
-}
-```
-- src/lib/hoopControlApi.ts:
-```ts
-import type { ApiDataItem } from '@/types';
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_HOOP_CONTROL_API_BASE_URL || "https://api.hoopcontrol.example.com/v1";
-const PUBLIC_API_KEY = process.env.NEXT_PUBLIC_HOOP_CONTROL_API_KEY;
-
-interface FetchOptions extends RequestInit {}
-
-async function fetchFromHoopControlApi<T>(endpoint: string, options: FetchOptions = {}): Promise<T> {
-  const url = `${API_BASE_URL}${endpoint}`;
-  
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    ...options.headers,
-  };
-
-  if (PUBLIC_API_KEY) {
-     headers['X-API-Key'] = PUBLIC_API_KEY;
-  }
-  
-  const response = await fetch(url, { ...options, headers });
-
-  if (!response.ok) {
-    let errorBody;
-    try {
-      errorBody = await response.json();
-    } catch (e) {
-      errorBody = { message: response.statusText };
-    }
-    const errorMessage = `API request to ${endpoint} failed with status ${response.status}: ${errorBody?.message || 'Unknown error'}`;
-    console.error(errorMessage);
-    throw new Error(errorMessage);
-  }
-  return response.json() as Promise<T>;
-}
-
-
-export async function getKeyMetrics(): Promise<{data: ApiDataItem[], isMock: boolean}> {
-  try {
-    const data = await fetchFromHoopControlApi<ApiDataItem[]>('/key-metrics');
-    return { data, isMock: false };
-  } catch (error) {
-    console.warn("Hoop Control API fetch failed, returning mock data for UI purposes.");
-    const mockData = [
-      { id: 1, name: "Usuarios Activos (Ejemplo)", value: Math.floor(Math.random() * 1000), category: "Interacción", lastUpdated: new Date().toISOString() },
-      { id: 2, name: "Datos Procesados (Ejemplo)", value: Math.floor(Math.random() * 10000) + " GB", category: "Operaciones", lastUpdated: new Date().toISOString() },
-      { id: 3, name: "Disponibilidad del Sistema (Ejemplo)", value: "99.95%", category: "Fiabilidad", lastUpdated: new Date().toISOString() },
-    ];
-    return { data: mockData, isMock: true };
-  }
-}
-```
-- src/middleware.ts:
-```ts
-import { NextResponse } from 'next/server';
-import type { NextRequest } from 'next/server';
-
-const PUBLIC_ONLY_PATHS = ['/login', '/register', '/reset-password'];
-const ONBOARDING_PATHS = ['/profile/complete-registration', '/profile/my-children'];
-const PROTECTED_PATH_PREFIXES = ['/dashboard', '/games', '/analysis', '/tasks', '/profile', '/admin', '/clubs', '/seasons'];
-
-export async function middleware(request: NextRequest) {
-  const { pathname } = request.nextUrl;
-  const sessionCookie = request.cookies.get('session')?.value;
-  const isAuthed = !!sessionCookie;
-
-  // Allow static assets, images, and API routes to pass through without checks
-  if (pathname.startsWith('/_next') || pathname.startsWith('/api') || pathname.includes('.')) {
-    return NextResponse.next();
-  }
-  
-  const isPublicOnlyPath = PUBLIC_ONLY_PATHS.includes(pathname);
-  const isOnboardingPath = ONBOARDING_PATHS.some(p => pathname.startsWith(p));
-  const isProtectedRoute = PROTECTED_PATH_PREFIXES.some(p => pathname.startsWith(p)) && !isOnboardingPath;
-  const isRootPath = pathname === '/';
-
-  if (isAuthed) {
-    // If the user is authenticated, redirect them from public-only pages
-    // and the root page to the dashboard.
-    // Onboarding paths are allowed for authenticated users who need them.
-    if (isPublicOnlyPath || isRootPath) {
-        return NextResponse.redirect(new URL('/dashboard', request.url));
-    }
-  } else { // Not authenticated
-    // If the user is not authenticated, redirect them from protected routes
-    // to the login page.
-    if (isProtectedRoute) {
-        const loginUrl = new URL('/login', request.url);
-        loginUrl.searchParams.set('redirect', pathname);
-        return NextResponse.redirect(loginUrl);
-    }
-  }
-  
-  // Allow the request to proceed if none of the above conditions are met.
-  return NextResponse.next();
-}
-
-export const config = {
-  // This matcher ensures the middleware runs on all paths except for the ones specified.
-  matcher: ['/((?!api|_next/static|_next/image|favicon.ico).*)'],
-};
-```
-- src/users/actions.ts:
-```ts
-'use server';
-
-import { v4 as uuidv4 } from 'uuid';
-import { adminAuth, adminDb, adminInitError } from '@/lib/firebase/admin';
-import type { UserFirestoreProfile, ProfileType, UserProfileStatus, Child } from '@/types';
-import { revalidatePath } from 'next/cache';
-import admin from 'firebase-admin';
-
-// This new server action uses the Admin SDK to securely create the user profile,
-// bypassing client-side security rules which are a common point of failure.
-export async function finalizeNewUserProfile(
-  idToken: string,
-  data: { displayName: string; profileType?: ProfileType; selectedClubId?: string | null; }
-): Promise<{ success: boolean; error?: string }> {
-  if (!adminAuth || !adminDb) {
-    return { success: false, error: `Server configuration error: ${adminInitError || 'Unknown admin SDK error.'}` };
-  }
-
-  try {
-    const decodedToken = await adminAuth.verifyIdToken(idToken);
-    const uid = decodedToken.uid;
-    
-    await adminAuth.updateUser(uid, { displayName: data.displayName });
-
-    const userProfileRef = adminDb.collection('user_profiles').doc(uid);
-    const doc = await userProfileRef.get();
-
-    if (doc.exists) {
-      // User profile exists, this is likely the completion of onboarding
-      await userProfileRef.update({
-        profileTypeId: data.profileType,
-        clubId: data.selectedClubId,
-        onboardingCompleted: true,
-        updatedAt: admin.firestore.FieldValue.serverTimestamp()
-      });
-    } else {
-      // New user from email/password, create stub profile
-      const profileToSave: Omit<UserFirestoreProfile, 'createdAt' | 'updatedAt' | 'id'> = {
-          uid: uid,
-          email: decodedToken.email,
-          displayName: data.displayName,
-          photoURL: decodedToken.picture || null,
-          profileTypeId: null,
-          clubId: null,
-          status: 'pending_approval' as UserProfileStatus,
-          isSeeded: false,
-          onboardingCompleted: false,
-      };
-      await userProfileRef.set({
-        ...profileToSave, 
-        createdAt: admin.firestore.FieldValue.serverTimestamp(), 
-        updatedAt: admin.firestore.FieldValue.serverTimestamp() 
-      });
-    }
-    
-    return { success: true };
-
-  } catch (error: any) {
-    console.error(`Error finalizing user profile for user: ${idToken.substring(0, 10)}...:`, error);
-    return { success: false, error: `Failed to finalize profile on server: ${error.message}` };
-  }
-}
-
-export async function updateUserChildren(userId: string, children: Child[]): Promise<{ success: boolean; error?: string }> {
-    if (!adminDb) {
-        return { success: false, error: 'La base de datos no está inicializada.' };
-    }
-    try {
-        const profileRef = adminDb.collection('user_profiles').doc(userId);
-        await profileRef.update({
-            children: children,
-            onboardingCompleted: true, // Mark onboarding as complete once children are added/updated
-            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-        });
-        revalidatePath('/profile/my-children');
-        return { success: true };
-    } catch(err: any) {
-        return { success: false, error: "No se pudo actualizar la información."};
-    }
-}
-
-
-export async function getUserProfileById(uid: string): Promise<UserFirestoreProfile | null> {
-  if (!adminDb) {
-    console.error("UserActions (getProfile): Firebase Admin SDK not initialized. Error:", adminInitError);
-    return null;
-  }
-  
-  if (!uid) return null;
-
-  try {
-    const userProfileRef = adminDb.collection('user_profiles').doc(uid);
-    const docSnap = await userProfileRef.get();
-
-    if (docSnap.exists) {
-      const data = docSnap.data() as any;
-      
-      const serializableProfile = {
-        ...data,
-        createdAt: data.createdAt?.toDate()?.toISOString() || new Date().toISOString(),
-        updatedAt: data.updatedAt?.toDate()?.toISOString() || new Date().toISOString(),
-      };
-
-      return { uid: docSnap.id, ...serializableProfile } as UserFirestoreProfile;
-    } else {
-      console.warn(`UserActions: No profile found for UID: ${uid} using Admin SDK.`);
-      return null;
-    }
-  } catch (error: any) {
-    console.error(`UserActions: Error fetching user profile for UID ${uid} with Admin SDK:`, error.message, error.stack);
-    return null;
-  }
-}
-
-export async function getUsersByProfileTypeAndClub(
-  profileType: ProfileType,
-  clubId: string
-): Promise<UserFirestoreProfile[]> {
-  if (!adminDb) {
-    console.error("UserActions (getUsersByProfileTypeAndClub): Admin SDK not initialized.");
-    return [];
-  }
-  try {
-    const usersRef = adminDb.collection('user_profiles');
-    const q = usersRef.where('clubId', '==', clubId).where('profileTypeId', '==', profileType).where('status', '==', 'approved');
-    const querySnapshot = await q.get();
-
-    if (querySnapshot.empty) {
-      return [];
-    }
-    
-    const users = querySnapshot.docs.map(doc => {
-      const data = doc.data();
-      return {
-        uid: doc.id,
-        ...data,
-        createdAt: (data.createdAt as admin.firestore.Timestamp).toDate().toISOString(),
-        updatedAt: (data.updatedAt as admin.firestore.Timestamp).toDate().toISOString(),
-      } as UserFirestoreProfile;
-    });
-
-    users.sort((a, b) => (a.displayName || '').localeCompare(b.displayName || ''));
-    return users;
-
-  } catch (error: any) {
-    console.error(`Error fetching users by profile type '${profileType}' for club '${clubId}':`, error.message);
-    if (error.code === 'failed-precondition' && error.message.includes("index")) {
-        console.error("Firestore query failed. This is likely due to a missing composite index. Please create an index on 'clubId', 'profileTypeId', and 'status' for the 'user_profiles' collection.");
-    }
-    return [];
-  }
-}
-```
-
