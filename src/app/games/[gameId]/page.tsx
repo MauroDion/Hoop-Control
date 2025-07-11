@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useEffect, useState, useCallback } from 'react';
@@ -8,9 +9,9 @@ import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 
 // Actions
-import { getGameById, updateGameRoster } from '@/lib/actions/games';
-import { getPlayersByTeamId } from '@/lib/actions/players';
-import { getTeamsByCoach, getTeamById } from '@/lib/actions/teams';
+import { getGameById, updateGameRoster } from '@/app/games/actions';
+import { getPlayersByTeamId } from '@/app/players/actions';
+import { getTeamsByCoach, getTeamById } from '@/app/teams/actions';
 import { getUserProfileById } from '@/lib/actions/users';
 
 

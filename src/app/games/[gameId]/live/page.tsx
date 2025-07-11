@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
@@ -6,9 +7,9 @@ import { useAuth } from '@/contexts/AuthContext';
 import Link from 'next/link';
 import { type FirebaseUser, doc, onSnapshot } from '@/lib/firebase/client';
 import { db } from '@/lib/firebase/client';
-import { updateLiveGameState, endCurrentPeriod, substitutePlayer, assignScorer, recordGameEvent } from '@/lib/actions/games';
-import { getGameFormatById } from '@/lib/actions/game-formats';
-import { getPlayersByTeamId } from '@/lib/actions/players';
+import { updateLiveGameState, endCurrentPeriod, substitutePlayer, assignScorer, recordGameEvent } from '@/app/games/actions';
+import { getGameFormatById } from '@/app/game-formats/actions';
+import { getPlayersByTeamId } from '@/app/players/actions';
 import type { Game, GameFormat, Player, GameEventAction, PlayerGameStats, UserFirestoreProfile, ProfileType, StatCategory } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';

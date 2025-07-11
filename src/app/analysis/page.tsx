@@ -1,9 +1,10 @@
+
 "use client";
 
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
-import { getGamesByCoach, getAllGames, getGamesByClub, getGamesByParent } from '@/lib/actions/games';
+import { getGamesByCoach, getAllGames, getGamesByClub, getGamesByParent } from '@/app/games/actions';
 import type { Game } from '@/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
@@ -40,14 +41,14 @@ export default function AnalysisPage() {
       setLoading(true);
       setError(null);
       try {
-        if (!['coach', 'coordinator', 'club_admin', 'super_admin', 'parent_guardian'].includes(profile.profileTypeId)) {
+        if (!['coach', 'coordinator', 'club_admin', 'super_admin', 'parent_guardian'].includes(profile.profileTypeId!)) {
             throw new Error("Acceso Denegado. No tienes permisos para ver esta página.");
         }
         
         let fetchedGames: Game[] = [];
         if (profile.profileTypeId === 'super_admin') {
             fetchedGames = await getAllGames();
-        } else if (['coordinator', 'club_admin'].includes(profile.profileTypeId)) {
+        } else if (['coordinator', 'club_admin'].includes(profile.profileTypeId!)) {
             fetchedGames = await getGamesByClub(profile.clubId || '');
         } else if (profile.profileTypeId === 'coach') {
             fetchedGames = await getGamesByCoach(user.uid);
@@ -128,7 +129,7 @@ export default function AnalysisPage() {
                       <TableCell className="font-medium">{game.homeTeamName} vs {game.awayTeamName}</TableCell>
                       <TableCell className="font-bold">{game.homeTeamScore ?? 0} - {game.awayTeamScore ?? 0}</TableCell>
                       <TableCell className="text-right">
-                        <Button asChild size="sm" variant="outline" disabled>
+                        <Button asChild size="sm" variant="outline">
                           <Link href={`/analysis/${game.id}`}>
                             Ver Detalles
                           </Link>
