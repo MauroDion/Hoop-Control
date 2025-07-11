@@ -47,18 +47,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         const userProfile = await getUserProfileById(firebaseUser.uid);
         setProfile(userProfile);
 
-        // This is the main logic for redirection after login/auth state change
         if (userProfile) {
           if (userProfile.status !== 'approved') {
             await logout();
             router.push(`/login?status=${userProfile.status}`);
           } else if (!userProfile.onboardingCompleted) {
+            // Only redirect to onboarding if it's explicitly not completed.
             if (userProfile.profileTypeId === 'parent_guardian') {
                router.push('/profile/my-children');
             } else {
                // Other roles might have different onboarding steps in the future
-               // For now, if onboarding is not complete for others, we can just mark it done.
-               // This prevents getting stuck if a new role is added without an onboarding page.
+               // If no specific onboarding is defined for other roles, we let them pass.
                router.push('/dashboard');
             }
           }
@@ -66,7 +65,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             // New user from social sign in, needs to complete profile.
             router.push('/profile/complete-registration');
         }
-
       } else {
         setUser(null);
         setProfile(null);

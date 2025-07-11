@@ -32,7 +32,9 @@ export async function finalizeNewUserProfile(
     // Use the Admin SDK to create the Firestore user profile document
     const userProfileRef = adminDb.collection('user_profiles').doc(uid);
 
-    // Casting to any to handle serverTimestamp correctly before saving
+    // Onboarding is NOT complete until the user confirms their specific role's next steps.
+    const onboardingCompleted = data.profileType !== 'parent_guardian';
+
     const profileToSave: Omit<UserFirestoreProfile, 'createdAt' | 'updatedAt'> & { createdAt: any, updatedAt: any } = {
         uid: uid,
         email: decodedToken.email,
@@ -42,7 +44,7 @@ export async function finalizeNewUserProfile(
         clubId: data.selectedClubId,
         status: 'pending_approval' as UserProfileStatus,
         isSeeded: false,
-        onboardingCompleted: true, // Mark as completed since they filled the main form
+        onboardingCompleted: onboardingCompleted,
     };
     
     await userProfileRef.set({...profileToSave, createdAt: admin.firestore.FieldValue.serverTimestamp(), updatedAt: admin.firestore.FieldValue.serverTimestamp() });
