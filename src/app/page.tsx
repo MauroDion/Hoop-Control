@@ -2,7 +2,7 @@ import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import Image from 'next/image';
 import { Dribbble } from 'lucide-react';
-import { getBrandingSettings } from '@/app/admin/settings/actions';
+import { getBrandingSettings } from '@/lib/actions/admin/settings';
 
 export default async function HomePage() {
   const { appName, logoHeroUrl } = await getBrandingSettings();

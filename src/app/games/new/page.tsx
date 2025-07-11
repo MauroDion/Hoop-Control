@@ -7,11 +7,11 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from "next/navigation";
 import React, { useEffect, useState } from "react";
 import type { Team, GameFormat, CompetitionCategory, UserFirestoreProfile, Season } from "@/types";
-import { getTeamsByCoach, getAllTeams } from "@/app/teams/actions";
-import { getGameFormats } from "@/app/game-formats/actions";
-import { getCompetitionCategories } from "@/app/competition-categories/actions";
-import { getUserProfileById } from "@/app/users/actions";
-import { getSeasons } from "@/app/seasons/actions";
+import { getTeamsByCoach, getAllTeams } from "@/lib/actions/teams";
+import { getGameFormats } from "@/lib/actions/game-formats";
+import { getCompetitionCategories } from "@/lib/actions/competition-categories";
+import { getUserProfileById } from "@/lib/actions/users";
+import { getSeasons } from "@/lib/actions/seasons";
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 
@@ -89,7 +89,7 @@ export default function NewGamePage() {
         <AlertTriangle className="h-12 w-12 text-destructive mb-4" />
         <h1 className="text-2xl font-semibold text-destructive">Error</h1>
         <p className="text-muted-foreground mb-4">{error}</p>
-        <Button onClick={() => router.push('/games')} className="mt-4">Ir a Partidos</Button>
+        <Button onClick={() => router.push('/dashboard')} className="mt-4">Ir al Panel</Button>
       </div>
     );
   }

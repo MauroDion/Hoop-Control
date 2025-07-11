@@ -19,7 +19,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import type { TeamFormData, GameFormat, CompetitionCategory, UserFirestoreProfile, Team } from "@/types";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/hooks/use-toast";
-import { createTeam, updateTeam } from "@/app/teams/actions";
+import { createTeam, updateTeam } from "@/lib/actions/teams";
 import { useAuth } from '@/contexts/AuthContext';
 import { Loader2 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -147,7 +147,7 @@ export function TeamForm({ clubId, gameFormats, competitionCategories, coaches, 
               <FormLabel>Categoría de Competición</FormLabel>
               <Select 
                 onValueChange={field.onChange} 
-                value={field.value}
+                value={field.value || ""}
                 disabled={competitionCategories.length === 0}
               >
                 <FormControl>

@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
-import { getGamesByCoach, getAllGames, getGamesByClub, getGamesByParent } from '@/app/games/actions';
+import { getGamesByCoach, getAllGames, getGamesByClub, getGamesByParent } from '@/lib/actions/games';
 import type { Game } from '@/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
@@ -48,7 +48,7 @@ export default function GamesPage() {
         if (profile.profileTypeId === 'super_admin') {
             fetchedGames = await getAllGames();
         } else if (['coordinator', 'club_admin'].includes(profile.profileTypeId)) {
-            fetchedGames = await getGamesByClub(profile.clubId);
+            fetchedGames = await getGamesByClub(profile.clubId || '');
         } else if (profile.profileTypeId === 'coach') {
             fetchedGames = await getGamesByCoach(user.uid);
         } else if (profile.profileTypeId === 'parent_guardian') {

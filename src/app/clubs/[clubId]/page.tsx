@@ -4,17 +4,11 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import Link from 'next/link';
-
-// Actions
-import { getUserProfileById } from '@/app/users/actions';
-import { getClubById } from '@/app/clubs/actions';
-import { getTeamsByClubId } from '@/app/teams/actions';
-import { getCompetitionCategories } from '@/app/competition-categories/actions';
-
-// Types
+import { getUserProfileById } from '@/lib/actions/users';
+import { getClubById } from '@/lib/actions/clubs';
+import { getTeamsByClubId } from '@/lib/actions/teams';
+import { getCompetitionCategories } from '@/lib/actions/competition-categories';
 import type { Club, Team, UserFirestoreProfile, CompetitionCategory } from '@/types';
-
-// Components
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';

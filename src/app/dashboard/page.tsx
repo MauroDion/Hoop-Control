@@ -6,7 +6,7 @@ import { BarChart, Building, CheckSquare, Users, AlertTriangle, Loader2 } from '
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { createTestGame, finishAllTestGames } from '../games/actions';
+import { createTestGame, finishAllTestGames } from '@/app/games/actions';
 import { useToast } from '@/hooks/use-toast';
 import React from 'react';
 
@@ -228,8 +228,8 @@ export default function DashboardPage() {
           <CardDescription>Métricas clave obtenidas de la API integrada.</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4 md:grid-cols-2">
-          {bcsjdApiSampleData.map((item) => (
-            <div key={item.keyMetric} className="p-4 border rounded-md bg-secondary/30">
+          {bcsjdApiSampleData.map((item, index) => (
+            <div key={index} className="p-4 border rounded-md bg-secondary/30">
               <h3 className="text-sm font-medium text-muted-foreground">{item.keyMetric}</h3>
               <p className="text-2xl font-bold text-primary">{item.value}</p>
             </div>

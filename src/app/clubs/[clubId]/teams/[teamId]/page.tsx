@@ -4,19 +4,12 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import Link from 'next/link';
-
-// Actions
-import { getUserProfileById, getUsersByProfileTypeAndClub } from '@/app/users/actions';
-import { getTeamById } from '@/app/teams/actions';
-import { getPlayersByTeamId, deletePlayer } from '@/app/players/actions';
-import { getCompetitionCategories } from '@/app/competition-categories/actions';
-import { getGameFormats } from '@/app/game-formats/actions';
-
-
-// Types
+import { getUserProfileById, getUsersByProfileTypeAndClub } from '@/lib/actions/users';
+import { getTeamById } from '@/lib/actions/teams';
+import { getPlayersByTeamId, deletePlayer } from '@/lib/actions/players';
+import { getCompetitionCategories } from '@/lib/actions/competition-categories';
+import { getGameFormats } from '@/lib/actions/game-formats';
 import type { Team, UserFirestoreProfile, Player, CompetitionCategory, GameFormat } from '@/types';
-
-// Components
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';

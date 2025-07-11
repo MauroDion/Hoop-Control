@@ -7,10 +7,10 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useParams, useRouter } from "next/navigation";
 import React, { useEffect, useState } from "react";
 import type { GameFormat, CompetitionCategory, UserFirestoreProfile, Club } from "@/types";
-import { getGameFormats } from "@/app/game-formats/actions";
-import { getCompetitionCategories } from "@/app/competition-categories/actions";
-import { getUserProfileById, getUsersByProfileTypeAndClub } from "@/app/users/actions";
-import { getClubById } from "@/app/clubs/actions";
+import { getGameFormats } from "@/lib/actions/game-formats";
+import { getCompetitionCategories } from "@/lib/actions/competition-categories";
+import { getUserProfileById, getUsersByProfileTypeAndClub } from "@/lib/actions/users";
+import { getClubById } from "@/lib/actions/clubs";
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 

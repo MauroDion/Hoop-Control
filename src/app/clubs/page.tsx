@@ -1,12 +1,11 @@
-
 "use client";
 
 import React, { useEffect, useState, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { getUserProfileById } from '@/app/users/actions';
-import { getApprovedClubs, updateClubStatus } from '@/app/clubs/actions';
+import { getUserProfileById } from '@/lib/actions/users';
+import { getApprovedClubs, updateClubStatus } from '@/lib/actions/clubs';
 import type { Club } from '@/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
