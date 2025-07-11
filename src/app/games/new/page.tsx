@@ -1,3 +1,4 @@
+
 "use client";
 
 import { GameForm } from "@/components/games/GameForm";
@@ -7,11 +8,11 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from "next/navigation";
 import React, { useEffect, useState } from "react";
 import type { Team, GameFormat, CompetitionCategory, UserFirestoreProfile, Season } from "@/types";
-import { getTeamsByCoach, getAllTeams } from "@/lib/actions/teams";
-import { getGameFormats } from "@/lib/actions/game-formats";
-import { getCompetitionCategories } from "@/lib/actions/competition-categories";
-import { getUserProfileById } from "@/lib/actions/users";
-import { getSeasons } from "@/lib/actions/seasons";
+import { getTeamsByCoach, getAllTeams } from "@/app/teams/actions";
+import { getGameFormats } from "@/app/game-formats/actions";
+import { getCompetitionCategories } from "@/app/competition-categories/actions";
+import { getUserProfileById } from "@/app/users/actions";
+import { getSeasons } from "@/app/seasons/actions";
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 
@@ -43,7 +44,7 @@ export default function NewGamePage() {
         const profile = await getUserProfileById(user.uid);
         setUserProfile(profile);
 
-        if (!profile || !['coach', 'super_admin', 'coordinator', 'club_admin'].includes(profile.profileTypeId)) {
+        if (!profile || !['coach', 'super_admin', 'coordinator', 'club_admin'].includes(profile.profileTypeId!)) {
             setError("Acceso Denegado. Debes tener un rol de entrenador, coordinador o administrador para programar partidos.");
             setLoadingData(false);
             return;

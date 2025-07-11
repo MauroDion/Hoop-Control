@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import type { GameFormData, Team, GameFormat, CompetitionCategory, Season, UserFirestoreProfile } from "@/types";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/hooks/use-toast";
-import { createGame } from "@/lib/actions/games";
+import { createGame } from "@/app/games/actions";
 import { useAuth } from '@/contexts/AuthContext';
 import { Loader2 } from "lucide-react";
 import React, { useMemo, useEffect } from 'react';
@@ -82,7 +82,7 @@ export function GameForm({ userProfile, coachTeams, allTeams, gameFormats, compe
   const homeTeamOptions = useMemo(() => {
     if (!userProfile) return [];
 
-    if (['super_admin', 'club_admin', 'coordinator'].includes(userProfile.profileTypeId)) {
+    if (['super_admin', 'club_admin', 'coordinator'].includes(userProfile.profileTypeId!)) {
       return eligibleTeams;
     }
 
