@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
@@ -5,8 +6,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 import { getAllUserProfiles, updateUserProfileStatus } from '@/lib/actions/admin/users';
 import { getUserProfileById } from '@/lib/actions/users';
-import { getApprovedClubs } from '@/lib/actions/clubs';
-import { getProfileTypeOptions } from '@/lib/actions/profile-types';
+import { getApprovedClubs } from '@/app/clubs/actions';
+import { getProfileTypeOptions } from '@/app/profile-types/actions';
 import type { UserFirestoreProfile, UserProfileAdminView, Club, ProfileTypeOption, UserProfileStatus } from '@/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
@@ -42,6 +43,7 @@ export default function UserManagementPage() {
   const [error, setError] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
+    // No establecer 'loading' aquí si ya estamos cargando desde el efecto principal
     try {
       const [fetchedProfiles, fetchedClubs, fetchedProfileTypes] = await Promise.all([
         getAllUserProfiles(),
@@ -312,3 +314,5 @@ export default function UserManagementPage() {
     </div>
   );
 }
+
+    
