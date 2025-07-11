@@ -1,10 +1,10 @@
 "use client";
-import { useContext } from 'react';
-// The actual context is defined in AuthContext.tsx, this is just a hook wrapper
-// But we need to define the context type here for the hook to be typed correctly.
+
+import { createContext, useContext } from 'react';
 import type { User } from 'firebase/auth';
 import type { UserFirestoreProfile, BrandingSettings } from '@/types';
 
+// The actual context is defined in AuthContext.tsx, this is just a hook wrapper
 interface AuthContextType {
   user: User | null;
   profile: UserFirestoreProfile | null;
@@ -13,14 +13,16 @@ interface AuthContextType {
   logout: () => Promise<void>;
 }
 
-// We need a placeholder context for the type system.
-// The real context is in AuthProvider, but we can't import it here directly
-// without causing circular dependencies or other issues.
-const AuthContext = require('@/contexts/AuthContext').AuthContext as React.Context<AuthContextType | undefined>;
+// We can't import the actual context here easily, but we can get its type for the hook
+// The real provider is in AuthProvider. This avoids circular dependencies.
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 
 export const useAuth = () => {
-  const context = useContext(AuthContext);
+  // We re-import the actual context here inside the hook to ensure it works correctly
+  // without creating module-level circular dependencies.
+  const AuthContextConsumer = require('@/contexts/AuthContext').AuthContext;
+  const context = useContext(AuthContextConsumer);
   if (context === undefined) {
     throw new Error('useAuth must be used within an AuthProvider');
   }
