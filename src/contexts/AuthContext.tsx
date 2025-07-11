@@ -4,8 +4,8 @@ import { auth, onIdTokenChanged, signOut, type FirebaseUser } from '@/lib/fireba
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useRouter } from 'next/navigation';
-import { getUserProfileById } from '@/app/users/actions';
-import { getBrandingSettings } from '@/app/admin/settings/actions';
+import { getUserProfileById } from '@/lib/actions/users';
+import { getBrandingSettings } from '@/lib/actions/admin/settings';
 import type { UserFirestoreProfile, BrandingSettings } from '@/types';
 
 interface AuthContextType {

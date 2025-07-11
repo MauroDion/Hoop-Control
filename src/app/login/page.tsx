@@ -1,4 +1,3 @@
-
 import { LoginForm } from "@/components/auth/LoginForm";
 import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
