@@ -5,8 +5,8 @@ import { auth, onIdTokenChanged, signOut, type FirebaseUser } from '@/lib/fireba
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useRouter } from 'next/navigation';
-import { getUserProfileById } from '@/app/users/actions';
-import { getBrandingSettings } from '@/app/admin/settings/actions';
+import { getUserProfileById } from '@/lib/actions/users';
+import { getBrandingSettings } from '@/lib/actions/admin/settings';
 import type { UserFirestoreProfile, BrandingSettings } from '@/types';
 
 interface AuthContextType {
@@ -47,15 +47,26 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         const userProfile = await getUserProfileById(firebaseUser.uid);
         setProfile(userProfile);
 
-        if (userProfile && !userProfile.onboardingCompleted) {
-           if (userProfile.profileTypeId === 'parent_guardian') {
-               router.push('/profile/my-children');
-           }
-        } else if (!userProfile) { // A new user from social sign in
-            router.push('/profile/complete-registration');
-        } else if (userProfile.status === 'pending_approval') {
+        // This is the main logic for redirection after login/auth state change
+        if (userProfile) {
+          if (userProfile.status !== 'approved') {
             await logout();
+            router.push(`/login?status=${userProfile.status}`);
+          } else if (!userProfile.onboardingCompleted) {
+            if (userProfile.profileTypeId === 'parent_guardian') {
+               router.push('/profile/my-children');
+            } else {
+               // Other roles might have different onboarding steps in the future
+               // For now, if onboarding is not complete for others, we can just mark it done.
+               // This prevents getting stuck if a new role is added without an onboarding page.
+               router.push('/dashboard');
+            }
+          }
+        } else {
+            // New user from social sign in, needs to complete profile.
+            router.push('/profile/complete-registration');
         }
+
       } else {
         setUser(null);
         setProfile(null);

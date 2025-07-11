@@ -6,9 +6,9 @@ export interface Task {
   description?: string;
   status: 'todo' | 'inprogress' | 'done';
   priority: 'low' | 'medium' | 'high';
-  dueDate?: Date | null;
-  createdAt: Date;
-  updatedAt: Date;
+  dueDate?: string | Date | null;
+  createdAt: string | Date;
+  updatedAt: string | Date;
   userId: string;
 }
 
@@ -53,8 +53,8 @@ export interface UserFirestoreProfile {
   profileTypeId: ProfileType;
   clubId: string | null;
   status: UserProfileStatus;
-  createdAt: Date;
-  updatedAt: Date;
+  createdAt: string | Date;
+  updatedAt: string | Date;
   isSeeded?: boolean;
   onboardingCompleted?: boolean;
   children?: Child[];
@@ -76,7 +76,7 @@ export interface Club {
   logoUrl?: string;
   approved?: boolean;
   createdBy?: string;
-  createdAt?: Date;
+  createdAt?: string | Date;
 }
 
 export interface ClubFormData {
@@ -106,8 +106,8 @@ export interface Team {
   playerIds?: string[];
   logoUrl?: string | null;
   city?: string | null;
-  createdAt: Date;
-  updatedAt: Date;
+  createdAt: string | Date;
+  updatedAt: string | Date;
   createdByUserId: string;
 }
 
@@ -127,7 +127,7 @@ export interface GameFormat {
   periodDurationMinutes?: number;
   defaultTotalTimeouts?: number;
   minPeriodsPlayerMustPlay?: number;
-  createdAt?: Date;
+  createdAt?: string | Date;
   createdBy?: string;
 }
 
@@ -146,8 +146,8 @@ export interface CompetitionCategory {
   description?: string;
   level?: number;
   gameFormatId?: string | null;
-  createdAt?: Date;
-  updatedAt?: Date;
+  createdAt?: string | Date;
+  updatedAt?: string | Date;
   createdBy?: string;
 }
 
@@ -167,7 +167,7 @@ export interface Player {
   position?: string;
   teamId?: string;
   createdBy?: string;
-  createdAt?: Date;
+  createdAt?: string | Date;
 }
 
 export interface PlayerFormData {
@@ -185,9 +185,9 @@ export interface Season {
         competitionCategoryId: string;
         teamIds: string[];
     }[];
-    createdAt?: Date;
+    createdAt?: string | Date;
     createdBy?: string;
-    updatedAt?: Date;
+    updatedAt?: string | Date;
     updatedBy?: string;
 }
 
