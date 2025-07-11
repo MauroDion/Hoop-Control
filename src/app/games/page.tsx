@@ -1,9 +1,10 @@
+
 "use client";
 
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
-import { getGamesByCoach, getAllGames, getGamesByClub, getGamesByParent } from '@/lib/actions/games';
+import { getGamesByCoach, getAllGames, getGamesByClub, getGamesByParent } from '@/app/games/actions';
 import type { Game } from '@/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
@@ -40,7 +41,7 @@ export default function GamesPage() {
       setError(null);
       setLoading(true);
       try {
-        if (!['coach', 'coordinator', 'club_admin', 'super_admin', 'parent_guardian'].includes(profile.profileTypeId)) {
+        if (!profile.profileTypeId || !['coach', 'coordinator', 'club_admin', 'super_admin', 'parent_guardian'].includes(profile.profileTypeId)) {
            throw new Error("Acceso Denegado. No tienes permisos para ver esta página.");
         }
         
