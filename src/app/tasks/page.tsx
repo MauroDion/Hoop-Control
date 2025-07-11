@@ -19,6 +19,7 @@ export default function TasksPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    // Client-side guard: If auth is resolved and there is no user, redirect.
     if (!authLoading && !user) {
       router.replace('/login?redirect=/tasks');
       return;
@@ -28,7 +29,7 @@ export default function TasksPage() {
        async function fetchTasks() {
         try {
           setLoading(true);
-          const fetchedTasks = await getTasks(user.uid);
+          const fetchedTasks = await getTasks(user.uid); // Pass user.uid to fetch tasks for this user
           setTasks(fetchedTasks);
         } catch (e: any) {
           console.error("Failed to fetch tasks:", e);

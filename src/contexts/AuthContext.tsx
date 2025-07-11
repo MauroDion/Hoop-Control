@@ -1,4 +1,3 @@
-
 "use client";
 
 import { auth, onIdTokenChanged, signOut, type FirebaseUser } from '@/lib/firebase/client';
