@@ -6,7 +6,7 @@ import { BarChart, Building, CheckSquare, Users, AlertTriangle, Loader2 } from '
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { createTestGame, finishAllTestGames } from '@/app/games/actions';
+import { createTestGame, finishAllTestGames } from '@/lib/actions/games';
 import { useToast } from '@/hooks/use-toast';
 import React from 'react';
 

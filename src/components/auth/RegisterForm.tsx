@@ -19,9 +19,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { auth, createUserWithEmailAndPassword, signOut, type UserCredential } from "@/lib/firebase/client"; 
 import { useRouter } from "next/navigation";
-import { finalizeNewUserProfile } from "@/lib/actions/users";
-import { getApprovedClubs } from "@/lib/actions/clubs";
-import { getProfileTypeOptions } from "@/lib/actions/profile-types";
+import { finalizeNewUserProfile } from "@/app/users/actions";
+import { getApprovedClubs } from "@/app/clubs/actions";
+import { getProfileTypeOptions } from "@/app/profile-types/actions";
 import type { Club, ProfileType, ProfileTypeOption } from "@/types";
 import { Loader2 } from "lucide-react";
 

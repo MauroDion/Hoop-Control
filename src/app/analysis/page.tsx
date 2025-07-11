@@ -128,7 +128,7 @@ export default function AnalysisPage() {
                       <TableCell className="font-medium">{game.homeTeamName} vs {game.awayTeamName}</TableCell>
                       <TableCell className="font-bold">{game.homeTeamScore ?? 0} - {game.awayTeamScore ?? 0}</TableCell>
                       <TableCell className="text-right">
-                        <Button asChild size="sm" variant="outline">
+                        <Button asChild size="sm" variant="outline" disabled>
                           <Link href={`/analysis/${game.id}`}>
                             Ver Detalles
                           </Link>

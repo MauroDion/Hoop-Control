@@ -42,7 +42,6 @@ export default function UserManagementPage() {
   const [error, setError] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
-    // No establecer 'loading' aquí si ya estamos cargando desde el efecto principal
     try {
       const [fetchedProfiles, fetchedClubs, fetchedProfileTypes] = await Promise.all([
         getAllUserProfiles(),
