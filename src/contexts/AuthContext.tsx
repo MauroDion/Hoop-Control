@@ -1,15 +1,21 @@
-"use client";
+'use client';
 
-import { auth, onIdTokenChanged, signOut, type FirebaseUser } from '@/lib/firebase/client';
-import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { Skeleton } from '@/components/ui/skeleton';
+import {
+  onIdTokenChanged,
+  signOut as firebaseSignOut,
+  User,
+} from 'firebase/auth';
+import React, { createContext, useContext, useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
+import { auth } from '@/lib/firebase/client';
 import { getUserProfileById } from '@/lib/actions/users';
 import { getBrandingSettings } from '@/lib/actions/admin/settings';
 import type { UserFirestoreProfile, BrandingSettings } from '@/types';
+import { Skeleton } from '@/components/ui/skeleton';
+
 
 interface AuthContextType {
-  user: FirebaseUser | null;
+  user: User | null;
   profile: UserFirestoreProfile | null;
   loading: boolean;
   branding: BrandingSettings;
@@ -18,8 +24,8 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  const [user, setUser] = useState<FirebaseUser | null>(null);
+export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
+  const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<UserFirestoreProfile | null>(null);
   const [branding, setBranding] = useState<BrandingSettings>({});
   const [loading, setLoading] = useState(true);
@@ -32,46 +38,64 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       } catch (error) {
         console.error("Failed to clear server session on logout:", error);
       } finally {
-        await signOut(auth);
+        await firebaseSignOut(auth);
         router.push('/login');
       }
   };
 
   useEffect(() => {
     getBrandingSettings().then(setBranding);
+    
+    const timeout = setTimeout(() => {
+      if (loading) {
+        console.warn("AuthContext: ⏳ Firebase auth state check timed out after 5 seconds. This could be due to network issues or Firebase being blocked. Proceeding with no authenticated user.");
+        setLoading(false);
+      }
+    }, 5000);
 
     const unsubscribe = onIdTokenChanged(auth, async (firebaseUser) => {
-      setLoading(true);
-      if (firebaseUser) {
-        setUser(firebaseUser);
-        const userProfile = await getUserProfileById(firebaseUser.uid);
-        setProfile(userProfile);
+        clearTimeout(timeout);
+        if (firebaseUser) {
+            setUser(firebaseUser);
+            const userProfile = await getUserProfileById(firebaseUser.uid);
+            setProfile(userProfile);
 
-        if (userProfile) {
-          if (userProfile.status !== 'approved') {
-            await logout();
-            router.push(`/login?status=${userProfile.status}`);
-          } else if (!userProfile.onboardingCompleted && pathname !== '/profile/complete-registration') {
-             router.push('/profile/complete-registration');
-          }
-        } else {
-            // New user from social sign in, needs to complete profile.
-            if (pathname !== '/profile/complete-registration') {
-              router.push('/profile/complete-registration');
+            if (userProfile) {
+                if (userProfile.status !== 'approved') {
+                    await logout();
+                    router.push(`/login?status=${userProfile.status}`);
+                    return;
+                } else if (!userProfile.onboardingCompleted && !pathname.startsWith('/profile')) {
+                    router.push('/profile/my-children'); // Or the first onboarding step
+                    return;
+                }
+            } else {
+                 if (pathname !== '/profile/complete-registration') {
+                    router.push('/profile/complete-registration');
+                    return;
+                }
             }
+        } else {
+            setUser(null);
+            setProfile(null);
         }
-      } else {
+        setLoading(false);
+    }, (error) => {
+        console.error("AuthContext: ❌ Error in onIdTokenChanged:", error);
         setUser(null);
         setProfile(null);
-      }
-      setLoading(false);
+        setLoading(false);
+        clearTimeout(timeout);
     });
 
-    return () => unsubscribe();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    return () => {
+        unsubscribe();
+        clearTimeout(timeout);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname]);
 
-  if (loading) {
+   if (loading) {
     return (
       <div className="flex flex-col min-h-screen">
         <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -91,7 +115,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       </div>
     );
   }
-
+  
   return (
     <AuthContext.Provider value={{ user, profile, loading, branding, logout }}>
       {children}
