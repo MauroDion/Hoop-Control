@@ -4,7 +4,7 @@
 import { auth, onIdTokenChanged, signOut, type FirebaseUser } from '@/lib/firebase/client';
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { getUserProfileById } from '@/lib/actions/users';
 import { getBrandingSettings } from '@/lib/actions/admin/settings';
 import type { UserFirestoreProfile, BrandingSettings } from '@/types';
@@ -25,6 +25,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [branding, setBranding] = useState<BrandingSettings>({});
   const [loading, setLoading] = useState(true);
   const router = useRouter();
+  const pathname = usePathname();
 
   const logout = async () => {
       try {
@@ -51,19 +52,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           if (userProfile.status !== 'approved') {
             await logout();
             router.push(`/login?status=${userProfile.status}`);
-          } else if (!userProfile.onboardingCompleted) {
-            // Only redirect to onboarding if it's explicitly not completed.
-            if (userProfile.profileTypeId === 'parent_guardian') {
-               router.push('/profile/my-children');
-            } else {
-               // Other roles might have different onboarding steps in the future
-               // If no specific onboarding is defined for other roles, we let them pass.
-               router.push('/dashboard');
-            }
+          } else if (!userProfile.onboardingCompleted && pathname !== '/profile/complete-registration') {
+             router.push('/profile/complete-registration');
           }
         } else {
             // New user from social sign in, needs to complete profile.
-            router.push('/profile/complete-registration');
+            if (pathname !== '/profile/complete-registration') {
+              router.push('/profile/complete-registration');
+            }
         }
       } else {
         setUser(null);

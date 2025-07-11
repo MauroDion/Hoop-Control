@@ -38,7 +38,8 @@ export type ProfileType =
   | 'player'
   | 'scorer'
   | 'super_admin'
-  | 'user';
+  | 'user'
+  | null; // Allow null for new users
   
 export interface Child {
   id: string; // for React key

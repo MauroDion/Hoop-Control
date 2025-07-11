@@ -3,7 +3,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
-import React, { useEffect, useState } from "react";
+import React from "react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -15,69 +15,21 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { auth, createUserWithEmailAndPassword, signOut, type UserCredential } from "@/lib/firebase/client"; 
 import { useRouter } from "next/navigation";
-import { finalizeNewUserProfile } from "@/app/users/actions";
-import { getApprovedClubs } from "@/app/clubs/actions";
-import { getProfileTypeOptions } from "@/app/profile-types/actions";
-import type { Club, ProfileType, ProfileTypeOption } from "@/types";
+import { finalizeNewUserProfile } from "@/lib/actions/users";
 import { Loader2 } from "lucide-react";
 
 const formSchema = z.object({
   name: z.string().min(2, { message: "El nombre debe tener al menos 2 caracteres." }),
   email: z.string().email({ message: "Dirección de email inválida." }),
   password: z.string().min(6, { message: "La contraseña debe tener al menos 6 caracteres." }),
-  profileType: z.enum([ 'club_admin', 'coach', 'coordinator', 'parent_guardian', 'player', 'scorer', 'super_admin', 'user' ], {
-    errorMap: () => ({ message: "Por favor, selecciona un tipo de perfil válido." })
-  }),
-  selectedClubId: z.string().optional(),
-}).refine((data) => {
-    // selectedClubId is required if the profileType is NOT super_admin
-    if (data.profileType !== 'super_admin') {
-        return !!data.selectedClubId && data.selectedClubId.length > 0;
-    }
-    return true;
-}, {
-    message: "Por favor, selecciona un club.",
-    path: ["selectedClubId"],
 });
-
 
 export function RegisterForm() {
   const { toast } = useToast();
   const router = useRouter();
-  const [clubs, setClubs] = useState<Club[]>([]);
-  const [loadingClubs, setLoadingClubs] = useState(true);
-  const [profileTypeOptions, setProfileTypeOptions] = useState<ProfileTypeOption[]>([]);
-  const [loadingProfileTypes, setLoadingProfileTypes] = useState(true);
-
-  useEffect(() => {
-    async function fetchData() {
-      setLoadingClubs(true);
-      setLoadingProfileTypes(true);
-      try {
-        const [fetchedClubs, fetchedProfileTypes] = await Promise.all([ getApprovedClubs(), getProfileTypeOptions() ]);
-        
-        setClubs(Array.isArray(fetchedClubs) ? fetchedClubs : []);
-        setProfileTypeOptions(Array.isArray(fetchedProfileTypes) ? fetchedProfileTypes.filter(pt => pt.id !== 'super_admin') : []);
-        
-        if (!Array.isArray(fetchedClubs)) console.warn("RegisterForm: Fetched clubs is not an array:", fetchedClubs);
-        if (!Array.isArray(fetchedProfileTypes)) console.warn("RegisterForm: Fetched profile types is not an array:", fetchedProfileTypes);
-
-      } catch (error: any) {
-        console.error("RegisterForm: Failed to fetch data for form:", error);
-        toast({ variant: "destructive", title: "Error al Cargar Datos", description: error.message || "No se pudieron cargar los clubs o tipos de perfil."});
-        setClubs([]);
-        setProfileTypeOptions([]);
-      } finally {
-        setLoadingClubs(false);
-        setLoadingProfileTypes(false);
-      }
-    }
-    fetchData();
-  }, [toast]);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -87,9 +39,6 @@ export function RegisterForm() {
       password: "",
     },
   });
-  
-  const { watch } = form;
-  const selectedProfileType = watch("profileType");
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     let userCredential: UserCredential | undefined;
@@ -104,10 +53,9 @@ export function RegisterForm() {
       
       const idToken = await firebaseUser.getIdToken();
 
+      // Pass only the essential data. Role and Club will be selected after login.
       const profileResult = await finalizeNewUserProfile(idToken, {
         displayName: values.name,
-        profileType: values.profileType,
-        selectedClubId: selectedProfileType === 'super_admin' ? null : values.selectedClubId!,
       });
 
       if (!profileResult.success) {
@@ -115,8 +63,8 @@ export function RegisterForm() {
       }
 
       toast({
-        title: "Registro Completado",
-        description: "Tu perfil ha sido creado y está pendiente de aprobación.",
+        title: "Registro Enviado",
+        description: "Tu cuenta ha sido creada y está pendiente de aprobación. Podrás iniciar sesión una vez que un administrador la apruebe.",
         duration: 7000,
       });
       
@@ -171,61 +119,9 @@ export function RegisterForm() {
               </FormItem>
             )}
           />
-          <FormField
-            control={form.control}
-            name="profileType"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Tu Rol</FormLabel>
-                <Select
-                  onValueChange={field.onChange}
-                  defaultValue={field.value}
-                  disabled={loadingProfileTypes || profileTypeOptions.length === 0}
-                >
-                  <FormControl>
-                    <SelectTrigger><SelectValue placeholder="Selecciona tu rol" /></SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    {profileTypeOptions.map((type) => (
-                        <SelectItem key={type.id} value={type.id}>{type.label}</SelectItem>
-                      )
-                    )}
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          {selectedProfileType !== 'super_admin' && (
-            <FormField
-                control={form.control}
-                name="selectedClubId"
-                render={({ field }) => (
-                <FormItem>
-                    <FormLabel>Tu Club</FormLabel>
-                    <Select
-                    onValueChange={field.onChange}
-                    defaultValue={field.value}
-                    disabled={loadingClubs || clubs.length === 0}
-                    >
-                    <FormControl>
-                        <SelectTrigger><SelectValue placeholder="Selecciona tu club" /></SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                        {clubs.map((club) => (
-                            <SelectItem key={club.id} value={club.id}>{club.name}</SelectItem>
-                        ))
-                        }
-                    </SelectContent>
-                    </Select>
-                    <FormMessage />
-                </FormItem>
-                )}
-            />
-          )}
-          <Button type="submit" className="w-full" disabled={form.formState.isSubmitting || loadingClubs || loadingProfileTypes}>
+          <Button type="submit" className="w-full" disabled={form.formState.isSubmitting}>
             {form.formState.isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Completar Registro
+            {form.formState.isSubmitting ? "Registrando..." : "Crear Cuenta"}
           </Button>
         </form>
       </Form>

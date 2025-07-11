@@ -20,20 +20,13 @@ export async function POST(request: NextRequest) {
     
     const userProfile = await getUserProfileById(uid);
 
-    if (!userProfile) {
-      // This is a special case for new users who exist in Auth but not Firestore yet.
-      // We allow the session to be created so they can proceed to onboarding.
-      // The AuthContext on the client will handle redirecting to the correct onboarding page.
-      console.log(`API (session-login): No profile found for UID ${uid}, likely a new user. Creating session for onboarding.`);
-    } else if (userProfile.status !== 'approved') {
-      // If a profile exists but is not approved, we deny the session.
+    if (userProfile && userProfile.status !== 'approved') {
        return NextResponse.json({ 
           error: 'User account not active.',
-          reason: userProfile.status // 'pending_approval' or 'rejected'
+          reason: userProfile.status 
       }, { status: 403 });
     }
 
-    // Create session for new users or approved users
     const expiresIn = 60 * 60 * 24 * 5 * 1000; // 5 days
     const sessionCookie = await adminAuth.createSessionCookie(idToken, { expiresIn });
     

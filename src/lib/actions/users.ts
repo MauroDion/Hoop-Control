@@ -7,56 +7,59 @@ import type { UserFirestoreProfile, ProfileType, UserProfileStatus, Child } from
 import { revalidatePath } from 'next/cache';
 import admin from 'firebase-admin';
 
-// This new server action uses the Admin SDK to securely create the user profile,
-// bypassing client-side security rules which are a common point of failure.
 export async function finalizeNewUserProfile(
   idToken: string,
-  data: { profileType: ProfileType; selectedClubId: string | null; displayName: string; }
+  data: { displayName: string; profileType?: ProfileType; selectedClubId?: string | null; }
 ): Promise<{ success: boolean; error?: string }> {
-  // Defensive check to ensure the Admin SDK was initialized correctly.
   if (!adminAuth || !adminDb) {
-    console.error("UserActions (finalize): Firebase Admin SDK not initialized. Error:", adminInitError);
     return { success: false, error: `Server configuration error: ${adminInitError || 'Unknown admin SDK error.'}` };
   }
 
   try {
-    console.log("UserActions (finalize): Verifying ID token...");
     const decodedToken = await adminAuth.verifyIdToken(idToken);
     const uid = decodedToken.uid;
-    console.log(`UserActions (finalize): ID token verified for UID: ${uid}`);
-
-    // Use the Admin SDK to update the Auth user's display name
+    
     await adminAuth.updateUser(uid, { displayName: data.displayName });
-    console.log(`UserActions (finalize): Updated Auth user display name for UID: ${uid}`);
 
-    // Use the Admin SDK to create the Firestore user profile document
     const userProfileRef = adminDb.collection('user_profiles').doc(uid);
+    const doc = await userProfileRef.get();
 
-    // Onboarding is NOT complete until the user confirms their specific role's next steps.
-    const onboardingCompleted = data.profileType !== 'parent_guardian';
-
-    const profileToSave: Omit<UserFirestoreProfile, 'createdAt' | 'updatedAt'> & { createdAt: any, updatedAt: any } = {
-        uid: uid,
-        email: decodedToken.email,
-        displayName: data.displayName,
-        photoURL: decodedToken.picture || null,
+    if (doc.exists) {
+      // User profile exists, this is likely the completion of onboarding
+      await userProfileRef.update({
         profileTypeId: data.profileType,
         clubId: data.selectedClubId,
-        status: 'pending_approval' as UserProfileStatus,
-        isSeeded: false,
-        onboardingCompleted: onboardingCompleted,
-    };
-    
-    await userProfileRef.set({...profileToSave, createdAt: admin.firestore.FieldValue.serverTimestamp(), updatedAt: admin.firestore.FieldValue.serverTimestamp() });
-    console.log(`UserActions (finalize): Successfully created Firestore profile for UID: ${uid}`);
+        onboardingCompleted: true,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+    } else {
+      // New user from email/password, create stub profile
+      const profileToSave: Omit<UserFirestoreProfile, 'createdAt' | 'updatedAt' | 'id'> = {
+          uid: uid,
+          email: decodedToken.email,
+          displayName: data.displayName,
+          photoURL: decodedToken.picture || null,
+          profileTypeId: null,
+          clubId: null,
+          status: 'pending_approval' as UserProfileStatus,
+          isSeeded: false,
+          onboardingCompleted: false,
+      };
+      await userProfileRef.set({
+        ...profileToSave, 
+        createdAt: admin.firestore.FieldValue.serverTimestamp(), 
+        updatedAt: admin.firestore.FieldValue.serverTimestamp() 
+      });
+    }
     
     return { success: true };
 
   } catch (error: any) {
-    console.error(`UserActions (finalize): Error finalizing user profile. Error code: ${error.code}. Message: ${error.message}`);
+    console.error(`Error finalizing user profile for user: ${idToken.substring(0, 10)}...:`, error);
     return { success: false, error: `Failed to finalize profile on server: ${error.message}` };
   }
 }
+
 
 export async function updateUserChildren(userId: string, children: Child[]): Promise<{ success: boolean; error?: string }> {
     if (!adminDb) {
