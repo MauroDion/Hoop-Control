@@ -4,8 +4,8 @@ import { adminDb } from '@/lib/firebase/admin';
 import admin from 'firebase-admin';
 import { revalidatePath } from 'next/cache';
 import type { Game, GameFormData, Team, TeamStats, Player, GameEventAction, UserFirestoreProfile, StatCategory, PlayerGameStats, Season, GameFormat, GameEvent } from '@/types';
-import { getTeamsByCoach as getCoachTeams } from '@/app/teams/actions';
-import { getUserProfileById } from '@/app/users/actions';
+import { getTeamsByCoach as getCoachTeams } from '@/lib/actions/teams';
+import { getUserProfileById } from '@/lib/actions/users';
 import { getPlayersFromIds } from '@/app/players/actions';
 
 const initialPlayerStats: Omit<PlayerGameStats, 'playerId' | 'playerName'> = {
@@ -463,40 +463,30 @@ export async function updateLiveGameState(
   
   const gameRef = adminDb.collection('games').doc(gameId);
   try {
-    await adminDb.runTransaction(async (transaction) => {
-        const gameDoc = await transaction.get(gameRef);
-        if (!gameDoc.exists) throw new Error("Game not found.");
-        
-        const gameData = gameDoc.data() as Game;
-        const finalUpdates: { [key: string]: any } = { 
-            ...updates,
-            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-        };
+      await adminDb.runTransaction(async (transaction) => {
+          const gameDoc = await transaction.get(gameRef);
+          if (!gameDoc.exists) throw new Error("Game not found.");
+          
+          const gameData = gameDoc.data() as Game;
+          const wasTimerRunning = gameData.isTimerRunning;
+          const isNowRunning = updates.isTimerRunning;
 
-        const wasTimerRunning = gameData.isTimerRunning;
-        const isNowRunning = updates.isTimerRunning;
+          const finalUpdates: { [key: string]: any } = { ...updates, updatedAt: admin.firestore.FieldValue.serverTimestamp() };
 
-        if (isNowRunning === true && !wasTimerRunning) {
-             finalUpdates.timerStartedAt = admin.firestore.FieldValue.serverTimestamp();
-        } else if (isNowRunning === false && wasTimerRunning) {
-            const serverStopTime = Date.now();
-            const serverStartTime = (gameData.timerStartedAt as admin.firestore.Timestamp).toMillis();
-            const elapsedSeconds = Math.max(0, Math.floor((serverStopTime - serverStartTime) / 1000));
-
-            if (elapsedSeconds > 0) {
-                const onCourtIds = [...(gameData.homeTeamOnCourtPlayerIds || []), ...(gameData.awayTeamOnCourtPlayerIds || [])];
-                onCourtIds.forEach(pId => {
-                    finalUpdates[`playerStats.${pId}.timePlayedSeconds`] = admin.firestore.FieldValue.increment(elapsedSeconds);
-                });
-            }
-            finalUpdates.timerStartedAt = null;
-        }
-        transaction.update(gameRef, finalUpdates);
-    });
-    return { success: true };
+          if (isNowRunning === true && wasTimerRunning === false) {
+              finalUpdates.timerStartedAt = admin.firestore.FieldValue.serverTimestamp();
+          } else if (isNowRunning === false && wasTimerRunning === true) {
+              if (updates.periodTimeRemainingSeconds !== undefined) {
+                  finalUpdates.periodTimeRemainingSeconds = updates.periodTimeRemainingSeconds;
+              }
+              finalUpdates.timerStartedAt = null;
+          }
+          transaction.update(gameRef, finalUpdates);
+      });
+      return { success: true };
   } catch (error: any) {
-    console.error("Error updating live game state:", error.message);
-    return { success: false, error: error.message };
+      console.error("Error updating live game state:", error.message);
+      return { success: false, error: error.message };
   }
 }
 
@@ -511,24 +501,21 @@ export async function endCurrentPeriod(gameId: string, userId: string): Promise<
             
             const gameData = gameDoc.data() as Game;
             const gameFormatDoc = gameData.gameFormatId ? await adminDb.collection('gameFormats').doc(gameData.gameFormatId).get() : null;
-            if (gameFormatDoc && !gameFormatDoc.exists) throw new Error("Game format not found");
+            if (gameData.gameFormatId && (gameFormatDoc && !gameFormatDoc.exists)) throw new Error("Game format not found");
             const gameFormat = gameFormatDoc?.data() as GameFormat;
             
             const totalPeriodDuration = (gameFormat?.periodDurationMinutes || 10) * 60;
             const finalUpdates: { [key: string]: any } = {};
             const currentPeriod = gameData.currentPeriod || 1;
             
-            if (gameData.isTimerRunning) {
-                const serverStopTime = Date.now();
-                const serverStartTime = (gameData.timerStartedAt as admin.firestore.Timestamp).toMillis();
-                const elapsedSeconds = Math.max(0, Math.floor((serverStopTime - serverStartTime) / 1000));
-                
-                 if (elapsedSeconds > 0) {
-                    const onCourtIds = [...(gameData.homeTeamOnCourtPlayerIds || []), ...(gameData.awayTeamOnCourtPlayerIds || [])];
-                    onCourtIds.forEach(pId => {
-                        finalUpdates[`playerStats.${pId}.timePlayedSeconds`] = admin.firestore.FieldValue.increment(elapsedSeconds);
-                    });
-                }
+            const onCourtIds = [...(gameData.homeTeamOnCourtPlayerIds || []), ...(gameData.awayTeamOnCourtPlayerIds || [])];
+            if (onCourtIds.length > 0) {
+                 const timeToAdd = gameData.isTimerRunning ? 0 : gameData.periodTimeRemainingSeconds || 0;
+                 if (timeToAdd > 0) {
+                     onCourtIds.forEach(pId => {
+                        finalUpdates[`playerStats.${pId}.timePlayedSeconds`] = admin.firestore.FieldValue.increment(timeToAdd);
+                     });
+                 }
             }
             
             const maxPeriods = gameFormat?.numPeriods || 4;
@@ -536,10 +523,12 @@ export async function endCurrentPeriod(gameId: string, userId: string): Promise<
             finalUpdates.isTimerRunning = false;
             finalUpdates.timerStartedAt = null;
             finalUpdates.updatedAt = admin.firestore.FieldValue.serverTimestamp();
+            finalUpdates.homeTeamOnCourtPlayerIds = [];
+            finalUpdates.awayTeamOnCourtPlayerIds = [];
+            finalUpdates.periodTimeRemainingSeconds = totalPeriodDuration;
 
             if (currentPeriod < maxPeriods) {
                 finalUpdates.currentPeriod = currentPeriod + 1;
-                finalUpdates.periodTimeRemainingSeconds = totalPeriodDuration;
             } else {
                 finalUpdates.status = 'completed';
                 finalUpdates.periodTimeRemainingSeconds = 0;
@@ -553,6 +542,7 @@ export async function endCurrentPeriod(gameId: string, userId: string): Promise<
         return { success: false, error: error.message };
     }
 }
+
 
 export async function assignScorer(
     gameId: string, 
@@ -623,8 +613,7 @@ export async function recordGameEvent(
                 throw new Error("Acción no permitida. No tienes asignada esta categoría de estadísticas.");
             }
             
-            const now = admin.firestore.FieldValue.serverTimestamp();
-            let finalUpdates: { [key: string]: any } = { updatedAt: now };
+            let finalUpdates: { [key: string]: any } = { updatedAt: admin.firestore.FieldValue.serverTimestamp() };
             
             const pStatsPrefix = `playerStats.${playerId}`;
             const tStatsPrefix = `${teamId}TeamStats`;
@@ -685,9 +674,8 @@ export async function substitutePlayer(
         if (!gameDoc.exists) throw new Error("Game not found.");
         
         const gameData = gameDoc.data() as Game;
-        const gameFormatRef = gameData.gameFormatId ? adminDb.collection('gameFormats').doc(gameData.gameFormatId) : null;
-        const gameFormatDoc = gameFormatRef ? await transaction.get(gameFormatRef) : null;
-        if (gameFormatDoc && !gameFormatDoc.exists) throw new Error("Game format not found");
+        const gameFormatDoc = gameData.gameFormatId ? await adminDb.collection('gameFormats').doc(gameData.gameFormatId).get() : null;
+        if (gameData.gameFormatId && (gameFormatDoc && !gameFormatDoc.exists)) throw new Error("Game format not found");
 
         let playerStatsCopy = JSON.parse(JSON.stringify(gameData.playerStats || {}));
         const onCourtField = teamType === 'home' ? 'homeTeamOnCourtPlayerIds' : 'awayTeamOnCourtPlayerIds';
@@ -708,7 +696,7 @@ export async function substitutePlayer(
                 });
             }
             finalUpdates.periodTimeRemainingSeconds = (gameData.periodTimeRemainingSeconds || 0) - elapsedSeconds;
-            finalUpdates.timerStartedAt = admin.firestore.FieldValue.serverTimestamp(); // Reset timer start to now
+            finalUpdates.timerStartedAt = admin.firestore.FieldValue.serverTimestamp();
         }
 
         if (playerOut) {
@@ -753,3 +741,588 @@ export async function substitutePlayer(
     return { success: false, error: error.message };
   }
 }
+
+```
+- src/lib/hoopControlApi.ts:
+```ts
+import type { ApiDataItem } from '@/types';
+
+const API_BASE_URL = process.env.NEXT_PUBLIC_HOOP_CONTROL_API_BASE_URL || "https://api.hoopcontrol.example.com/v1";
+const PUBLIC_API_KEY = process.env.NEXT_PUBLIC_HOOP_CONTROL_API_KEY;
+
+interface FetchOptions extends RequestInit {}
+
+async function fetchFromHoopControlApi<T>(endpoint: string, options: FetchOptions = {}): Promise<T> {
+  const url = `${API_BASE_URL}${endpoint}`;
+  
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...options.headers,
+  };
+
+  if (PUBLIC_API_KEY) {
+     headers['X-API-Key'] = PUBLIC_API_KEY;
+  }
+  
+  const response = await fetch(url, { ...options, headers });
+
+  if (!response.ok) {
+    let errorBody;
+    try {
+      errorBody = await response.json();
+    } catch (e) {
+      errorBody = { message: response.statusText };
+    }
+    const errorMessage = `API request to ${endpoint} failed with status ${response.status}: ${errorBody?.message || 'Unknown error'}`;
+    console.error(errorMessage);
+    throw new Error(errorMessage);
+  }
+  return response.json() as Promise<T>;
+}
+
+
+export async function getKeyMetrics(): Promise<{data: ApiDataItem[], isMock: boolean}> {
+  try {
+    const data = await fetchFromHoopControlApi<ApiDataItem[]>('/key-metrics');
+    return { data, isMock: false };
+  } catch (error) {
+    console.warn("Hoop Control API fetch failed, returning mock data for UI purposes.");
+    const mockData = [
+      { id: 1, name: "Usuarios Activos (Ejemplo)", value: Math.floor(Math.random() * 1000), category: "Interacción", lastUpdated: new Date().toISOString() },
+      { id: 2, name: "Datos Procesados (Ejemplo)", value: Math.floor(Math.random() * 10000) + " GB", category: "Operaciones", lastUpdated: new Date().toISOString() },
+      { id: 3, name: "Disponibilidad del Sistema (Ejemplo)", value: "99.95%", category: "Fiabilidad", lastUpdated: new Date().toISOString() },
+    ];
+    return { data: mockData, isMock: true };
+  }
+}
+
+```
+- src/pages/api/auth/[...nextauth].ts:
+```ts
+// This file is being deleted.
+
+```
+- src/pages/api/restricted.ts:
+```ts
+// This file is being deleted.
+
+```
+- src/seasons/page.tsx:
+```tsx
+"use client";
+
+import React, { useEffect, useState, useCallback } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
+import { useRouter } from 'next/navigation';
+import { getUserProfileById } from '@/app/users/actions';
+import { getSeasons } from './actions';
+import { getAllTeams } from '@/app/teams/actions';
+import { getCompetitionCategories } from '@/app/competition-categories/actions';
+
+import type { Season, Team, CompetitionCategory } from '@/types';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Loader2, AlertTriangle, CalendarCheck, PlusCircle, ChevronsUpDown, Edit } from 'lucide-react';
+import { SeasonForm } from '@/components/seasons/SeasonForm';
+import Link from 'next/link';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+
+
+export default function ManageSeasonsPage() {
+  const { user, loading: authLoading } = useAuth();
+  const router = useRouter();
+
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [seasons, setSeasons] = useState<Season[]>([]);
+  const [allTeams, setAllTeams] = useState<Team[]>([]);
+  const [allCategories, setAllCategories] = useState<CompetitionCategory[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [isFormOpen, setIsFormOpen] = useState(false);
+
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      if (!user) throw new Error("Autenticación requerida.");
+      
+      const profile = await getUserProfileById(user.uid);
+      if (profile?.profileTypeId !== 'super_admin') {
+        throw new Error('Acceso Denegado. Debes ser Super Admin para ver esta página.');
+      }
+      setIsSuperAdmin(true);
+
+      const [fetchedSeasons, fetchedTeams, fetchedCategories] = await Promise.all([
+        getSeasons(),
+        getAllTeams(),
+        getCompetitionCategories()
+      ]);
+      setSeasons(fetchedSeasons);
+      setAllTeams(fetchedTeams);
+      setAllCategories(fetchedCategories);
+
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    if (!authLoading) {
+      if (!user) {
+        router.replace('/login?redirect=/seasons');
+      } else {
+        fetchData();
+      }
+    }
+  }, [user, authLoading, router, fetchData]);
+
+  const getCategoryName = (id: string) => allCategories.find(c => c.id === id)?.name || id;
+
+  if (loading || authLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[calc(100vh-10rem)]">
+        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+        <p className="ml-4">Cargando datos de temporadas...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)] text-center">
+        <AlertTriangle className="h-12 w-12 text-destructive mb-4" />
+        <h1 className="text-2xl font-semibold text-destructive">Error</h1>
+        <p className="text-muted-foreground mb-4">{error}</p>
+        <Button onClick={() => router.push('/dashboard')} className="mt-4">Ir al Panel</Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-8">
+       <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-2xl">Crear Nueva Temporada</DialogTitle>
+            <DialogDescription>
+              Define una nueva temporada y configura sus competiciones y equipos participantes.
+            </DialogDescription>
+          </DialogHeader>
+          <SeasonForm 
+            allTeams={allTeams}
+            allCategories={allCategories}
+            onFormSubmit={() => {
+              setIsFormOpen(false);
+              fetchData();
+            }}
+          />
+        </DialogContent>
+      </Dialog>
+      
+      <div className="flex justify-between items-center">
+        <h1 className="text-4xl font-headline font-bold text-primary flex items-center">
+          <CalendarCheck className="mr-3 h-10 w-10" /> Gestionar Temporadas
+        </h1>
+        <Button onClick={() => setIsFormOpen(true)}>
+            <PlusCircle className="mr-2 h-5 w-5" /> Crear Nueva Temporada
+        </Button>
+      </div>
+
+      <Card className="shadow-xl">
+        <CardHeader>
+          <CardTitle>Todas las Temporadas</CardTitle>
+          <CardDescription>
+            A continuación se muestra una lista de todas las temporadas del sistema.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {seasons.length === 0 ? (
+             <div className="text-center py-10 border-2 border-dashed rounded-lg">
+                <CalendarCheck className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+                <h2 className="text-xl font-semibold">No se Encontraron Temporadas</h2>
+                <p className="text-muted-foreground">Crea una para empezar a programar partidos.</p>
+            </div>
+          ) : (
+             <div className="space-y-4">
+              {seasons.map((season) => (
+                <Collapsible key={season.id} className="border rounded-lg p-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <h3 className="text-xl font-semibold">{season.name}</h3>
+                      <Badge variant={season.status === 'active' ? 'default' : 'secondary'}>
+                        {season.status}
+                      </Badge>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button asChild variant="outline" size="sm">
+                          <Link href={`/seasons/${season.id}/edit`}>
+                              <Edit className="h-4 w-4 mr-2"/>
+                              Editar
+                          </Link>
+                      </Button>
+                      <CollapsibleTrigger asChild>
+                        <Button variant="ghost" size="sm" className="w-9 p-0">
+                          <ChevronsUpDown className="h-4 w-4" />
+                          <span className="sr-only">Toggle</span>
+                        </Button>
+                      </CollapsibleTrigger>
+                    </div>
+                  </div>
+                  <CollapsibleContent className="space-y-3 pt-4">
+                    {season.competitions?.map(comp => (
+                      <div key={comp.competitionCategoryId} className="p-3 bg-muted/50 rounded-md">
+                        <h4 className="font-medium">{getCategoryName(comp.competitionCategoryId)}</h4>
+                        <p className="text-sm text-muted-foreground">{comp.teamIds.length} equipos participantes.</p>
+                      </div>
+                    ))}
+                     {(!season.competitions || season.competitions.length === 0) && (
+                       <p className="text-sm text-muted-foreground italic">Esta temporada no tiene competiciones configuradas.</p>
+                     )}
+                  </CollapsibleContent>
+                </Collapsible>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+```
+- src/tasks/actions.ts:
+```ts
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { adminDb } from "@/lib/firebase/admin";
+import admin from 'firebase-admin';
+import type { Task, TaskFormData } from "@/types";
+
+export async function createTask(formData: TaskFormData, userId: string): Promise<{ success: boolean; error?: string, id?: string }> {
+  if (!userId) {
+    return { success: false, error: "User not authenticated." };
+  }
+  if (!adminDb) {
+    return { success: false, error: "Database not initialized."};
+  }
+
+  try {
+    const newTaskData = {
+      ...formData,
+      dueDate: formData.dueDate ? admin.firestore.Timestamp.fromDate(new Date(formData.dueDate)) : null,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      userId: userId,
+    };
+    const docRef = await adminDb.collection("tasks").add(newTaskData);
+    revalidatePath("/tasks");
+    return { success: true, id: docRef.id };
+  } catch (error: any) {
+    console.error("Error creating task:", error);
+    return { success: false, error: error.message || "Failed to create task." };
+  }
+}
+
+export async function updateTask(id: string, formData: Partial<TaskFormData>, userId: string): Promise<{ success: boolean; error?: string }> {
+   if (!userId) {
+    return { success: false, error: "User not authenticated." };
+  }
+  if (!adminDb) {
+    return { success: false, error: "Database not initialized."};
+  }
+  try {
+    const taskRef = adminDb.collection("tasks").doc(id);
+    const taskSnap = await taskRef.get();
+    
+    if (!taskSnap.exists || taskSnap.data()?.userId !== userId) {
+      return { success: false, error: "Permission denied or task not found."};
+    }
+
+    const updateData: { [key: string]: any } = { ...formData, updatedAt: admin.firestore.FieldValue.serverTimestamp() };
+    if (formData.dueDate) {
+      updateData.dueDate = admin.firestore.Timestamp.fromDate(new Date(formData.dueDate));
+    } else if (formData.dueDate === null) {
+      updateData.dueDate = null;
+    }
+    
+    await taskRef.update(updateData);
+    revalidatePath("/tasks");
+    revalidatePath(`/tasks/${id}`);
+    revalidatePath(`/tasks/${id}/edit`);
+    return { success: true };
+  } catch (error: any) {
+    console.error("Error updating task:", error);
+    return { success: false, error: error.message || "Failed to update task." };
+  }
+}
+
+export async function deleteTask(id: string, userId: string): Promise<{ success: boolean; error?: string }> {
+  if (!userId) {
+    return { success: false, error: "User not authenticated." };
+  }
+  if (!adminDb) {
+    return { success: false, error: "Database not initialized."};
+  }
+  try {
+    const taskRef = adminDb.collection("tasks").doc(id);
+    const taskSnap = await taskRef.get();
+    if (!taskSnap.exists() || taskSnap.data()?.userId !== userId) {
+      return { success: false, error: "Permission denied or task not found."};
+    }
+    await taskRef.delete();
+    revalidatePath("/tasks");
+    return { success: true };
+  } catch (error: any) {
+    console.error("Error deleting task:", error);
+    return { success: false, error: error.message || "Failed to delete task." };
+  }
+}
+
+export async function getTasks(userId: string): Promise<Task[]> {
+  if (!userId) {
+    console.warn("getTasks called without userId.");
+    return [];
+  }
+  if (!adminDb) {
+    return [];
+  }
+  try {
+    const q = adminDb.collection("tasks").where("userId", "==", userId);
+    const querySnapshot = await q.get();
+    const tasks = querySnapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+            id: doc.id,
+            ...data,
+            dueDate: data.dueDate ? (data.dueDate as admin.firestore.Timestamp).toDate().toISOString() : null,
+            createdAt: (data.createdAt as admin.firestore.Timestamp).toDate().toISOString(),
+            updatedAt: (data.updatedAt as admin.firestore.Timestamp).toDate().toISOString(),
+        } as Task
+    });
+    return tasks;
+  } catch (error) {
+    console.error("Error fetching tasks:", error);
+    return [];
+  }
+}
+
+export async function getTaskById(id: string, userId: string): Promise<Task | null> {
+  if (!userId) {
+     console.warn("getTaskById called without userId.");
+    return null;
+  }
+  if (!adminDb) {
+    return null;
+  }
+  try {
+    const taskRef = adminDb.collection("tasks").doc(id);
+    const taskSnap = await taskRef.get();
+    
+    if (taskSnap.exists() && taskSnap.data()?.userId === userId) {
+       const data = taskSnap.data()!;
+       return {
+            id: taskSnap.id,
+            ...data,
+            dueDate: data.dueDate ? (data.dueDate as admin.firestore.Timestamp).toDate().toISOString() : null,
+            createdAt: (data.createdAt as admin.firestore.Timestamp).toDate().toISOString(),
+            updatedAt: (data.updatedAt as admin.firestore.Timestamp).toDate().toISOString(),
+        } as Task;
+    }
+    return null;
+  } catch (error) {
+    console.error("Error fetching task by ID:", error);
+    return null;
+  }
+}
+
+```
+- src/users/actions.ts:
+```ts
+'use server';
+
+import { adminAuth, adminDb, adminInitError } from '@/lib/firebase/admin';
+import type { UserFirestoreProfile, ProfileType, UserProfileStatus, Child } from '@/types';
+import admin from 'firebase-admin';
+import { revalidatePath } from 'next/cache';
+
+export async function finalizeNewUserProfile(
+  idToken: string,
+  data: { profileType: ProfileType; selectedClubId?: string; displayName: string; }
+): Promise<{ success: boolean; error?: string }> {
+  if (!adminAuth || !adminDb) {
+    console.error("UserActions (finalize): Firebase Admin SDK not initialized. Error:", adminInitError);
+    return { success: false, error: `Server configuration error: ${adminInitError || 'Unknown admin SDK error.'}` };
+  }
+
+  try {
+    const decodedToken = await adminAuth.verifyIdToken(idToken);
+    const uid = decodedToken.uid;
+    await adminAuth.updateUser(uid, { displayName: data.displayName });
+    
+    const userProfileRef = adminDb.collection('user_profiles').doc(uid);
+    
+    if (data.profileType !== 'super_admin' && !data.selectedClubId) {
+        return { success: false, error: "Club selection is required for this profile type."};
+    }
+
+    const profileToSave: any = {
+        uid: uid,
+        email: decodedToken.email || null,
+        displayName: data.displayName,
+        photoURL: decodedToken.picture || null,
+        profileTypeId: data.profileType,
+        clubId: data.profileType === 'super_admin' ? null : data.selectedClubId,
+        status: 'pending_approval' as UserProfileStatus,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        isSeeded: false, // Mark as a real user
+    };
+
+    if (data.profileType === 'parent_guardian') {
+      profileToSave.onboardingCompleted = false;
+      profileToSave.children = [];
+    } else {
+      profileToSave.onboardingCompleted = true; // Admins and other roles are completed in one step.
+    }
+    
+    await userProfileRef.set(profileToSave);
+    
+    return { success: true };
+
+  } catch (error: any) {
+    console.error(`UserActions (finalize): Error finalizing user profile. Error code: ${error.code}. Message: ${error.message}`);
+    return { success: false, error: `Failed to finalize profile on server: ${error.message}` };
+  }
+}
+
+
+export async function getUserProfileById(uid: string): Promise<UserFirestoreProfile | null> {
+  if (!adminDb) {
+    console.error("UserActions (getProfile): Firebase Admin SDK not initialized. Error:", adminInitError);
+    return null;
+  }
+  
+  try {
+    const userProfileRef = adminDb.collection('user_profiles').doc(uid);
+    const docSnap = await userProfileRef.get();
+
+    if (docSnap.exists) {
+      const data = docSnap.data()!;
+      return { 
+        uid: docSnap.id, 
+        ...data,
+        createdAt: (data.createdAt.toDate() as Date).toISOString(),
+        updatedAt: (data.updatedAt.toDate() as Date).toISOString(),
+       } as UserFirestoreProfile;
+    } else {
+      console.warn(`UserActions: No profile found for UID: ${uid} using Admin SDK.`);
+      return null;
+    }
+  } catch (error: any) {
+    console.error(`UserActions: Error fetching user profile for UID ${uid} with Admin SDK:`, error.message, error.stack);
+    return null;
+  }
+}
+
+export async function updateUserChildren(
+  uid: string,
+  children: Child[]
+): Promise<{ success: boolean; error?: string }> {
+  if (!adminDb) {
+    return { success: false, error: 'Database not initialized.' };
+  }
+  if (!uid) {
+    return { success: false, error: 'User not authenticated.' };
+  }
+
+  try {
+    const userProfileRef = adminDb.collection('user_profiles').doc(uid);
+    
+    await userProfileRef.update({
+      children: children,
+      onboardingCompleted: true,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    revalidatePath('/profile/my-children');
+    revalidatePath('/dashboard');
+    return { success: true };
+  } catch (error: any) {
+    console.error(`Error updating children for UID ${uid}:`, error);
+    return { success: false, error: 'Failed to update children information.' };
+  }
+}
+
+export async function getUsersByProfileTypeAndClub(
+  profileType: ProfileType,
+  clubId: string
+): Promise<UserFirestoreProfile[]> {
+  if (!adminDb) {
+    console.error("UserActions (getUsersByProfileTypeAndClub): Admin SDK not initialized.");
+    return [];
+  }
+  try {
+    const usersRef = adminDb.collection('user_profiles');
+    const q = usersRef.where('clubId', '==', clubId).where('profileTypeId', '==', profileType).where('status', '==', 'approved');
+    const querySnapshot = await q.get();
+
+    if (querySnapshot.empty) {
+      return [];
+    }
+    
+    const users = querySnapshot.docs.map(doc => {
+      const data = doc.data()!;
+      return {
+        uid: doc.id,
+        ...data,
+        createdAt: (data.createdAt.toDate() as Date).toISOString(),
+        updatedAt: (data.updatedAt.toDate() as Date).toISOString(),
+      } as UserFirestoreProfile;
+    });
+
+    users.sort((a, b) => (a.displayName || '').localeCompare(b.displayName || ''));
+    return users;
+
+  } catch (error: any) {
+    console.error(`Error fetching users by profile type '${profileType}' for club '${clubId}':`, error.message);
+    if (error.code === 'failed-precondition' && error.message.includes("index")) {
+        console.error("Firestore query failed. This is likely due to a missing composite index. Please create an index on 'clubId', 'profileTypeId', and 'status' for the 'user_profiles' collection.");
+    }
+    return [];
+  }
+}
+
+```
+- .firebaserc:
+```json
+{
+  "projects": {
+    "default": "hoopcontrol-bcsjd-web-app"
+  }
+}
+
+```
+- firebase.json:
+```json
+{
+  "hosting": [
+    {
+      "source": ".",
+      "target": "hoop-control-bcsjd-web-app-hosting",
+      "frameworksBackend": {
+        "region": "europe-west1"
+      }
+    }
+  ]
+}
+
+```
