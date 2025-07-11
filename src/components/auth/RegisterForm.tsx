@@ -29,20 +29,21 @@ const formSchema = z.object({
   name: z.string().min(2, { message: "El nombre debe tener al menos 2 caracteres." }),
   email: z.string().email({ message: "Dirección de email inválida." }),
   password: z.string().min(6, { message: "La contraseña debe tener al menos 6 caracteres." }),
-  profileType: z.enum([
-    'club_admin',
-    'coach',
-    'coordinator',
-    'parent_guardian',
-    'player',
-    'scorer',
-    'super_admin',
-    'user'
-    ], {
+  profileType: z.enum([ 'club_admin', 'coach', 'coordinator', 'parent_guardian', 'player', 'scorer', 'super_admin', 'user' ], {
     errorMap: () => ({ message: "Por favor, selecciona un tipo de perfil válido." })
   }),
-  selectedClubId: z.string().min(1, { message: "Por favor, selecciona un club." }),
+  selectedClubId: z.string().optional(),
+}).refine((data) => {
+    // selectedClubId is required if the profileType is NOT super_admin
+    if (data.profileType !== 'super_admin') {
+        return !!data.selectedClubId && data.selectedClubId.length > 0;
+    }
+    return true;
+}, {
+    message: "Por favor, selecciona un club.",
+    path: ["selectedClubId"],
 });
+
 
 export function RegisterForm() {
   const { toast } = useToast();
@@ -57,13 +58,10 @@ export function RegisterForm() {
       setLoadingClubs(true);
       setLoadingProfileTypes(true);
       try {
-        const [fetchedClubs, fetchedProfileTypes] = await Promise.all([
-           getApprovedClubs(),
-           getProfileTypeOptions()
-        ]);
+        const [fetchedClubs, fetchedProfileTypes] = await Promise.all([ getApprovedClubs(), getProfileTypeOptions() ]);
         
         setClubs(Array.isArray(fetchedClubs) ? fetchedClubs : []);
-        setProfileTypeOptions(Array.isArray(fetchedProfileTypes) ? fetchedProfileTypes : []);
+        setProfileTypeOptions(Array.isArray(fetchedProfileTypes) ? fetchedProfileTypes.filter(pt => pt.id !== 'super_admin') : []);
         
         if (!Array.isArray(fetchedClubs)) console.warn("RegisterForm: Fetched clubs is not an array:", fetchedClubs);
         if (!Array.isArray(fetchedProfileTypes)) console.warn("RegisterForm: Fetched profile types is not an array:", fetchedProfileTypes);
@@ -89,6 +87,9 @@ export function RegisterForm() {
       password: "",
     },
   });
+  
+  const { watch } = form;
+  const selectedProfileType = watch("profileType");
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     let userCredential: UserCredential | undefined;
@@ -106,7 +107,7 @@ export function RegisterForm() {
       const profileResult = await finalizeNewUserProfile(idToken, {
         displayName: values.name,
         profileType: values.profileType,
-        selectedClubId: values.selectedClubId,
+        selectedClubId: selectedProfileType === 'super_admin' ? null : values.selectedClubId!,
       });
 
       if (!profileResult.success) {
@@ -114,40 +115,16 @@ export function RegisterForm() {
       }
 
       toast({
-        title: "Registro Enviado",
-        description: "Tu registro ha sido enviado. Un administrador lo revisará pronto. Podrás iniciar sesión una vez que tu cuenta sea aprobada.",
+        title: "Registro Completado",
+        description: "Tu perfil ha sido creado y está pendiente de aprobación.",
         duration: 7000,
       });
       
       await signOut(auth);
-      router.push("/login?status=pending_approval");
-      router.refresh();
+      router.push('/login?status=pending_approval');
 
     } catch (error: any) {
-      console.error("RegisterForm: ERROR during registration process:", error);
-
-      if (userCredential?.user) {
-          console.warn("RegisterForm: Deleting partially created user due to subsequent error...");
-          try {
-              await userCredential.user.delete();
-              console.log("RegisterForm: Successfully deleted partially created user.");
-          } catch (deleteError) {
-              console.error("RegisterForm: CRITICAL - Failed to delete partially created user. This user must be manually removed from Firebase Auth:", userCredential.user.uid, deleteError);
-          }
-      }
-
-      let description = "Ocurrió un error inesperado durante el registro.";
-      if (error.code === 'auth/email-already-in-use') {
-        description = "Esta dirección de email ya está en uso. Por favor, usa un email diferente o intenta iniciar sesión.";
-      } else if (error.message) {
-        description = error.message;
-      }
-      toast({
-        variant: "destructive",
-        title: "Fallo en el Registro",
-        description: description,
-        duration: 9000,
-      });
+        toast({ variant: "destructive", title: "Fallo en el Registro", description: error.message });
     }
   }
 
@@ -199,22 +176,14 @@ export function RegisterForm() {
             name="profileType"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Tipo de Perfil</FormLabel>
+                <FormLabel>Tu Rol</FormLabel>
                 <Select
                   onValueChange={field.onChange}
                   defaultValue={field.value}
                   disabled={loadingProfileTypes || profileTypeOptions.length === 0}
                 >
                   <FormControl>
-                    <SelectTrigger>
-                      <SelectValue placeholder={
-                        loadingProfileTypes
-                          ? "Cargando tipos de perfil..."
-                          : profileTypeOptions.length === 0
-                            ? "No hay tipos de perfil disponibles"
-                            : "Selecciona tu tipo de perfil"
-                        } />
-                    </SelectTrigger>
+                    <SelectTrigger><SelectValue placeholder="Selecciona tu rol" /></SelectTrigger>
                   </FormControl>
                   <SelectContent>
                     {profileTypeOptions.map((type) => (
@@ -227,44 +196,36 @@ export function RegisterForm() {
               </FormItem>
             )}
           />
-          <FormField
-            control={form.control}
-            name="selectedClubId"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Selecciona tu Club</FormLabel>
-                <Select
-                  onValueChange={field.onChange}
-                  defaultValue={field.value}
-                  disabled={loadingClubs || clubs.length === 0}
-                >
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue
-                        placeholder={
-                          loadingClubs
-                            ? "Cargando clubs..."
-                            : clubs.length === 0
-                            ? "No hay clubs disponibles"
-                            : "Selecciona el club al que perteneces"
+          {selectedProfileType !== 'super_admin' && (
+            <FormField
+                control={form.control}
+                name="selectedClubId"
+                render={({ field }) => (
+                <FormItem>
+                    <FormLabel>Tu Club</FormLabel>
+                    <Select
+                    onValueChange={field.onChange}
+                    defaultValue={field.value}
+                    disabled={loadingClubs || clubs.length === 0}
+                    >
+                    <FormControl>
+                        <SelectTrigger><SelectValue placeholder="Selecciona tu club" /></SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                        {clubs.map((club) => (
+                            <SelectItem key={club.id} value={club.id}>{club.name}</SelectItem>
+                        ))
                         }
-                      />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    {clubs.map((club) => (
-                         <SelectItem key={club.id} value={club.id}>{club.name}</SelectItem>
-                       )
-                    )}
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+                    </SelectContent>
+                    </Select>
+                    <FormMessage />
+                </FormItem>
+                )}
+            />
+          )}
           <Button type="submit" className="w-full" disabled={form.formState.isSubmitting || loadingClubs || loadingProfileTypes}>
-            {(form.formState.isSubmitting || loadingClubs || loadingProfileTypes) ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-            {form.formState.isSubmitting ? "Registrando..." : "Crear Cuenta"}
+            {form.formState.isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            Completar Registro
           </Button>
         </form>
       </Form>
