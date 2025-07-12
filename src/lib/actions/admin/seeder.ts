@@ -1,3 +1,4 @@
+
 'use server';
 
 import { adminDb, adminAuth } from '@/lib/firebase/admin';
@@ -100,6 +101,37 @@ export async function seedDatabase(): Promise<{ success: boolean; error?: string
 
         const batch = db.batch();
         const serverTimestamp = admin.firestore.FieldValue.serverTimestamp();
+
+        // --- Create Super Admin ---
+        const superAdminEmail = "mauro@hotmail.com";
+        let superAdminUserRecord;
+        try {
+            superAdminUserRecord = await adminAuth.getUserByEmail(superAdminEmail);
+            console.log(`Super admin user '${superAdminEmail}' already exists in Auth.`);
+        } catch (error: any) {
+            if (error.code === 'auth/user-not-found') {
+                console.log(`Super admin user '${superAdminEmail}' not found in Auth. Please create it manually in the Firebase Console.`);
+                // We proceed to create the profile anyway, it will be linked upon login.
+            } else {
+                throw error; // Re-throw other errors
+            }
+        }
+        
+        const superAdminUid = superAdminUserRecord ? superAdminUserRecord.uid : 'manual-super-admin-uid-placeholder';
+        const superAdminProfile: Omit<UserFirestoreProfile, 'createdAt' | 'updatedAt' | 'uid' | 'children'> = {
+            displayName: "mauro",
+            email: superAdminEmail,
+            profileTypeId: 'super_admin',
+            clubId: null, // Super admins don't belong to a club
+            status: 'approved',
+            isSeeded: true, // Mark as seeded to allow cleanup
+            onboardingCompleted: true,
+        };
+        // Use a predictable UID based on email for the profile if the auth user doesn't exist yet.
+        const superAdminProfileRef = db.collection('user_profiles').doc(superAdminUid);
+        batch.set(superAdminProfileRef, {...superAdminProfile, uid: superAdminUid, createdAt: serverTimestamp, updatedAt: serverTimestamp });
+        console.log(`Set up Firestore profile for super admin: ${superAdminEmail}`);
+
 
         // --- 1. Game Formats ---
         const gameFormat5v5 = { id: '5v5-standard', name: 'Estándar 5v5', numPeriods: 4, periodDurationMinutes: 10, defaultTotalTimeouts: 4 };
