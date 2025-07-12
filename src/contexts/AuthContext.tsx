@@ -75,8 +75,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             if (userProfile.status !== 'approved') {
               await logout();
               router.push(`/login?status=${userProfile.status}`);
-            } else if (!userProfile.onboardingCompleted && userProfile.profileTypeId === 'parent_guardian' && !pathname.startsWith('/profile/my-children')) {
-               router.push('/profile/my-children');
+            } else if (!userProfile.onboardingCompleted) {
+                if(userProfile.profileTypeId === 'parent_guardian' && !pathname.startsWith('/profile/my-children')) {
+                    router.push('/profile/my-children');
+                } else if(userProfile.profileTypeId === 'super_admin') {
+                   // Super admin is already onboarded, do nothing special
+                }
             }
           } else {
             // This is a new user who needs to complete the registration process.
