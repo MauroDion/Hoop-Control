@@ -1,3 +1,4 @@
+
 'use server';
 
 import { adminAuth, adminDb, adminInitError } from '@/lib/firebase/admin';
@@ -48,24 +49,32 @@ export async function createFirestoreUserProfile(
 
 // Updates an existing user profile with onboarding info (role, club)
 export async function completeOnboardingProfile(
-  uid: string,
+  idToken: string,
   data: { profileType: ProfileType; selectedClubId: string | null; }
 ): Promise<{ success: boolean; error?: string }> {
-  if (!adminDb) {
+  if (!adminAuth || !adminDb) {
     return { success: false, error: `Server configuration error: ${adminInitError || 'Unknown admin SDK error.'}` };
   }
   try {
+    const decodedToken = await adminAuth.verifyIdToken(idToken);
+    const uid = decodedToken.uid;
+    
     const userProfileRef = adminDb.collection('user_profiles').doc(uid);
+    
+    const isSuperAdmin = data.profileType === 'super_admin';
+
     const updateData: { [key: string]: any } = {
         profileTypeId: data.profileType,
-        clubId: data.selectedClubId,
-        onboardingCompleted: true, // Mark as completed
+        clubId: isSuperAdmin ? null : data.selectedClubId,
+        onboardingCompleted: true, 
+        status: isSuperAdmin ? 'approved' : 'pending_approval',
         updatedAt: admin.firestore.FieldValue.serverTimestamp()
     };
+    
     await userProfileRef.update(updateData);
     return { success: true };
   } catch (error: any) {
-    console.error(`Error completing onboarding for UID ${uid}:`, error);
+    console.error(`Error completing onboarding for user:`, error);
     return { success: false, error: error.message };
   }
 }

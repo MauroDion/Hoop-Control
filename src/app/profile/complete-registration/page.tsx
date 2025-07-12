@@ -16,7 +16,7 @@ import { getProfileTypeOptions } from "@/lib/actions/profile-types";
 import type { Club, ProfileType, ProfileTypeOption } from "@/types";
 import { Loader2, UserCheck } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { auth } from "@/lib/firebase/client";
 
 const formSchema = z.object({
   profileType: z.enum([ 'club_admin', 'coach', 'coordinator', 'parent_guardian', 'player', 'scorer', 'super_admin', 'user' ], {
@@ -51,7 +51,6 @@ export default function CompleteRegistrationPage() {
       try {
         const [fetchedClubs, fetchedProfileTypes] = await Promise.all([ getApprovedClubs(), getProfileTypeOptions() ]);
         setClubs(Array.isArray(fetchedClubs) ? fetchedClubs : []);
-        // Allow 'super_admin' to be selected in the list
         setProfileTypeOptions(Array.isArray(fetchedProfileTypes) ? fetchedProfileTypes : []);
       } catch (error: any) {
         toast({ variant: "destructive", title: "Error al Cargar Datos", description: error.message || "No se pudieron cargar los datos."});
@@ -72,13 +71,15 @@ export default function CompleteRegistrationPage() {
   const selectedProfileType = watch("profileType");
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
-    if (!user) {
+    const firebaseUser = auth.currentUser;
+    if (!firebaseUser) {
         toast({ variant: "destructive", title: "Error de Autenticación", description: "Usuario no encontrado. Por favor, inicia sesión de nuevo." });
         return;
     }
     
     try {
-      const profileResult = await completeOnboardingProfile(user.uid, {
+      const idToken = await firebaseUser.getIdToken();
+      const profileResult = await completeOnboardingProfile(idToken, {
         profileType: values.profileType,
         selectedClubId: values.selectedClubId || null,
       });
