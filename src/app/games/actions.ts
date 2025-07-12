@@ -6,7 +6,7 @@ import admin from 'firebase-admin';
 import { revalidatePath } from 'next/cache';
 import type { Game, GameFormData, Team, TeamStats, Player, GameEventAction, UserFirestoreProfile, StatCategory, PlayerGameStats, Season, GameFormat, GameEvent } from '@/types';
 import { getTeamsByCoach as getCoachTeams } from '@/app/teams/actions';
-import { getUserProfileById } from '@/app/users/actions';
+import { getUserProfileById } from '@/lib/actions/users';
 import { getPlayersFromIds } from '@/app/players/actions';
 
 const initialPlayerStats: Omit<PlayerGameStats, 'playerId' | 'playerName'> = {
@@ -72,7 +72,7 @@ export async function getGamesByClub(clubId: string): Promise<Game[]> {
         processSnapshot(awayGamesSnap);
 
         const games = Array.from(gamesMap.values());
-        games.sort((a, b) => b.date.getTime() - a.date.getTime()); // Sort recent first
+        games.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()); // Sort recent first
 
         return games;
     } catch (error: any) {
@@ -116,7 +116,7 @@ export async function getGamesByCoach(userId: string): Promise<Game[]> {
         processSnapshot(awayGamesSnap);
 
         const games = Array.from(gamesMap.values());
-        games.sort((a, b) => b.date.getTime() - a.date.getTime());
+        games.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
         return games;
     } catch (error: any) {
@@ -587,6 +587,28 @@ export async function assignScorer(
     }
 }
 
+const calculatePir = (stats: PlayerGameStats): number => {
+    const points = stats.points || 0;
+    const rebounds = (stats.reb_def || 0) + (stats.reb_off || 0);
+    const assists = stats.assists || 0;
+    const steals = stats.steals || 0;
+    const blocks = stats.blocks || 0;
+    const foulsDrawn = stats.fouls_received || 0;
+
+    const missedFG = (stats.shots_attempted_2p || 0) - (stats.shots_made_2p || 0) + 
+                     ((stats.shots_attempted_3p || 0) - (stats.shots_made_3p || 0));
+    const missedFT = (stats.shots_attempted_1p || 0) - (stats.shots_made_1p || 0);
+    const turnovers = stats.turnovers || 0;
+    const shotsRejected = stats.blocks_against || 0;
+    const foulsCommitted = stats.fouls || 0;
+    
+    const positive = points + rebounds + assists + steals + blocks + foulsDrawn;
+    const negative = missedFG + missedFT + turnovers + shotsRejected + foulsCommitted;
+
+    return positive - negative;
+};
+
+
 export async function recordGameEvent(
   gameId: string,
   userId: string,
@@ -622,28 +644,27 @@ export async function recordGameEvent(
             }
             
             let finalUpdates: { [key: string]: any } = { updatedAt: admin.firestore.FieldValue.serverTimestamp() };
-            
+            let playerStats = { ...(gameData.playerStats?.[playerId] || initialPlayerStats) } as PlayerGameStats;
+
             const pStatsPrefix = `playerStats.${playerId}`;
             const tStatsPrefix = `${teamId}TeamStats`;
             
             const actionHandlers: Partial<Record<GameEventAction, () => void>> = {
-                shot_made_1p: () => { finalUpdates[`${pStatsPrefix}.points`] = admin.firestore.FieldValue.increment(1); finalUpdates[`${pStatsPrefix}.shots_made_1p`]=admin.firestore.FieldValue.increment(1); finalUpdates[`${pStatsPrefix}.shots_attempted_1p`]=admin.firestore.FieldValue.increment(1); finalUpdates[`${teamId}TeamScore`]=admin.firestore.FieldValue.increment(1); },
-                shot_miss_1p: () => { finalUpdates[`${pStatsPrefix}.shots_attempted_1p`]=admin.firestore.FieldValue.increment(1); },
-                shot_made_2p: () => { finalUpdates[`${pStatsPrefix}.points`]=admin.firestore.FieldValue.increment(2); finalUpdates[`${pStatsPrefix}.shots_made_2p`]=admin.firestore.FieldValue.increment(1); finalUpdates[`${pStatsPrefix}.shots_attempted_2p`]=admin.firestore.FieldValue.increment(1); finalUpdates[`${teamId}TeamScore`]=admin.firestore.FieldValue.increment(2); },
-                shot_miss_2p: () => { finalUpdates[`${pStatsPrefix}.shots_attempted_2p`]=admin.firestore.FieldValue.increment(1); },
-                shot_made_3p: () => { finalUpdates[`${pStatsPrefix}.points`]=admin.firestore.FieldValue.increment(3); finalUpdates[`${pStatsPrefix}.shots_made_3p`]=admin.firestore.FieldValue.increment(1); finalUpdates[`${pStatsPrefix}.shots_attempted_3p`]=admin.firestore.FieldValue.increment(1); finalUpdates[`${teamId}TeamScore`]=admin.firestore.FieldValue.increment(3); },
-                shot_miss_3p: () => { finalUpdates[`${pStatsPrefix}.shots_attempted_3p`]=admin.firestore.FieldValue.increment(1); },
-                rebound_defensive: () => { finalUpdates[`${pStatsPrefix}.reb_def`]=admin.firestore.FieldValue.increment(1); finalUpdates[`${tStatsPrefix}.reboundsDefensive`]=admin.firestore.FieldValue.increment(1); },
-                rebound_offensive: () => { finalUpdates[`${pStatsPrefix}.reb_off`]=admin.firestore.FieldValue.increment(1); finalUpdates[`${tStatsPrefix}.reboundsOffensive`]=admin.firestore.FieldValue.increment(1); },
-                assist: () => { finalUpdates[`${pStatsPrefix}.assists`]=admin.firestore.FieldValue.increment(1); finalUpdates[`${tStatsPrefix}.assists`]=admin.firestore.FieldValue.increment(1); },
-                steal: () => { finalUpdates[`${pStatsPrefix}.steals`]=admin.firestore.FieldValue.increment(1); finalUpdates[`${tStatsPrefix}.steals`]=admin.firestore.FieldValue.increment(1); },
-                block: () => { finalUpdates[`${pStatsPrefix}.blocks`]=admin.firestore.FieldValue.increment(1); finalUpdates[`${tStatsPrefix}.blocks`]=admin.firestore.FieldValue.increment(1); },
-                turnover: () => { finalUpdates[`${pStatsPrefix}.turnovers`]=admin.firestore.FieldValue.increment(1); finalUpdates[`${tStatsPrefix}.turnovers`]=admin.firestore.FieldValue.increment(1); },
-                foul: () => { finalUpdates[`${pStatsPrefix}.fouls`]=admin.firestore.FieldValue.increment(1); finalUpdates[`${tStatsPrefix}.fouls`]=admin.firestore.FieldValue.increment(1); },
-                block_against: () => { finalUpdates[`${pStatsPrefix}.blocks_against`]=admin.firestore.FieldValue.increment(1); finalUpdates[`${tStatsPrefix}.blocksAgainst`]=admin.firestore.FieldValue.increment(1); },
-                foul_received: () => { finalUpdates[`${pStatsPrefix}.fouls_received`]=admin.firestore.FieldValue.increment(1); finalUpdates[`${teamId === 'home' ? 'away' : 'home'}TeamStats.fouls`]=admin.firestore.FieldValue.increment(1); },
-                team_foul: () => { finalUpdates[`${tStatsPrefix}.fouls`]=admin.firestore.FieldValue.increment(1); },
-                timeout: () => { finalUpdates[`${tStatsPrefix}.timeouts`]=admin.firestore.FieldValue.increment(1); },
+                shot_made_1p: () => { playerStats.points += 1; playerStats.shots_made_1p += 1; playerStats.shots_attempted_1p += 1; finalUpdates[`${teamId}TeamScore`]=admin.firestore.FieldValue.increment(1); },
+                shot_miss_1p: () => { playerStats.shots_attempted_1p += 1; },
+                shot_made_2p: () => { playerStats.points += 2; playerStats.shots_made_2p += 1; playerStats.shots_attempted_2p += 1; finalUpdates[`${teamId}TeamScore`]=admin.firestore.FieldValue.increment(2); },
+                shot_miss_2p: () => { playerStats.shots_attempted_2p += 1; },
+                shot_made_3p: () => { playerStats.points += 3; playerStats.shots_made_3p += 1; playerStats.shots_attempted_3p += 1; finalUpdates[`${teamId}TeamScore`]=admin.firestore.FieldValue.increment(3); },
+                shot_miss_3p: () => { playerStats.shots_attempted_3p += 1; },
+                rebound_defensive: () => { playerStats.reb_def += 1; finalUpdates[`${tStatsPrefix}.reboundsDefensive`]=admin.firestore.FieldValue.increment(1); },
+                rebound_offensive: () => { playerStats.reb_off += 1; finalUpdates[`${tStatsPrefix}.reboundsOffensive`]=admin.firestore.FieldValue.increment(1); },
+                assist: () => { playerStats.assists += 1; finalUpdates[`${tStatsPrefix}.assists`]=admin.firestore.FieldValue.increment(1); },
+                steal: () => { playerStats.steals += 1; finalUpdates[`${tStatsPrefix}.steals`]=admin.firestore.FieldValue.increment(1); },
+                block: () => { playerStats.blocks += 1; finalUpdates[`${tStatsPrefix}.blocks`]=admin.firestore.FieldValue.increment(1); },
+                turnover: () => { playerStats.turnovers += 1; finalUpdates[`${tStatsPrefix}.turnovers`]=admin.firestore.FieldValue.increment(1); },
+                foul: () => { playerStats.fouls += 1; finalUpdates[`${tStatsPrefix}.fouls`]=admin.firestore.FieldValue.increment(1); },
+                block_against: () => { playerStats.blocks_against += 1; finalUpdates[`${tStatsPrefix}.blocksAgainst`]=admin.firestore.FieldValue.increment(1); },
+                foul_received: () => { playerStats.fouls_received += 1; finalUpdates[`${teamId === 'home' ? 'away' : 'home'}TeamStats.fouls`]=admin.firestore.FieldValue.increment(1); },
             };
             
             if (actionHandlers[action]) { actionHandlers[action]!(); }
@@ -653,6 +674,9 @@ export async function recordGameEvent(
                 (gameData.homeTeamOnCourtPlayerIds || []).forEach((pId: string) => { finalUpdates[`playerStats.${pId}.plusMinus`] = admin.firestore.FieldValue.increment(teamId === 'home' ? points : -points); });
                 (gameData.awayTeamOnCourtPlayerIds || []).forEach((pId: string) => { finalUpdates[`playerStats.${pId}.plusMinus`] = admin.firestore.FieldValue.increment(teamId === 'away' ? points : -points); });
             }
+
+            playerStats.pir = calculatePir(playerStats);
+            finalUpdates[pStatsPrefix] = playerStats;
             
             transaction.set(eventRef, { ...eventData, gameId, createdAt: admin.firestore.FieldValue.serverTimestamp(), createdBy: userId });
             transaction.update(gameRef, finalUpdates);
