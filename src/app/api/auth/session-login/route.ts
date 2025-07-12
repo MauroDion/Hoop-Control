@@ -1,11 +1,10 @@
 import { type NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminInitError } from '@/lib/firebase/admin';
-import { getUserProfileById } from '@/lib/actions/users';
 
 export async function POST(request: NextRequest) {
   if (!adminAuth) {
     const detailedError = `Server authentication is not configured correctly. Reason: ${adminInitError || 'Unknown initialization error.'}`;
-    console.warn(`API (session-login): CRITICAL WARNING - Firebase Admin SDK is not initialized. Details: ${adminInitError}`);
+    console.error(`API (session-login): CRITICAL ERROR - Firebase Admin SDK is not initialized. Details: ${adminInitError}`);
     return NextResponse.json({ error: detailedError }, { status: 500 });
   }
 
@@ -17,15 +16,7 @@ export async function POST(request: NextRequest) {
     
     const decodedToken = await adminAuth.verifyIdToken(idToken);
     const uid = decodedToken.uid;
-    
-    const userProfile = await getUserProfileById(uid);
-
-    if (userProfile && userProfile.status !== 'approved') {
-       return NextResponse.json({ 
-          error: 'User account not active.',
-          reason: userProfile.status 
-      }, { status: 403 });
-    }
+    console.log(`API (session-login): Verified ID token for UID ${uid}. Creating session cookie.`);
 
     const expiresIn = 60 * 60 * 24 * 5 * 1000; // 5 days
     const sessionCookie = await adminAuth.createSessionCookie(idToken, { expiresIn });
@@ -35,12 +26,12 @@ export async function POST(request: NextRequest) {
       value: sessionCookie,
       maxAge: expiresIn / 1000,
       httpOnly: true,
-      secure: true,
+      secure: process.env.NODE_ENV === 'production',
       path: '/',
-      sameSite: 'none' as const,
+      sameSite: 'lax' as const,
     };
     
-    const response = NextResponse.json({ status: 'success' }, { status: 200 });
+    const response = NextResponse.json({ status: 'success', uid }, { status: 200 });
     response.cookies.set(options);
     return response;
 

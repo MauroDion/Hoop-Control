@@ -1,7 +1,7 @@
 'use client';
 
 import { onIdTokenChanged, signOut as firebaseSignOut, User } from 'firebase/auth';
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { auth } from '@/lib/firebase/client';
 import { getUserProfileById } from '@/lib/actions/users';
@@ -27,7 +27,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const router = useRouter();
   const pathname = usePathname();
 
-  const logout = async () => {
+  const logout = useCallback(async () => {
+    setLoading(true);
     try {
       await fetch('/api/auth/session-logout', { method: 'POST' });
       await firebaseSignOut(auth);
@@ -36,9 +37,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     } finally {
       setUser(null);
       setProfile(null);
+      setLoading(false);
       router.push('/login');
     }
-  };
+  }, [router]);
 
   useEffect(() => {
     getBrandingSettings().then(setBranding);
@@ -46,61 +48,40 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const unsubscribe = onIdTokenChanged(auth, async (firebaseUser) => {
       setLoading(true);
       if (firebaseUser) {
-        try {
-          const idToken = await firebaseUser.getIdToken();
-          const sessionLoginResponse = await fetch('/api/auth/session-login', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ idToken }),
-          });
+        setUser(firebaseUser);
+        const userProfile = await getUserProfileById(firebaseUser.uid);
+        setProfile(userProfile);
 
-          if (!sessionLoginResponse.ok) {
-            const errorData = await sessionLoginResponse.json();
+        if (userProfile) {
+          if (userProfile.status !== 'approved') {
             await logout();
-            router.push(`/login?status=${errorData.reason || 'session_error'}`);
+            router.push(`/login?status=${userProfile.status}`);
             return;
           }
-          
-          setUser(firebaseUser);
-          const userProfile = await getUserProfileById(firebaseUser.uid);
-          setProfile(userProfile);
-
-          if (userProfile) {
-            if (userProfile.status !== 'approved') {
-              await logout();
-              router.push(`/login?status=${userProfile.status}`);
-            } else if (!userProfile.onboardingCompleted) {
-              const isSuperAdmin = userProfile.profileTypeId === 'super_admin';
-              const isParentOnboarding = userProfile.profileTypeId === 'parent_guardian' && !pathname.startsWith('/profile/my-children');
-              
-              if (isParentOnboarding) {
-                  router.push('/profile/my-children');
-              } else if (!isSuperAdmin && !isParentOnboarding) {
-                  // For other roles that need onboarding but aren't parent or super_admin.
-                  // This case can be expanded later if needed.
+          if (!userProfile.onboardingCompleted) {
+             const isSuperAdmin = userProfile.profileTypeId === 'super_admin';
+              if (isSuperAdmin) {
+                // Super admins don't need club/child onboarding.
+                // We can let them proceed or add a specific admin onboarding later.
+              } else if (userProfile.profileTypeId === 'parent_guardian' && !pathname.startsWith('/profile/my-children')) {
+                router.push('/profile/my-children');
               }
-            }
-          } else {
-            if (pathname !== '/profile/complete-registration') {
-              router.push('/profile/complete-registration');
-            }
           }
-        } catch (error) {
-          console.error("Error during auth state sync:", error);
-          await logout();
-        } finally {
-          setLoading(false);
+        } else {
+          // If no profile exists, it means they just registered.
+          if (pathname !== '/profile/complete-registration') {
+            router.push('/profile/complete-registration');
+          }
         }
       } else {
         setUser(null);
         setProfile(null);
-        setLoading(false);
       }
+      setLoading(false);
     });
 
     return () => unsubscribe();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pathname]);
+  }, [logout, pathname, router]);
 
   if (loading) {
     return (
