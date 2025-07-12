@@ -22,17 +22,9 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 
-const PlayerStatCard = ({ player, stats, onClick, userProfileType, isChild, isTimerRunning, timeSinceTimerStart }: { player: Player; stats: PlayerGameStats; onClick?: () => void, userProfileType?: ProfileType, isChild: boolean, isTimerRunning: boolean, timeSinceTimerStart: number }) => {
+const PlayerStatCard = ({ player, stats, onClick, userProfileType, isChild }: { player: Player; stats: PlayerGameStats; onClick?: () => void, userProfileType?: ProfileType, isChild: boolean }) => {
     
     const canSeeAdvancedStats = userProfileType !== 'parent_guardian' || isChild;
-
-    const formatTime = (seconds: number) => {
-        const mins = Math.floor(seconds / 60);
-        const secs = seconds % 60;
-        return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
-    };
-    
-    const timePlayed = (stats.timePlayedSeconds || 0) + (isTimerRunning ? timeSinceTimerStart : 0);
 
     const plusMinusValue = stats.plusMinus || 0;
     const pirValue = stats.pir || 0;
@@ -69,7 +61,6 @@ const PlayerStatCard = ({ player, stats, onClick, userProfileType, isChild, isTi
             <div className="text-7xl font-black text-destructive" style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.1)' }}>{player.jerseyNumber || 'S/N'}</div>
             <div className="absolute bottom-1 text-xs text-center font-semibold w-full px-1 bg-gradient-to-t from-background via-background to-transparent pt-8 pb-1">
                 <p className="truncate">{player.firstName} {player.lastName}</p>
-                <p className="font-mono text-muted-foreground">{formatTime(timePlayed)}</p>
                 <p className="font-mono text-[10px] text-muted-foreground">{periodsPlayedString} ({periodsPlayedCount})</p>
             </div>
         </Card>
@@ -162,7 +153,6 @@ export default function LiveGamePage() {
     const [awayPlayers, setAwayPlayers] = useState<Player[]>([]);
     
     const [displayTime, setDisplayTime] = useState(0);
-    const [timeSinceTimerStart, setTimeSinceTimerStart] = useState(0);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [hasPermission, setHasPermission] = useState(false);
@@ -215,16 +205,12 @@ export default function LiveGamePage() {
             
             const updateDisplay = () => {
                 const elapsedMs = Date.now() - serverStartTimeMs;
-                setTimeSinceTimerStart(Math.floor(elapsedMs / 1000));
-                
                 const newDisplayTime = (game.periodTimeRemainingSeconds || 0) - Math.floor(elapsedMs / 1000);
                 setDisplayTime(Math.max(0, newDisplayTime));
             };
             
             updateDisplay();
             timerId = setInterval(updateDisplay, 1000);
-        } else {
-            setTimeSinceTimerStart(0);
         }
         return () => clearInterval(timerId);
     }, [game?.isTimerRunning, game?.timerStartedAt, game?.periodTimeRemainingSeconds]);
@@ -455,7 +441,7 @@ export default function LiveGamePage() {
                         {onCourtPlayers.length > 0 ? onCourtPlayers.map(p => {
                              const stats = game.playerStats?.[p.id] || { ...defaultStats, playerId: p.id, playerName: `${p.firstName} ${p.lastName}` };
                              const isChild = parentChildInfo.childIds.has(p.id);
-                             return <PlayerStatCard key={p.id} player={p} stats={stats} onClick={canRecordAnyStat ? () => setActionPlayerInfo({ player: p, teamType }) : undefined} userProfileType={profile.profileTypeId} isChild={isChild} isTimerRunning={!!game.isTimerRunning} timeSinceTimerStart={timeSinceTimerStart}/>
+                             return <PlayerStatCard key={p.id} player={p} stats={stats} onClick={canRecordAnyStat ? () => setActionPlayerInfo({ player: p, teamType }) : undefined} userProfileType={profile.profileTypeId} isChild={isChild} />
                         }) : <p className="text-sm text-muted-foreground text-center italic col-span-full self-center">Sin jugadores en pista</p>}
                     </div>
                     <Separator/>
@@ -464,7 +450,7 @@ export default function LiveGamePage() {
                        {onBenchPlayers.length > 0 ? onBenchPlayers.map(p => {
                            const stats = game.playerStats?.[p.id] || { ...defaultStats, playerId: p.id, playerName: `${p.firstName} ${p.lastName}` };
                            const isChild = parentChildInfo.childIds.has(p.id);
-                           return <PlayerStatCard key={p.id} player={p} stats={stats} onClick={canManageControls ? () => handleBenchPlayerClick(p, teamType) : undefined} userProfileType={profile.profileTypeId} isChild={isChild} isTimerRunning={false} timeSinceTimerStart={0}/>
+                           return <PlayerStatCard key={p.id} player={p} stats={stats} onClick={canManageControls ? () => handleBenchPlayerClick(p, teamType) : undefined} userProfileType={profile.profileTypeId} isChild={isChild}/>
                        }) : <p className="text-sm text-muted-foreground text-center italic col-span-full self-center">Banquillo vacío</p>}
                     </div>
                 </CardContent>
@@ -499,7 +485,7 @@ export default function LiveGamePage() {
                                 .map(player => {
                                     const stats = game.playerStats?.[player.id] || { ...defaultStats, playerId: player.id, playerName: `${player.firstName} ${player.lastName}` };
                                     const isChild = parentChildInfo.childIds.has(player.id);
-                                    return <PlayerStatCard key={player.id} player={player} stats={stats} onClick={() => handleCourtPlayerClickInSubDialog(player)} userProfileType={profile.profileTypeId} isChild={isChild} isTimerRunning={!!game.isTimerRunning} timeSinceTimerStart={timeSinceTimerStart}/>
+                                    return <PlayerStatCard key={player.id} player={player} stats={stats} onClick={() => handleCourtPlayerClickInSubDialog(player)} userProfileType={profile.profileTypeId} isChild={isChild}/>
                                 })
                             }
                         </div>
