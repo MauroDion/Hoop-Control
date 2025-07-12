@@ -47,6 +47,7 @@ export function RegisterForm() {
       
       await updateProfile(firebaseUser, { displayName: values.name });
       
+      // Immediately create the Firestore profile document after Auth user creation
       const profileResult = await createFirestoreUserProfile(firebaseUser.uid, {
         email: values.email,
         displayName: values.name,
@@ -57,14 +58,16 @@ export function RegisterForm() {
         throw new Error(profileResult.error || "No se pudo crear el perfil en la base de datos.");
       }
 
+      // Sign the user out to force them to log in and complete onboarding
       await signOut(auth);
 
       toast({
         title: "¡Registro Exitoso!",
-        description: "Ahora puedes iniciar sesión con tus nuevas credenciales.",
-        duration: 5000,
+        description: "Tu cuenta ha sido creada. Ahora puedes iniciar sesión para completar tu perfil.",
+        duration: 7000,
       });
       
+      // Redirect to login page so they can proceed to the 'complete-registration' page
       router.push('/login');
 
     } catch (error: any) {

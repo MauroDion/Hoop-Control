@@ -50,13 +50,16 @@ export async function createFirestoreUserProfile(
 
 // Updates an existing user profile with onboarding info (role, club)
 export async function completeOnboardingProfile(
-  uid: string,
+  idToken: string,
   data: { profileType: ProfileType; selectedClubId: string | null; }
 ): Promise<{ success: boolean; error?: string }> {
-  if (!adminDb) {
+  if (!adminAuth || !adminDb) {
     return { success: false, error: `Server configuration error: ${adminInitError || 'Unknown admin SDK error.'}` };
   }
   try {
+    const decodedToken = await adminAuth.verifyIdToken(idToken);
+    const uid = decodedToken.uid;
+    
     const userProfileRef = adminDb.collection('user_profiles').doc(uid);
     
     const isSuperAdmin = data.profileType === 'super_admin';
@@ -65,8 +68,9 @@ export async function completeOnboardingProfile(
         profileTypeId: data.profileType,
         // Super admins do not belong to a club, so explicitly set to null.
         clubId: isSuperAdmin ? null : data.selectedClubId,
-        // Mark onboarding as complete for all roles, including parent_guardian who will add children next.
-        onboardingCompleted: true, 
+        // Mark onboarding as complete for roles that don't have further steps.
+        // parent_guardian will have this set to false until they add a child.
+        onboardingCompleted: data.profileType !== 'parent_guardian',
         // Super Admins are auto-approved upon completing this step.
         status: isSuperAdmin ? 'approved' : 'pending_approval',
         updatedAt: admin.firestore.FieldValue.serverTimestamp()
@@ -75,7 +79,7 @@ export async function completeOnboardingProfile(
     await userProfileRef.update(updateData);
     return { success: true };
   } catch (error: any) {
-    console.error(`Error completing onboarding for UID ${uid}:`, error);
+    console.error(`Error completing onboarding for user:`, error);
     return { success: false, error: error.message };
   }
 }
