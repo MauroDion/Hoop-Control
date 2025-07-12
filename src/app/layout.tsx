@@ -34,7 +34,6 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning className={`${ptSans.variable} ${playfairDisplay.variable}`}>
-      <head />
       <body className={cn("min-h-screen bg-background font-body antialiased")}>
         <AuthProvider>
           <div className="relative flex min-h-screen flex-col">
