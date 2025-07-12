@@ -9,7 +9,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
-import { finalizeNewUserProfile } from "@/app/users/actions";
+import { completeOnboardingProfile } from "@/lib/actions/users";
 import { getApprovedClubs } from "@/app/clubs/actions";
 import { getProfileTypeOptions } from "@/app/profile-types/actions";
 import type { Club, ProfileType, ProfileTypeOption } from "@/types";
@@ -23,7 +23,6 @@ const formSchema = z.object({
   }),
   selectedClubId: z.string().optional(),
 }).refine((data) => {
-    // selectedClubId is required if the profileType is NOT super_admin
     if (data.profileType !== 'super_admin') {
         return !!data.selectedClubId && data.selectedClubId.length > 0;
     }
@@ -76,15 +75,13 @@ export default function CompleteRegistrationPage() {
     }
     
     try {
-      const idToken = await user.getIdToken();
-      const profileResult = await finalizeNewUserProfile(idToken, {
-        displayName: user.displayName || user.email || 'New User',
+      const profileResult = await completeOnboardingProfile(user.uid, {
         profileType: values.profileType,
-        selectedClubId: values.selectedClubId,
+        selectedClubId: values.selectedClubId || null,
       });
 
       if (!profileResult.success) {
-        throw new Error(profileResult.error || "No se pudo crear el perfil de usuario en el servidor.");
+        throw new Error(profileResult.error || "No se pudo actualizar el perfil de usuario en el servidor.");
       }
 
       toast({

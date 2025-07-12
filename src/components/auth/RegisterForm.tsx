@@ -16,7 +16,8 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { auth, createUserWithEmailAndPassword, signOut, type UserCredential, updateProfile } from "@/lib/firebase/client"; 
+import { auth, createUserWithEmailAndPassword, signOut, updateProfile } from "@/lib/firebase/client"; 
+import { createFirestoreUserProfile } from "@/lib/actions/users";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 
@@ -43,17 +44,19 @@ export function RegisterForm() {
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
       const firebaseUser = userCredential.user;
-
-      if (!firebaseUser) {
-        throw new Error("La creación del usuario falló, el objeto de usuario es nulo.");
-      }
       
-      // Update display name on Firebase Auth user
       await updateProfile(firebaseUser, { displayName: values.name });
+      
+      const profileResult = await createFirestoreUserProfile(firebaseUser.uid, {
+        email: values.email,
+        displayName: values.name,
+        photoURL: firebaseUser.photoURL,
+      });
 
-      // After creating the user, we immediately sign them out client-side
-      // The server session was never created. They will be forced to log in.
-      // The AuthContext will then handle the "new user" flow.
+      if (!profileResult.success) {
+        throw new Error(profileResult.error || "No se pudo crear el perfil en la base de datos.");
+      }
+
       await signOut(auth);
 
       toast({

@@ -35,8 +35,8 @@ export async function getAllUserProfiles(): Promise<UserFirestoreProfile[]> {
       return {
         uid: doc.id,
         ...data,
-        createdAt: (data.createdAt.toDate() as Date).toISOString(),
-        updatedAt: (data.updatedAt.toDate() as Date).toISOString(),
+        createdAt: (data.createdAt as admin.firestore.Timestamp).toDate().toISOString(),
+        updatedAt: (data.updatedAt as admin.firestore.Timestamp).toDate().toISOString(),
       } as UserFirestoreProfile;
     });
     

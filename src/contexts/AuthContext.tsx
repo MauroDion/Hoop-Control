@@ -34,10 +34,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     } catch (error) {
       console.error("Failed to clear server session on logout:", error);
     } finally {
-      // Clear local state immediately
       setUser(null);
       setProfile(null);
-      // Redirect to login page
       router.push('/login');
     }
   };
@@ -48,8 +46,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const unsubscribe = onIdTokenChanged(auth, async (firebaseUser) => {
       setLoading(true);
       if (firebaseUser) {
-        // User is signed in according to Firebase client SDK.
-        // Let's verify server session and get profile.
         try {
           const idToken = await firebaseUser.getIdToken();
           const sessionLoginResponse = await fetch('/api/auth/session-login', {
@@ -60,7 +56,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
           if (!sessionLoginResponse.ok) {
             const errorData = await sessionLoginResponse.json();
-            // Server rejected the session, force logout.
             await logout();
             router.push(`/login?status=${errorData.reason || 'session_error'}`);
             return;
@@ -71,19 +66,21 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           setProfile(userProfile);
 
           if (userProfile) {
-            // Logic for approved users vs users who need to complete onboarding
             if (userProfile.status !== 'approved') {
               await logout();
               router.push(`/login?status=${userProfile.status}`);
             } else if (!userProfile.onboardingCompleted) {
-                if(userProfile.profileTypeId === 'parent_guardian' && !pathname.startsWith('/profile/my-children')) {
-                    router.push('/profile/my-children');
-                } else if(userProfile.profileTypeId === 'super_admin') {
-                   // Super admin is already onboarded, do nothing special
-                }
+              const isSuperAdmin = userProfile.profileTypeId === 'super_admin';
+              const isParentOnboarding = userProfile.profileTypeId === 'parent_guardian' && !pathname.startsWith('/profile/my-children');
+              
+              if (isParentOnboarding) {
+                  router.push('/profile/my-children');
+              } else if (!isSuperAdmin && !isParentOnboarding) {
+                  // For other roles that need onboarding but aren't parent or super_admin.
+                  // This case can be expanded later if needed.
+              }
             }
           } else {
-            // This is a new user who needs to complete the registration process.
             if (pathname !== '/profile/complete-registration') {
               router.push('/profile/complete-registration');
             }
@@ -95,7 +92,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           setLoading(false);
         }
       } else {
-        // User is not signed in
         setUser(null);
         setProfile(null);
         setLoading(false);
