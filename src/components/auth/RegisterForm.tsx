@@ -16,9 +16,8 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { auth, createUserWithEmailAndPassword, signOut, type UserCredential } from "@/lib/firebase/client"; 
+import { auth, createUserWithEmailAndPassword, signOut, type UserCredential, updateProfile } from "@/lib/firebase/client"; 
 import { useRouter } from "next/navigation";
-import { finalizeNewUserProfile } from "@/lib/actions/users";
 import { Loader2 } from "lucide-react";
 
 const formSchema = z.object({
@@ -41,38 +40,37 @@ export function RegisterForm() {
   });
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
-    let userCredential: UserCredential | undefined;
-    
     try {
-      userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
+      const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
       const firebaseUser = userCredential.user;
 
       if (!firebaseUser) {
         throw new Error("La creación del usuario falló, el objeto de usuario es nulo.");
       }
       
-      const idToken = await firebaseUser.getIdToken();
+      // Update display name on Firebase Auth user
+      await updateProfile(firebaseUser, { displayName: values.name });
 
-      // Pass only the essential data. Role and Club will be selected after login.
-      const profileResult = await finalizeNewUserProfile(idToken, {
-        displayName: values.name,
-      });
-
-      if (!profileResult.success) {
-        throw new Error(profileResult.error || "No se pudo crear el perfil de usuario en el servidor.");
-      }
+      // After creating the user, we immediately sign them out client-side
+      // The server session was never created. They will be forced to log in.
+      // The AuthContext will then handle the "new user" flow.
+      await signOut(auth);
 
       toast({
-        title: "Registro Enviado",
-        description: "Tu cuenta ha sido creada y está pendiente de aprobación. Podrás iniciar sesión una vez que un administrador la apruebe.",
-        duration: 7000,
+        title: "¡Registro Exitoso!",
+        description: "Ahora puedes iniciar sesión con tus nuevas credenciales.",
+        duration: 5000,
       });
       
-      await signOut(auth);
-      router.push('/login?status=pending_approval');
+      router.push('/login');
 
     } catch (error: any) {
-        toast({ variant: "destructive", title: "Fallo en el Registro", description: error.message });
+        console.error("Registration Error:", error);
+        let errorMessage = "Ocurrió un error inesperado.";
+        if (error.code === 'auth/email-already-in-use') {
+            errorMessage = "Este email ya está registrado. Por favor, inicia sesión.";
+        }
+        toast({ variant: "destructive", title: "Fallo en el Registro", description: errorMessage });
     }
   }
 
