@@ -13,10 +13,11 @@ import { useRouter } from "next/navigation";
 import { completeOnboardingProfile } from "@/lib/actions/users";
 import { getApprovedClubs } from "@/lib/actions/clubs";
 import { getProfileTypeOptions } from "@/lib/actions/profile-types";
-import type { Club, ProfileType, ProfileTypeOption } from "@/types";
+import type { Club, ProfileTypeOption } from "@/types";
 import { Loader2, UserCheck } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { auth } from "@/lib/firebase/client";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 const formSchema = z.object({
   profileType: z.enum([ 'club_admin', 'coach', 'coordinator', 'parent_guardian', 'player', 'scorer', 'super_admin', 'user' ], {
@@ -24,7 +25,6 @@ const formSchema = z.object({
   }),
   selectedClubId: z.string().optional(),
 }).refine((data) => {
-    // A club is only required if the profile type is NOT super_admin.
     if (data.profileType !== 'super_admin') {
         return !!data.selectedClubId && data.selectedClubId.length > 0;
     }
