@@ -7,59 +7,78 @@ import type { UserFirestoreProfile, ProfileType, UserProfileStatus, Child } from
 import { revalidatePath } from 'next/cache';
 import admin from 'firebase-admin';
 
-export async function finalizeNewUserProfile(
-  idToken: string,
-  data: { displayName: string; profileType?: ProfileType; selectedClubId?: string | null; }
+// Creates the initial user profile document right after Firebase Auth user creation
+export async function createFirestoreUserProfile(
+  uid: string,
+  data: { email: string; displayName: string; photoURL: string | null; }
 ): Promise<{ success: boolean; error?: string }> {
-  if (!adminAuth || !adminDb) {
+  if (!adminDb) {
     return { success: false, error: `Server configuration error: ${adminInitError || 'Unknown admin SDK error.'}` };
   }
-
   try {
-    const decodedToken = await adminAuth.verifyIdToken(idToken);
-    const uid = decodedToken.uid;
-    
-    await adminAuth.updateUser(uid, { displayName: data.displayName });
-
     const userProfileRef = adminDb.collection('user_profiles').doc(uid);
     const doc = await userProfileRef.get();
-
     if (doc.exists) {
-      // User profile exists, this is likely the completion of onboarding
-      await userProfileRef.update({
-        profileTypeId: data.profileType,
-        clubId: data.selectedClubId,
-        onboardingCompleted: true,
-        updatedAt: admin.firestore.FieldValue.serverTimestamp()
-      });
-    } else {
-      // New user from email/password, create stub profile
-      const profileToSave: Omit<UserFirestoreProfile, 'createdAt' | 'updatedAt' | 'id'> = {
-          uid: uid,
-          email: decodedToken.email,
-          displayName: data.displayName,
-          photoURL: decodedToken.picture || null,
-          profileTypeId: null,
-          clubId: null,
-          status: 'pending_approval' as UserProfileStatus,
-          isSeeded: false,
-          onboardingCompleted: false,
-      };
-      await userProfileRef.set({
-        ...profileToSave, 
-        createdAt: admin.firestore.FieldValue.serverTimestamp(), 
-        updatedAt: admin.firestore.FieldValue.serverTimestamp() 
-      });
+        console.log(`Profile for UID ${uid} already exists. Skipping creation.`);
+        return { success: true };
     }
+
+    const profileToSave: Omit<UserFirestoreProfile, 'createdAt' | 'updatedAt' | 'id'> = {
+      uid: uid,
+      email: data.email,
+      displayName: data.displayName,
+      photoURL: data.photoURL,
+      profileTypeId: null,
+      clubId: null,
+      status: 'pending_approval' as UserProfileStatus,
+      isSeeded: false,
+      onboardingCompleted: false,
+    };
+
+    await userProfileRef.set({
+      ...profileToSave,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    });
     
     return { success: true };
-
   } catch (error: any) {
-    console.error(`Error finalizing user profile for user: ${idToken.substring(0, 10)}...:`, error);
-    return { success: false, error: `Failed to finalize profile on server: ${error.message}` };
+    console.error(`Error creating Firestore user profile for UID ${uid}:`, error);
+    return { success: false, error: error.message };
   }
 }
 
+// Updates an existing user profile with onboarding info (role, club)
+export async function completeOnboardingProfile(
+  uid: string,
+  data: { profileType: ProfileType; selectedClubId: string | null; }
+): Promise<{ success: boolean; error?: string }> {
+  if (!adminDb) {
+    return { success: false, error: `Server configuration error: ${adminInitError || 'Unknown admin SDK error.'}` };
+  }
+  try {
+    const userProfileRef = adminDb.collection('user_profiles').doc(uid);
+    
+    const isSuperAdmin = data.profileType === 'super_admin';
+
+    const updateData: { [key: string]: any } = {
+        profileTypeId: data.profileType,
+        // Super admins do not belong to a club, so explicitly set to null.
+        clubId: isSuperAdmin ? null : data.selectedClubId,
+        // Mark onboarding as complete for all roles, including parent_guardian who will add children next.
+        onboardingCompleted: true, 
+        // Super Admins are auto-approved upon completing this step.
+        status: isSuperAdmin ? 'approved' : 'pending_approval',
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    };
+    
+    await userProfileRef.update(updateData);
+    return { success: true };
+  } catch (error: any) {
+    console.error(`Error completing onboarding for UID ${uid}:`, error);
+    return { success: false, error: error.message };
+  }
+}
 
 export async function updateUserChildren(userId: string, children: Child[]): Promise<{ success: boolean; error?: string }> {
     if (!adminDb) {
@@ -69,7 +88,7 @@ export async function updateUserChildren(userId: string, children: Child[]): Pro
         const profileRef = adminDb.collection('user_profiles').doc(userId);
         await profileRef.update({
             children: children,
-            onboardingCompleted: true, // Mark onboarding as complete once children are added/updated
+            onboardingCompleted: true,
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         });
         revalidatePath('/profile/my-children');

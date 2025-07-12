@@ -24,6 +24,7 @@ const formSchema = z.object({
   }),
   selectedClubId: z.string().optional(),
 }).refine((data) => {
+    // A club is only required if the profile type is NOT super_admin.
     if (data.profileType !== 'super_admin') {
         return !!data.selectedClubId && data.selectedClubId.length > 0;
     }
@@ -50,7 +51,8 @@ export default function CompleteRegistrationPage() {
       try {
         const [fetchedClubs, fetchedProfileTypes] = await Promise.all([ getApprovedClubs(), getProfileTypeOptions() ]);
         setClubs(Array.isArray(fetchedClubs) ? fetchedClubs : []);
-        setProfileTypeOptions(Array.isArray(fetchedProfileTypes) ? fetchedProfileTypes.filter(pt => pt.id !== 'super_admin') : []);
+        // Allow 'super_admin' to be selected in the list
+        setProfileTypeOptions(Array.isArray(fetchedProfileTypes) ? fetchedProfileTypes : []);
       } catch (error: any) {
         toast({ variant: "destructive", title: "Error al Cargar Datos", description: error.message || "No se pudieron cargar los datos."});
       } finally {
@@ -84,15 +86,20 @@ export default function CompleteRegistrationPage() {
       if (!profileResult.success) {
         throw new Error(profileResult.error || "No se pudo actualizar el perfil de usuario en el servidor.");
       }
+      
+      const isSuperAdmin = values.profileType === 'super_admin';
 
       toast({
         title: "Registro Completado",
-        description: "Tu perfil ha sido creado y está pendiente de aprobación.",
+        description: isSuperAdmin 
+          ? "Tu perfil de super admin ha sido activado. Serás desconectado para iniciar sesión."
+          : "Tu perfil ha sido creado y está pendiente de aprobación.",
         duration: 7000,
       });
       
       await logout();
-      router.push('/login?status=pending_approval');
+      const redirectStatus = isSuperAdmin ? 'approved' : 'pending_approval';
+      router.push(`/login?status=${redirectStatus}`);
 
     } catch (error: any) {
         toast({ variant: "destructive", title: "Fallo en el Registro", description: error.message });
@@ -134,7 +141,7 @@ export default function CompleteRegistrationPage() {
                       </FormControl>
                       <SelectContent>
                         {profileTypeOptions.map((type) => (
-                            <SelectItem key={type.id} value={type.id}>{type.label}</SelectItem>
+                            <SelectItem key={type.id} value={type.id!}>{type.label}</SelectItem>
                           )
                         )}
                       </SelectContent>

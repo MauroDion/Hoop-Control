@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect } from 'react';
@@ -42,16 +43,13 @@ export default function SeederPage() {
       return;
     }
     
-    if (profile) {
-      if (profile.profileTypeId === 'super_admin') {
-        setPageState('success');
-      } else {
-        setError('Acceso Denegado. Solo los Super Admins pueden poblar la base de datos.');
-        setPageState('error');
-      }
+    // Explicitly check for profile and profileTypeId
+    if (profile && profile.profileTypeId === 'super_admin') {
+      setPageState('success');
     } else {
-       setError("No se pudo cargar tu perfil. Es posible que no exista o haya un problema de configuración.");
-       setPageState('error');
+      // This handles cases where profile is null, or profileType is not super_admin
+      setError('Acceso Denegado. Solo los Super Admins pueden poblar la base de datos.');
+      setPageState('error');
     }
 
   }, [user, profile, authLoading, router]);
@@ -92,7 +90,7 @@ export default function SeederPage() {
      return (
         <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)] text-center">
             <AlertTriangle className="h-12 w-12 text-destructive mb-4" />
-            <h1 className="text-2xl font-semibold text-destructive">Error</h1>
+            <h1 className="text-2xl font-semibold text-destructive">Error de Acceso</h1>
             <p className="text-muted-foreground mb-4">{error}</p>
             <Button asChild><Link href="/dashboard">Volver al Panel</Link></Button>
         </div>
