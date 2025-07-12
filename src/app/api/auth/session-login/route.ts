@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from 'next/server';
-import { adminAuth, adminInitError } from '@/lib/firebase/admin';
+import { adminAuth, adminDb, adminInitError } from '@/lib/firebase/admin';
+import { getUserProfileById } from '@/lib/actions/users';
 
 export async function POST(request: NextRequest) {
   if (!adminAuth) {
@@ -16,8 +17,31 @@ export async function POST(request: NextRequest) {
     
     const decodedToken = await adminAuth.verifyIdToken(idToken);
     const uid = decodedToken.uid;
-    console.log(`API (session-login): Verified ID token for UID ${uid}. Creating session cookie.`);
+    console.log(`API (session-login): Verified ID token for UID ${uid}. Checking profile status...`);
 
+    // --- Profile Status Verification ---
+    const userProfile = await getUserProfileById(uid);
+
+    if (!userProfile) {
+        console.warn(`API (session-login): Auth FAILED for UID ${uid}. Reason: Firestore profile not found.`);
+        return NextResponse.json({ 
+            status: 'error', 
+            error: 'User profile does not exist.', 
+            reason: 'not_found' 
+        }, { status: 403 });
+    }
+    
+    if (userProfile.status !== 'approved') {
+        console.warn(`API (session-login): Auth FAILED for UID ${uid}. Reason: Profile status is '${userProfile.status}'.`);
+        return NextResponse.json({ 
+            status: 'error', 
+            error: 'User account not active.', 
+            reason: userProfile.status // e.g., 'pending_approval', 'rejected'
+        }, { status: 403 });
+    }
+    // --- End Profile Status Verification ---
+
+    console.log(`API (session-login): Profile status for UID ${uid} is 'approved'. Creating session cookie.`);
     const expiresIn = 60 * 60 * 24 * 5 * 1000; // 5 days
     const sessionCookie = await adminAuth.createSessionCookie(idToken, { expiresIn });
     

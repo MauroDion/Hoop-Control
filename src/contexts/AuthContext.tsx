@@ -28,7 +28,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const pathname = usePathname();
 
   const logout = useCallback(async () => {
-    setLoading(true);
     try {
       await fetch('/api/auth/session-logout', { method: 'POST' });
       await firebaseSignOut(auth);
@@ -37,12 +36,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     } finally {
       setUser(null);
       setProfile(null);
-      setLoading(false);
+      // Ensure redirect happens after state is cleared
       router.push('/login');
     }
   }, [router]);
 
   useEffect(() => {
+    // Fetch branding settings once on initial load
     getBrandingSettings().then(setBranding);
 
     const unsubscribe = onIdTokenChanged(auth, async (firebaseUser) => {
@@ -52,24 +52,26 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         const userProfile = await getUserProfileById(firebaseUser.uid);
         setProfile(userProfile);
 
+        // Logic for redirection based on profile status
         if (userProfile) {
           if (userProfile.status !== 'approved') {
             await logout();
+            // The login page will show the status message based on the query param
             router.push(`/login?status=${userProfile.status}`);
-            return;
+            return; // Stop further execution
           }
           if (!userProfile.onboardingCompleted) {
              const isSuperAdmin = userProfile.profileTypeId === 'super_admin';
               if (isSuperAdmin) {
-                // Super admins don't need club/child onboarding.
-                // We can let them proceed or add a specific admin onboarding later.
+                // Super admins are considered onboarded by default
               } else if (userProfile.profileTypeId === 'parent_guardian' && !pathname.startsWith('/profile/my-children')) {
                 router.push('/profile/my-children');
               }
           }
         } else {
-          // If no profile exists, it means they just registered.
-          if (pathname !== '/profile/complete-registration') {
+          // This case is for a brand new user who just signed up via email/password
+          // and needs to complete their profile information.
+          if (!pathname.startsWith('/profile/complete-registration')) {
             router.push('/profile/complete-registration');
           }
         }
@@ -83,6 +85,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     return () => unsubscribe();
   }, [logout, pathname, router]);
 
+  // This loading screen is crucial to prevent flicker or showing protected content prematurely
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center h-screen">
