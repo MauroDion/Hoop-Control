@@ -1,3 +1,4 @@
+
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -10,8 +11,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
 import { completeOnboardingProfile } from "@/lib/actions/users";
-import { getApprovedClubs } from "@/app/clubs/actions";
-import { getProfileTypeOptions } from "@/app/profile-types/actions";
+import { getApprovedClubs } from "@/lib/actions/clubs";
+import { getProfileTypeOptions } from "@/lib/actions/profile-types";
 import type { Club, ProfileType, ProfileTypeOption } from "@/types";
 import { Loader2, UserCheck } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";

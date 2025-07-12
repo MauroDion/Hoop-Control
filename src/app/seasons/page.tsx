@@ -4,10 +4,10 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
-import { getUserProfileById } from '@/app/users/actions';
-import { getSeasons } from './actions';
-import { getAllTeams } from '@/app/teams/actions';
-import { getCompetitionCategories } from '@/app/competition-categories/actions';
+import { getUserProfileById } from '@/lib/actions/users';
+import { getSeasons } from '@/lib/actions/seasons';
+import { getAllTeams } from '@/lib/actions/teams';
+import { getCompetitionCategories } from '@/lib/actions/competition-categories';
 
 import type { Season, Team, CompetitionCategory } from '@/types';
 import { Button } from '@/components/ui/button';
@@ -153,7 +153,7 @@ export default function ManageSeasonsPage() {
                     </div>
                     <div className="flex items-center gap-2">
                       <Button asChild variant="outline" size="sm">
-                          <Link href={`/seasons/${season.id}/edit`}>
+                          <Link href={`/seasons/edit/${season.id}`}>
                               <Edit className="h-4 w-4 mr-2"/>
                               Editar
                           </Link>

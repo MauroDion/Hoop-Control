@@ -8,9 +8,9 @@ import Link from 'next/link';
 
 // Actions
 import { getUserProfileById } from '@/lib/actions/users';
-import { getClubById } from '@/app/clubs/actions';
-import { getTeamsByClubId } from '@/app/teams/actions';
-import { getCompetitionCategories } from '@/app/competition-categories/actions';
+import { getClubById } from '@/lib/actions/clubs';
+import { getTeamsByClubId } from '@/lib/actions/teams';
+import { getCompetitionCategories } from '@/lib/actions/competition-categories';
 
 // Types
 import type { Club, Team, UserFirestoreProfile, CompetitionCategory } from '@/types';

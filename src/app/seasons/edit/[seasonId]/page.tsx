@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useEffect, useState, useCallback } from 'react';
@@ -5,9 +6,9 @@ import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import Link from 'next/link';
 
-import { getSeasonById } from '@/app/seasons/actions';
-import { getAllTeams } from '@/app/teams/actions';
-import { getCompetitionCategories } from '@/app/competition-categories/actions';
+import { getSeasonById } from '@/lib/actions/seasons';
+import { getAllTeams } from '@/lib/actions/teams';
+import { getCompetitionCategories } from '@/lib/actions/competition-categories';
 
 import type { Season, Team, CompetitionCategory } from '@/types';
 import { Button } from '@/components/ui/button';
