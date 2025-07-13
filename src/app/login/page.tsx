@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect } from 'react';
@@ -15,16 +16,15 @@ import { Clock, ShieldX, Loader2 } from "lucide-react";
 export default function LoginPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
-  const nextSearchParams = useSearchParams();
-  const redirectUrl = nextSearchParams.get("redirect") || "/dashboard";
-  const status = nextSearchParams.get("status");
+  const searchParams = useSearchParams();
+  const redirectUrl = searchParams.get("redirect") || "/dashboard";
+  const status = searchParams.get("status");
 
   useEffect(() => {
-    // Si la autenticación no está cargando y ya hay un usuario, redirige.
     if (!loading && user) {
-      router.push(redirectUrl);
+      router.replace(redirectUrl);
     }
-  }, [user, loading, router, redirectUrl]);
+  }, [loading, user, redirectUrl, router]);
 
 
   const renderStatusMessage = () => {
@@ -54,8 +54,6 @@ export default function LoginPage() {
     }
   };
 
-  // Si la autenticación está en proceso o si ya existe un usuario,
-  // muestra el estado de carga y espera a que el useEffect haga la redirección.
   if (loading || user) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)]">
