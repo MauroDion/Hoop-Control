@@ -1,4 +1,3 @@
-
 'use server';
 
 import { adminAuth, adminDb, adminInitError } from '@/lib/firebase/admin';
@@ -65,8 +64,12 @@ export async function completeOnboardingProfile(
 
     const updateData: { [key: string]: any } = {
         profileTypeId: data.profileType,
+        // Super admins do not belong to a club, so explicitly set to null.
         clubId: isSuperAdmin ? null : data.selectedClubId,
-        onboardingCompleted: true, 
+        // Mark onboarding as complete for roles that don't have further steps.
+        // parent_guardian will have this set to false until they add a child.
+        onboardingCompleted: data.profileType !== 'parent_guardian',
+        // Super Admins are auto-approved upon completing this step.
         status: isSuperAdmin ? 'approved' : 'pending_approval',
         updatedAt: admin.firestore.FieldValue.serverTimestamp()
     };
