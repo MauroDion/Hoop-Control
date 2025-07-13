@@ -1,11 +1,32 @@
+'use client';
+
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import Image from 'next/image';
-import { Dribbble } from 'lucide-react';
-import { getBrandingSettings } from '@/lib/actions/admin/settings';
+import { Dribbble, Loader2 } from 'lucide-react';
 
-export default async function HomePage() {
-  const { appName, logoHeroUrl } = await getBrandingSettings();
+export default function HomePage() {
+  const { user, loading, branding } = useAuth();
+  const router = useRouter();
+  const { appName, logoHeroUrl } = branding || {};
+
+  useEffect(() => {
+    if (!loading && user) {
+      router.replace('/dashboard');
+    }
+  }, [user, loading, router]);
+
+  if (loading || user) {
+    return (
+      <div className="flex items-center justify-center min-h-[calc(100vh-10rem)]">
+        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+        <p className="ml-4">Cargando...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)] text-center p-6 bg-gradient-to-br from-background to-secondary/30 rounded-xl shadow-2xl">
@@ -43,4 +64,3 @@ export default async function HomePage() {
     </div>
   );
 }
-console.log('FIREBASE_PROJECT_ID:', process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID);

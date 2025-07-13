@@ -23,6 +23,11 @@ export async function middleware(request: NextRequest) {
   if (pathname.startsWith('/_next') || pathname.startsWith('/api') || pathname.includes('.')) {
     return NextResponse.next();
   }
+  
+  // If user is authenticated and on the root path, redirect to dashboard.
+  if (isAuthed && pathname === '/') {
+    return NextResponse.redirect(new URL('/dashboard', request.url));
+  }
 
   const isProtectedRoute = PROTECTED_PATHS.some(p => pathname.startsWith(p));
   const isPublicOnlyPath = PUBLIC_ONLY_PATHS.includes(pathname);
