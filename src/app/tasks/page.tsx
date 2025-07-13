@@ -21,7 +21,6 @@ export default function TasksPage() {
 
   useEffect(() => {
     if (authLoading) {
-      setLoading(true);
       return;
     }
     if (!user) {

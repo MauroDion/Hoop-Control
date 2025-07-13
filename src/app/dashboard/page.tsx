@@ -12,20 +12,6 @@ import { useToast } from '@/hooks/use-toast';
 import React, { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
-// Dummy data
-const summaryData = {
-  activeProjects: 5,
-  completedTasks: 120,
-  teamMembers: 15,
-  alerts: 2,
-};
-
-const bcsjdApiSampleData = [
-  { keyMetric: "Progreso General", value: "75%" },
-  { keyMetric: "Uso del Presupuesto", value: "60%" },
-];
-
-
 export default function DashboardPage() {
   const { user, profile, loading: authLoading } = useAuth();
   const router = useRouter();
@@ -127,7 +113,7 @@ export default function DashboardPage() {
     );
   };
   
-  if (authLoading || !user) {
+  if (authLoading || !user || !profile) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)]">
         <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
@@ -136,6 +122,20 @@ export default function DashboardPage() {
       </div>
     );
   }
+
+  // Dummy data
+  const summaryData = {
+    activeProjects: 5,
+    completedTasks: 120,
+    teamMembers: 15,
+    alerts: 2,
+  };
+
+  const bcsjdApiSampleData = [
+    { keyMetric: "Progreso General", value: "75%" },
+    { keyMetric: "Uso del Presupuesto", value: "60%" },
+  ];
+
 
   return (
     <div className="space-y-8">

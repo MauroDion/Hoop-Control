@@ -24,7 +24,6 @@ export default function AnalysisPage() {
 
   useEffect(() => {
     if (authLoading) {
-      setLoading(true);
       return;
     }
     if (!user) {

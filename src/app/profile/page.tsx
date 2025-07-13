@@ -1,6 +1,8 @@
+
 "use client";
 
 import { useAuth } from '@/contexts/AuthContext';
+import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -13,7 +15,7 @@ import { useForm } from 'react-hook-form';
 import * as z from 'zod';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { UserCircle, Edit3, ShieldAlert, AlertTriangle } from 'lucide-react';
+import { UserCircle, Edit3, ShieldAlert, AlertTriangle, Loader2 } from 'lucide-react';
 
 const profileSchema = z.object({
   displayName: z.string().min(2, "El nombre debe tener al menos 2 caracteres.").optional(),
@@ -31,7 +33,8 @@ const passwordSchema = z.object({
 
 
 export default function ProfilePage() {
-  const { user, loading } = useAuth();
+  const { user, loading: authLoading } = useAuth();
+  const router = useRouter();
   const { toast } = useToast();
   const [isEditingProfile, setIsEditingProfile] = useState(false);
 
@@ -51,6 +54,12 @@ export default function ProfilePage() {
       confirmPassword: "",
     },
   });
+
+  useEffect(() => {
+    if (!authLoading && !user) {
+      router.push('/login?redirect=/profile');
+    }
+  }, [authLoading, user, router]);
 
   useEffect(() => {
     if (user) {
@@ -99,16 +108,11 @@ export default function ProfilePage() {
     return names[0].substring(0, 2).toUpperCase();
   };
 
-  if (loading) {
-    return <p>Cargando perfil...</p>;
-  }
-
-  if (!user) {
+  if (authLoading || !user) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)]">
-        <AlertTriangle className="h-12 w-12 text-destructive mb-4" />
-        <h1 className="text-2xl font-headline font-semibold text-destructive">Acceso Denegado</h1>
-        <p className="text-muted-foreground">Por favor, inicia sesión para ver tu perfil.</p>
+       <div className="flex items-center justify-center min-h-[calc(100vh-10rem)]">
+        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+        <p className="ml-4">Cargando perfil...</p>
       </div>
     );
   }

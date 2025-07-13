@@ -69,6 +69,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             }
           }
         } else {
+          // If a Firebase user exists but there's no Firestore profile,
+          // it means they need to complete the registration steps.
           if (!pathname.startsWith('/profile/complete-registration')) {
             router.push('/profile/complete-registration');
           }
@@ -112,15 +114,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   }, [user, logout]);
 
 
-  if (loading) {
-    return (
-      <div className="flex flex-col items-center justify-center h-screen">
-        <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full"></div>
-        <p className="mt-4 text-lg font-medium text-muted-foreground">Verificando sesión...</p>
-      </div>
-    );
-  }
-  
   return (
     <AuthContext.Provider value={{ user, profile, loading, branding, logout }}>
       {children}
