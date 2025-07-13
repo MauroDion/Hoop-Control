@@ -21,6 +21,7 @@ export default function LoginPage() {
   const status = searchParams.get("status");
 
   useEffect(() => {
+    // This effect handles the redirection once the user state is confirmed.
     if (!loading && user) {
       console.log('✔️ Usuario autenticado, redirigiendo a:', redirectUrl);
       router.replace(redirectUrl);
@@ -55,16 +56,20 @@ export default function LoginPage() {
     }
   };
 
+  // If loading, or if the user is already authenticated, show the loading/redirecting screen.
+  // This prevents the login form from flashing for logged-in users.
   if (loading || user) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)]">
         <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-        <p className="text-lg text-muted-foreground">Redirigiendo a tu panel...</p>
+        <p className="text-lg text-muted-foreground">
+          {loading ? 'Verificando sesión...' : 'Usuario autenticado, redirigiendo...'}
+        </p>
       </div>
     );
   }
 
-
+  // If not loading and no user, show the full login page.
   return (
     <div className="flex min-h-[calc(100vh-10rem)] items-center justify-center">
       <Card className="w-full max-w-md shadow-xl">
@@ -99,3 +104,4 @@ export default function LoginPage() {
     </div>
   );
 }
+

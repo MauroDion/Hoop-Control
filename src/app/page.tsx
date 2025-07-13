@@ -43,3 +43,4 @@ export default async function HomePage() {
     </div>
   );
 }
+console.log('FIREBASE_PROJECT_ID:', process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID);
