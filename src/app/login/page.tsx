@@ -23,7 +23,6 @@ export default function LoginPage() {
   useEffect(() => {
     // This effect handles the redirection once the user state is confirmed.
     if (!loading && user) {
-      console.log('✔️ Usuario autenticado, redirigiendo a:', redirectUrl);
       router.replace(redirectUrl);
     }
   }, [loading, user, redirectUrl, router]);
@@ -56,8 +55,7 @@ export default function LoginPage() {
     }
   };
 
-  // If loading, or if the user is already authenticated, show the loading/redirecting screen.
-  // This prevents the login form from flashing for logged-in users.
+  // If loading, or if the user is already authenticated (and waiting for redirect), show the loading/redirecting screen.
   if (loading || user) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)]">
@@ -104,4 +102,3 @@ export default function LoginPage() {
     </div>
   );
 }
-
