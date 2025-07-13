@@ -22,6 +22,7 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (!loading && user) {
+      console.log('✔️ Usuario autenticado, redirigiendo a:', redirectUrl);
       router.replace(redirectUrl);
     }
   }, [loading, user, redirectUrl, router]);
