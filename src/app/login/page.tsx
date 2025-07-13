@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect } from 'react';
@@ -12,23 +11,54 @@ import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Clock, ShieldX, Loader2 } from "lucide-react";
 
+// A dedicated component to handle the redirect logic cleanly.
+const RedirectingLoader = () => {
+    const { user, loading } = useAuth();
+    const router = useRouter();
+    const searchParams = useSearchParams();
+    const redirectUrl = searchParams.get("redirect") || "/dashboard";
+
+    useEffect(() => {
+        if (!loading && user) {
+             setTimeout(() => {
+                console.log('🔁 Redirigiendo a:', redirectUrl);
+                router.push(redirectUrl);
+            }, 0);
+        }
+    }, [user, loading, router, redirectUrl]);
+
+    return (
+        <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)]">
+            <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
+            <p className="text-lg text-muted-foreground">
+                Usuario autenticado, redirigiendo a: {redirectUrl}
+            </p>
+        </div>
+    );
+};
+
 
 export default function LoginPage() {
   const { user, loading } = useAuth();
-  const router = useRouter();
   const searchParams = useSearchParams();
-  const redirectUrl = searchParams.get("redirect") || "/dashboard";
   const status = searchParams.get("status");
+  
+  // If loading, show a generic checking state.
+  if (loading) {
+     return (
+        <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)]">
+            <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
+            <p className="text-lg text-muted-foreground">Verificando sesión...</p>
+        </div>
+    );
+  }
 
-  useEffect(() => {
-    // This effect will run when the component mounts and whenever the dependencies change.
-    // If a user is detected and we are not in a loading state, it will redirect.
-    if (!loading && user) {
-      router.replace(redirectUrl);
-    }
-  }, [loading, user, redirectUrl, router]);
+  // If NOT loading and a user object exists, render the RedirectingLoader.
+  if (user) {
+    return <RedirectingLoader />;
+  }
 
-
+  // If NOT loading and NO user, show the full login form.
   const renderStatusMessage = () => {
     switch (status) {
       case 'pending_approval':
@@ -56,19 +86,6 @@ export default function LoginPage() {
     }
   };
 
-  // If loading or if the user exists (and is about to be redirected), show the loading/redirecting screen.
-  if (loading || user) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)]">
-        <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-        <p className="text-lg text-muted-foreground">
-          {loading ? 'Verificando sesión...' : 'Usuario autenticado, redirigiendo...'}
-        </p>
-      </div>
-    );
-  }
-
-  // If not loading and no user, show the full login page.
   return (
     <div className="flex min-h-[calc(100vh-10rem)] items-center justify-center">
       <Card className="w-full max-w-md shadow-xl">
