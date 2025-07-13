@@ -1,14 +1,31 @@
+"use client";
+
+import { useEffect } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { LoginForm } from "@/components/auth/LoginForm";
 import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import Link from "next/link";
 import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Clock, ShieldX } from "lucide-react";
+import { Clock, ShieldX, Loader2 } from "lucide-react";
 
 
 export default function LoginPage({ searchParams }: { searchParams: { [key: string]: string | string[] | undefined } }) {
+  const { user, loading } = useAuth();
+  const router = useRouter();
+  const nextSearchParams = useSearchParams();
+  const redirectUrl = nextSearchParams.get("redirect") || "/dashboard";
   const status = searchParams?.status;
+
+  useEffect(() => {
+    // If auth state is resolved (not loading) and a user exists, redirect them.
+    if (!loading && user) {
+      router.push(redirectUrl);
+    }
+  }, [user, loading, router, redirectUrl]);
+
 
   const renderStatusMessage = () => {
     switch (status) {
@@ -36,6 +53,17 @@ export default function LoginPage({ searchParams }: { searchParams: { [key: stri
         return null;
     }
   };
+
+  // If loading or user is detected, show a loading state to prevent flickering of the form
+  if (loading || user) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)]">
+        <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
+        <p className="text-lg text-muted-foreground">Redirigiendo a tu panel...</p>
+      </div>
+    );
+  }
+
 
   return (
     <div className="flex min-h-[calc(100vh-10rem)] items-center justify-center">
