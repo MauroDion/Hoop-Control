@@ -29,11 +29,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const pathname = usePathname();
 
   const logout = useCallback(async () => {
+    console.log("AuthContext: Iniciando logout...");
     try {
       await fetch('/api/auth/session-logout', { method: 'POST' });
       await firebaseSignOut(auth);
+      console.log("AuthContext: Logout completado.");
     } catch (error) {
-      console.error("Failed to clear server session on logout:", error);
+      console.error("AuthContext: Error durante el logout:", error);
     } finally {
       setUser(null);
       setProfile(null);
@@ -42,47 +44,61 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   }, [router]);
 
   useEffect(() => {
+    console.log('AuthContext: Montado. Obteniendo ajustes de branding...');
     getBrandingSettings().then(setBranding);
 
     const unsubscribe = onIdTokenChanged(auth, async (firebaseUser) => {
+      console.log('AuthContext: onIdTokenChanged disparado.');
       setLoading(true);
       if (firebaseUser) {
+        console.log(`AuthContext: Usuario de Firebase detectado (UID: ${firebaseUser.uid}). Obteniendo perfil...`);
         setUser(firebaseUser);
         const userProfile = await getUserProfileById(firebaseUser.uid);
         setProfile(userProfile);
+        console.log('AuthContext: Perfil de Firestore obtenido:', userProfile);
 
         if (userProfile) {
           if (userProfile.status !== 'approved') {
+            console.log(`AuthContext: Estado del perfil es '${userProfile.status}'. Redirigiendo a login.`);
             await logout();
             router.push(`/login?status=${userProfile.status}`);
             return; 
           }
 
           if (!userProfile.onboardingCompleted) {
+            console.log('AuthContext: Onboarding no completado.');
             const isParentOnboarding = userProfile.profileTypeId === 'parent_guardian' && !pathname.startsWith('/profile/my-children');
             const isGeneralOnboarding = !userProfile.profileTypeId && !pathname.startsWith('/profile/complete-registration');
-
+            
             if (isParentOnboarding) {
+              console.log('AuthContext: Redirigiendo a onboarding de padre/tutor.');
               router.push('/profile/my-children');
             } else if (isGeneralOnboarding) {
+              console.log('AuthContext: Redirigiendo a onboarding general.');
               router.push('/profile/complete-registration');
             }
+          } else {
+             console.log('AuthContext: Usuario aprobado y onboarding completado.');
           }
         } else {
-          // If a Firebase user exists but there's no Firestore profile,
-          // it means they need to complete the registration steps.
+          console.log(`AuthContext: Usuario de Firebase existe pero no tiene perfil en Firestore. Redirigiendo a completar registro.`);
           if (!pathname.startsWith('/profile/complete-registration')) {
             router.push('/profile/complete-registration');
           }
         }
       } else {
+        console.log('AuthContext: No hay usuario de Firebase.');
         setUser(null);
         setProfile(null);
       }
       setLoading(false);
+      console.log('AuthContext: Carga finalizada.');
     });
 
-    return () => unsubscribe();
+    return () => {
+      console.log("AuthContext: Desmontado. Limpiando listener de onIdTokenChanged.");
+      unsubscribe();
+    }
   }, [logout, pathname, router]);
 
   useEffect(() => {
@@ -92,7 +108,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       clearTimeout(inactivityTimeout);
       inactivityTimeout = setTimeout(() => {
         if (auth.currentUser) {
-          console.log("⏱️ Cerrando sesión por inactividad");
+          console.log("⏱️ AuthContext: Cerrando sesión por inactividad");
           logout();
         }
       }, 15 * 60 * 1000); // 15 minutos

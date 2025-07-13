@@ -44,14 +44,18 @@ export default function CompleteRegistrationPage() {
   const [profileTypeOptions, setProfileTypeOptions] = useState<ProfileTypeOption[]>([]);
   const [loadingProfileTypes, setLoadingProfileTypes] = useState(true);
 
+  console.log("CompleteRegistrationPage: Renderizando. user:", !!user, "loading:", authLoading);
+
   useEffect(() => {
     async function fetchData() {
+      console.log("CompleteRegistrationPage: fetchData. Cargando clubs y tipos de perfil.");
       setLoadingClubs(true);
       setLoadingProfileTypes(true);
       try {
         const [fetchedClubs, fetchedProfileTypes] = await Promise.all([ getApprovedClubs(), getProfileTypeOptions() ]);
         setClubs(Array.isArray(fetchedClubs) ? fetchedClubs : []);
         setProfileTypeOptions(Array.isArray(fetchedProfileTypes) ? fetchedProfileTypes : []);
+        console.log("CompleteRegistrationPage: Datos cargados.");
       } catch (error: any) {
         toast({ variant: "destructive", title: "Error al Cargar Datos", description: error.message || "No se pudieron cargar los datos."});
       } finally {
@@ -71,6 +75,7 @@ export default function CompleteRegistrationPage() {
   const selectedProfileType = watch("profileType");
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
+    console.log("CompleteRegistrationPage: onSubmit. values:", values);
     const firebaseUser = auth.currentUser;
     if (!firebaseUser) {
         toast({ variant: "destructive", title: "Error de Autenticación", description: "Usuario no encontrado. Por favor, inicia sesión de nuevo." });

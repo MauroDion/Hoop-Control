@@ -21,12 +21,16 @@ export default function GamesPage() {
   const [loading, setLoading] = useState(true);
   const [games, setGames] = useState<Game[]>([]);
   const [error, setError] = useState<string | null>(null);
+
+  console.log("GamesPage: Renderizando. user:", !!user, "loading:", authLoading);
   
   useEffect(() => {
+    console.log("GamesPage: useEffect disparado. user:", !!user, "loading:", authLoading);
     if (authLoading) {
       return;
     }
     if (!user) {
+      console.log("GamesPage: Usuario no autenticado, redirigiendo a login.");
       router.push('/login?redirect=/games');
       return;
     }
@@ -45,6 +49,7 @@ export default function GamesPage() {
         }
         
         let fetchedGames: Game[] = [];
+        console.log(`GamesPage: Cargando partidos para el perfil: ${profile.profileTypeId}`);
         if (profile.profileTypeId === 'super_admin') {
             fetchedGames = await getAllGames();
         } else if (['coordinator', 'club_admin'].includes(profile.profileTypeId)) {
@@ -58,9 +63,10 @@ export default function GamesPage() {
         const activeGames = fetchedGames.filter(game => game.status === 'scheduled' || game.status === 'inprogress');
         activeGames.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
         setGames(activeGames);
+        console.log(`GamesPage: Se encontraron ${activeGames.length} partidos activos.`);
 
       } catch (err: any) {
-        console.error("Error loading game data:", err);
+        console.error("GamesPage: Error cargando datos:", err);
         setError("Error al cargar los datos de los partidos.");
       } finally {
         setLoading(false);

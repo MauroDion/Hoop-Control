@@ -19,6 +19,8 @@ export function middleware(request: NextRequest) {
   const sessionCookie = request.cookies.get('session')?.value;
   const isAuthed = !!sessionCookie;
   
+  console.log(`Middleware: Path: ${pathname}, IsAuthed: ${isAuthed}`);
+
   // Allow static files and API routes to pass through
   if (pathname.startsWith('/_next') || pathname.startsWith('/api') || pathname.includes('.')) {
     return NextResponse.next();
@@ -28,19 +30,23 @@ export function middleware(request: NextRequest) {
   const isProtected = PROTECTED_PATHS.some(p => pathname.startsWith(p));
   
   if (!isAuthed && isProtected) {
+    console.log(`Middleware: Not authenticated and accessing protected path. Redirecting to login.`);
     const loginUrl = new URL('/login', request.url);
     loginUrl.searchParams.set('redirect', pathname);
     return NextResponse.redirect(loginUrl);
   }
 
   if (isAuthed && isPublic && pathname !== '/') {
+    console.log(`Middleware: Authenticated user accessing public path. Redirecting to dashboard.`);
     return NextResponse.redirect(new URL('/dashboard', request.url));
   }
   
   if (isAuthed && pathname === '/') {
+    console.log(`Middleware: Authenticated user at root. Redirecting to dashboard.`);
     return NextResponse.redirect(new URL('/dashboard', request.url));
   }
-
+  
+  console.log(`Middleware: No redirect condition met. Allowing request.`);
   return NextResponse.next();
 }
 

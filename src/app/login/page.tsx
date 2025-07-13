@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect } from 'react';
@@ -11,7 +12,6 @@ import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Clock, ShieldX, Loader2 } from "lucide-react";
 
-// A dedicated component to handle the redirect logic cleanly.
 const RedirectingLoader = () => {
     const { user, loading } = useAuth();
     const router = useRouter();
@@ -19,9 +19,10 @@ const RedirectingLoader = () => {
     const redirectUrl = searchParams.get("redirect") || "/dashboard";
 
     useEffect(() => {
+        console.log("LoginPage (RedirectingLoader): Montado. user:", !!user, "loading:", loading);
         if (!loading && user) {
              setTimeout(() => {
-                console.log('🔁 Redirigiendo a:', redirectUrl);
+                console.log('🔁 LoginPage: Redirigiendo a:', redirectUrl);
                 router.push(redirectUrl);
             }, 0);
         }
@@ -42,6 +43,8 @@ export default function LoginPage() {
   const { user, loading } = useAuth();
   const searchParams = useSearchParams();
   const status = searchParams.get("status");
+
+  console.log("LoginPage: Renderizando. user:", !!user, "loading:", loading);
   
   // If loading, show a generic checking state.
   if (loading) {

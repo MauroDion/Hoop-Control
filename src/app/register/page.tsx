@@ -1,9 +1,11 @@
+
 import { RegisterForm } from "@/components/auth/RegisterForm";
 import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import Link from "next/link";
 
 export default function RegisterPage() {
+  console.log("RegisterPage: Renderizando.")
   return (
     <div className="flex min-h-[calc(100vh-10rem)] items-center justify-center">
       <Card className="w-full max-w-md shadow-xl">
