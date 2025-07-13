@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { LoginForm } from "@/components/auth/LoginForm";
@@ -17,16 +17,16 @@ const RedirectingLoader = () => {
     const router = useRouter();
     const searchParams = useSearchParams();
     const redirectUrl = searchParams.get("redirect") || "/dashboard";
+    const [redirected, setRedirected] = useState(false);
 
     useEffect(() => {
-        console.log("LoginPage (RedirectingLoader): Montado. user:", !!user, "loading:", loading);
-        if (!loading && user) {
-             setTimeout(() => {
-                console.log('🔁 LoginPage: Redirigiendo a:', redirectUrl);
-                router.push(redirectUrl);
-            }, 0);
+        console.log("LoginPage (RedirectingLoader): Montado. user:", !!user, "loading:", loading, "redirected:", redirected);
+        if (!loading && user && !redirected) {
+             setRedirected(true); // Set flag before redirecting
+             console.log('🔁 LoginPage: Redirigiendo a:', redirectUrl);
+             router.push(redirectUrl);
         }
-    }, [user, loading, router, redirectUrl]);
+    }, [user, loading, router, redirectUrl, redirected]);
 
     return (
         <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)]">
@@ -46,7 +46,6 @@ export default function LoginPage() {
 
   console.log("LoginPage: Renderizando. user:", !!user, "loading:", loading);
   
-  // If loading, show a generic checking state.
   if (loading) {
      return (
         <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)]">
@@ -56,12 +55,10 @@ export default function LoginPage() {
     );
   }
 
-  // If NOT loading and a user object exists, render the RedirectingLoader.
   if (user) {
     return <RedirectingLoader />;
   }
 
-  // If NOT loading and NO user, show the full login form.
   const renderStatusMessage = () => {
     switch (status) {
       case 'pending_approval':
