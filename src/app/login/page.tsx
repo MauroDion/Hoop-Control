@@ -21,7 +21,8 @@ export default function LoginPage() {
   const status = searchParams.get("status");
 
   useEffect(() => {
-    // This effect handles the redirection once the user state is confirmed.
+    // This effect will run when the component mounts and whenever the dependencies change.
+    // If a user is detected and we are not in a loading state, it will redirect.
     if (!loading && user) {
       router.replace(redirectUrl);
     }
@@ -55,7 +56,7 @@ export default function LoginPage() {
     }
   };
 
-  // If loading, or if the user is already authenticated (and waiting for redirect), show the loading/redirecting screen.
+  // If loading or if the user exists (and is about to be redirected), show the loading/redirecting screen.
   if (loading || user) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)]">
