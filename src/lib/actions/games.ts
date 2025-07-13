@@ -1,3 +1,4 @@
+
 'use server';
 import { adminDb } from '@/lib/firebase/admin';
 import admin from 'firebase-admin';
@@ -472,7 +473,7 @@ export async function updateLiveGameState(
               ...updates,
               updatedAt: admin.firestore.FieldValue.serverTimestamp(),
           };
-
+          
           const isStoppingTimer = updates.isTimerRunning === false && gameData.isTimerRunning === true;
 
           if (isStoppingTimer && gameData.timerStartedAt) {
@@ -480,11 +481,14 @@ export async function updateLiveGameState(
               const serverStartTime = (gameData.timerStartedAt as admin.firestore.Timestamp).toMillis();
               const elapsedSeconds = Math.max(0, Math.floor((serverStopTime - serverStartTime) / 1000));
               
-              const onCourtIds = [...(gameData.homeTeamOnCourtPlayerIds || []), ...(gameData.awayTeamOnCourtPlayerIds || [])];
-              onCourtIds.forEach(pId => {
-                  finalUpdates[`playerStats.${pId}.timePlayedSeconds`] = admin.firestore.FieldValue.increment(elapsedSeconds);
-              });
+              if (elapsedSeconds > 0) {
+                  const onCourtIds = [...(gameData.homeTeamOnCourtPlayerIds || []), ...(gameData.awayTeamOnCourtPlayerIds || [])];
+                  onCourtIds.forEach(pId => {
+                      finalUpdates[`playerStats.${pId}.timePlayedSeconds`] = admin.firestore.FieldValue.increment(elapsedSeconds);
+                  });
+              }
 
+              // This update should now be based on the calculated elapsedSeconds, not the potentially stale client-side `displayTime`.
               finalUpdates.periodTimeRemainingSeconds = (gameData.periodTimeRemainingSeconds || 0) - elapsedSeconds;
               finalUpdates.timerStartedAt = null;
           } else if (updates.isTimerRunning === true && !gameData.isTimerRunning) {
@@ -760,3 +764,5 @@ export async function substitutePlayer(
     return { success: false, error: error.message };
   }
 }
+
+    
