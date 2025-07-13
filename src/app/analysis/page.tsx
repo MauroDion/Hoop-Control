@@ -31,8 +31,8 @@ export default function AnalysisPage() {
       return;
     }
     if (!profile) {
-      setError("No se pudo cargar el perfil de usuario.");
       setLoading(false);
+      setError("No se pudo cargar el perfil de usuario.");
       return;
     }
 
@@ -69,7 +69,7 @@ export default function AnalysisPage() {
     loadPageData();
   }, [user, profile, authLoading, router]);
 
-  if (authLoading || loading || !user) {
+  if (authLoading || loading) {
     return (
       <div className="flex items-center justify-center min-h-[calc(100vh-10rem)]">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />

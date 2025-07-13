@@ -22,34 +22,23 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 
-type PageState = 'loading' | 'error' | 'success';
-
 export default function SeederPage() {
   const { user, profile, loading: authLoading } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
 
   const [isSeeding, setIsSeeding] = useState(false);
-  const [pageState, setPageState] = useState<PageState>('loading');
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (authLoading) {
-      setPageState('loading');
-      return;
-    }
+    if (authLoading) return;
     if (!user) {
       router.replace('/login?redirect=/admin/seeder');
       return;
     }
     
-    // Explicitly check for profile and profileTypeId
-    if (profile && profile.profileTypeId === 'super_admin') {
-      setPageState('success');
-    } else {
-      // This handles cases where profile is null, or profileType is not super_admin
+    if (!profile || profile.profileTypeId !== 'super_admin') {
       setError('Acceso Denegado. Solo los Super Admins pueden poblar la base de datos.');
-      setPageState('error');
     }
 
   }, [user, profile, authLoading, router]);
@@ -77,7 +66,7 @@ export default function SeederPage() {
     setIsSeeding(false);
   };
   
-  if (pageState === 'loading') {
+  if (authLoading || !profile) {
     return (
        <div className="flex items-center justify-center min-h-[calc(100vh-10rem)]">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -86,7 +75,7 @@ export default function SeederPage() {
     )
   }
 
-  if (pageState === 'error') {
+  if (error) {
      return (
         <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)] text-center">
             <AlertTriangle className="h-12 w-12 text-destructive mb-4" />

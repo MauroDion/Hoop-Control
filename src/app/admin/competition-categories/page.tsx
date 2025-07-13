@@ -1,9 +1,9 @@
+
 "use client";
 
 import React, { useEffect, useState, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
-import { getUserProfileById } from '@/lib/actions/users';
 import { getCompetitionCategories, deleteCompetitionCategory } from '@/lib/actions/competition-categories';
 import { getGameFormats } from '@/lib/actions/game-formats';
 import type { CompetitionCategory, GameFormat } from '@/types';
@@ -19,49 +19,47 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { useToast } from '@/hooks/use-toast';
 
 export default function ManageCategoriesPage() {
-  const { user, loading: authLoading } = useAuth();
+  const { user, profile, loading: authLoading } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
 
-  const [loading, setLoading] = useState(true);
+  const [loadingData, setLoadingData] = useState(true);
   const [categories, setCategories] = useState<CompetitionCategory[]>([]);
   const [gameFormats, setGameFormats] = useState<GameFormat[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<CompetitionCategory | null>(null);
 
-  const fetchData = useCallback(async (userId: string) => {
-    setLoading(true);
+  const fetchData = useCallback(async () => {
+    setLoadingData(true);
     setError(null);
     try {
-      const profile = await getUserProfileById(userId);
-      if (profile?.profileTypeId !== 'super_admin') {
-        throw new Error('Acceso Denegado. Debes ser Super Admin para ver esta página.');
-      }
-
       const [fetchedCategories, fetchedGameFormats] = await Promise.all([
           getCompetitionCategories(),
           getGameFormats()
       ]);
       setCategories(fetchedCategories);
       setGameFormats(fetchedGameFormats);
-
     } catch (err: any) {
       setError(err.message);
     } finally {
-      setLoading(false);
+      setLoadingData(false);
     }
   }, []);
 
   useEffect(() => {
-    if (!authLoading) {
-      if (!user) {
-        router.push('/login?redirect=/admin/competition-categories');
-      } else {
-        fetchData(user.uid);
-      }
+    if (authLoading) return;
+    if (!user) {
+      router.push('/login?redirect=/admin/competition-categories');
+      return;
     }
-  }, [user, authLoading, router, fetchData]);
+    if (profile?.profileTypeId !== 'super_admin') {
+      setError('Acceso Denegado. Debes ser Super Admin para ver esta página.');
+      setLoadingData(false);
+    } else {
+      fetchData();
+    }
+  }, [user, profile, authLoading, router, fetchData]);
   
   const handleEdit = (category: CompetitionCategory) => {
     setEditingCategory(category);
@@ -78,13 +76,13 @@ export default function ManageCategoriesPage() {
     const result = await deleteCompetitionCategory(categoryId);
     if (result.success) {
         toast({ title: "Categoría Eliminada", description: `La categoría "${categoryName}" ha sido eliminada.`});
-        fetchData(user.uid);
+        fetchData();
     } else {
         toast({ variant: "destructive", title: "Error al Eliminar", description: result.error });
     }
   }
 
-  if (authLoading || loading) {
+  if (authLoading || loadingData) {
     return (
       <div className="flex items-center justify-center min-h-[calc(100vh-10rem)]">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -116,9 +114,8 @@ export default function ManageCategoriesPage() {
             </DialogHeader>
             <CompetitionCategoryForm
               onFormSubmit={() => {
-                if (!user) return;
                 setIsFormOpen(false);
-                fetchData(user.uid);
+                fetchData();
               }}
               gameFormats={gameFormats}
               category={editingCategory}

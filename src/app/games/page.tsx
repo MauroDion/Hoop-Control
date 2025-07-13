@@ -22,21 +22,17 @@ export default function GamesPage() {
   const [games, setGames] = useState<Game[]>([]);
   const [error, setError] = useState<string | null>(null);
 
-  console.log("GamesPage: Renderizando. user:", !!user, "loading:", authLoading);
-  
   useEffect(() => {
-    console.log("GamesPage: useEffect disparado. user:", !!user, "loading:", authLoading);
     if (authLoading) {
       return;
     }
     if (!user) {
-      console.log("GamesPage: Usuario no autenticado, redirigiendo a login.");
       router.push('/login?redirect=/games');
       return;
     }
     if (!profile) {
-      setError("No se pudo cargar el perfil de usuario.");
       setLoading(false);
+      setError("No se pudo cargar el perfil de usuario.");
       return;
     }
 
@@ -44,15 +40,14 @@ export default function GamesPage() {
       setError(null);
       setLoading(true);
       try {
-        if (!profile.profileTypeId || !['coach', 'coordinator', 'club_admin', 'super_admin', 'parent_guardian'].includes(profile.profileTypeId)) {
+        if (!['coach', 'coordinator', 'club_admin', 'super_admin', 'parent_guardian'].includes(profile.profileTypeId!)) {
            throw new Error("Acceso Denegado. No tienes permisos para ver esta página.");
         }
         
         let fetchedGames: Game[] = [];
-        console.log(`GamesPage: Cargando partidos para el perfil: ${profile.profileTypeId}`);
         if (profile.profileTypeId === 'super_admin') {
             fetchedGames = await getAllGames();
-        } else if (['coordinator', 'club_admin'].includes(profile.profileTypeId)) {
+        } else if (['coordinator', 'club_admin'].includes(profile.profileTypeId!)) {
             fetchedGames = await getGamesByClub(profile.clubId || '');
         } else if (profile.profileTypeId === 'coach') {
             fetchedGames = await getGamesByCoach(user.uid);
@@ -63,7 +58,6 @@ export default function GamesPage() {
         const activeGames = fetchedGames.filter(game => game.status === 'scheduled' || game.status === 'inprogress');
         activeGames.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
         setGames(activeGames);
-        console.log(`GamesPage: Se encontraron ${activeGames.length} partidos activos.`);
 
       } catch (err: any) {
         console.error("GamesPage: Error cargando datos:", err);
@@ -75,7 +69,7 @@ export default function GamesPage() {
     loadPageData();
   }, [user, profile, authLoading, router]);
 
-  if (authLoading || loading || !user) {
+  if (authLoading || loading) {
     return (
       <div className="flex items-center justify-center min-h-[calc(100vh-10rem)]">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -101,7 +95,7 @@ export default function GamesPage() {
         <h1 className="text-4xl font-headline font-bold text-primary flex items-center">
           <CalendarClock className="mr-3 h-10 w-10" /> Partidos Programados
         </h1>
-        { profile && ['super_admin', 'club_admin', 'coordinator'].includes(profile.profileTypeId) && (
+        { profile && ['super_admin', 'club_admin', 'coordinator'].includes(profile.profileTypeId!) && (
             <Button asChild>
                 <Link href="/games/new">
                     <PlusCircle className="mr-2 h-5 w-5" /> Programar Partido

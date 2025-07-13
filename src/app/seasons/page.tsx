@@ -1,9 +1,9 @@
+
 "use client";
 
 import React, { useEffect, useState, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
-import { getUserProfileById } from '@/lib/actions/users';
 import { getSeasons } from '@/lib/actions/seasons';
 import { getAllTeams } from '@/lib/actions/teams';
 import { getCompetitionCategories } from '@/lib/actions/competition-categories';
@@ -24,27 +24,20 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 
 
 export default function ManageSeasonsPage() {
-  const { user, loading: authLoading } = useAuth();
+  const { user, profile, loading: authLoading } = useAuth();
   const router = useRouter();
 
-  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [loadingData, setLoadingData] = useState(true);
   const [seasons, setSeasons] = useState<Season[]>([]);
   const [allTeams, setAllTeams] = useState<Team[]>([]);
   const [allCategories, setAllCategories] = useState<CompetitionCategory[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
 
-  const fetchData = useCallback(async (userId: string) => {
-    setLoading(true);
+  const fetchData = useCallback(async () => {
+    setLoadingData(true);
     setError(null);
     try {
-      const profile = await getUserProfileById(userId);
-      if (profile?.profileTypeId !== 'super_admin') {
-        throw new Error('Acceso Denegado. Debes ser Super Admin para ver esta página.');
-      }
-      setIsSuperAdmin(true);
-
       const [fetchedSeasons, fetchedTeams, fetchedCategories] = await Promise.all([
         getSeasons(),
         getAllTeams(),
@@ -57,23 +50,27 @@ export default function ManageSeasonsPage() {
     } catch (err: any) {
       setError(err.message);
     } finally {
-      setLoading(false);
+      setLoadingData(false);
     }
   }, []);
 
   useEffect(() => {
-    if (!authLoading) {
-      if (!user) {
-        router.push('/login?redirect=/seasons');
-      } else {
-        fetchData(user.uid);
-      }
+    if (authLoading) return;
+    if (!user) {
+      router.push('/login?redirect=/seasons');
+      return;
     }
-  }, [user, authLoading, router, fetchData]);
+     if (profile?.profileTypeId !== 'super_admin') {
+      setError('Acceso Denegado. Debes ser Super Admin para ver esta página.');
+      setLoadingData(false);
+    } else {
+       fetchData();
+    }
+  }, [user, profile, authLoading, router, fetchData]);
 
   const getCategoryName = (id: string) => allCategories.find(c => c.id === id)?.name || id;
 
-  if (loading || authLoading) {
+  if (authLoading || loadingData) {
     return (
       <div className="flex items-center justify-center min-h-[calc(100vh-10rem)]">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -107,10 +104,8 @@ export default function ManageSeasonsPage() {
             allTeams={allTeams}
             allCategories={allCategories}
             onFormSubmit={() => {
-              if (user) {
-                setIsFormOpen(false);
-                fetchData(user.uid);
-              }
+              setIsFormOpen(false);
+              fetchData();
             }}
           />
         </DialogContent>

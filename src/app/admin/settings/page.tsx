@@ -1,9 +1,9 @@
+
 "use client";
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
-import { getUserProfileById } from '@/lib/actions/users';
 import { saveBrandingSettings, getBrandingSettings } from '@/lib/actions/admin/settings';
 import type { BrandingSettings } from '@/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -80,47 +80,42 @@ const LogoUploader = ({ title, currentLogo, onSave }: { title: string, currentLo
 };
 
 export default function SettingsPage() {
-    const { user, loading: authLoading } = useAuth();
+    const { user, profile, loading: authLoading } = useAuth();
     const router = useRouter();
     const { toast } = useToast();
     
-    const [pageState, setPageState] = useState<'loading' | 'error' | 'success'>('loading');
     const [error, setError] = useState<string | null>(null);
     const [isSavingAppName, setIsSavingAppName] = useState(false);
-
     const [settings, setSettings] = useState<BrandingSettings>({});
+    const [dataLoading, setDataLoading] = useState(true);
 
     const loadSettings = useCallback(async () => {
+        setDataLoading(true);
         try {
             const settings = await getBrandingSettings();
             setSettings(settings);
         } catch (err: any) {
             toast({ variant: 'destructive', title: 'Error', description: 'No se pudieron cargar los ajustes actuales.' });
+        } finally {
+            setDataLoading(false);
         }
     }, [toast]);
     
     useEffect(() => {
-        if (!authLoading) {
-            if (!user) {
-                router.push('/login?redirect=/admin/settings');
-                return;
-            }
+        if (authLoading) return;
             
-            getUserProfileById(user.uid).then(profile => {
-                if (profile?.profileTypeId === 'super_admin') {
-                    setPageState('success');
-                    loadSettings();
-                } else {
-                    setError('Acceso Denegado. Debes ser Super Admin para ver esta página.');
-                    setPageState('error');
-                }
-            }).catch(() => {
-                setError('Error al verificar permisos.');
-                setPageState('error');
-            });
+        if (!user) {
+            router.push('/login?redirect=/admin/settings');
+            return;
+        }
+        
+        if (!profile || profile.profileTypeId !== 'super_admin') {
+            setError('Acceso Denegado. Debes ser Super Admin para ver esta página.');
+        } else {
+            loadSettings();
         }
 
-    }, [user, authLoading, router, loadSettings]);
+    }, [user, profile, authLoading, router, loadSettings]);
 
     const handleSaveSetting = async (setting: Partial<BrandingSettings>) => {
         const result = await saveBrandingSettings(setting);
@@ -143,7 +138,7 @@ export default function SettingsPage() {
         setIsSavingAppName(false);
     }
     
-    if (pageState === 'loading' || authLoading) {
+    if (authLoading || dataLoading) {
          return (
             <div className="flex items-center justify-center min-h-[calc(100vh-10rem)]">
                 <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -152,7 +147,7 @@ export default function SettingsPage() {
          );
     }
     
-    if (pageState === 'error') {
+    if (error) {
          return (
             <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)] text-center">
                 <AlertTriangle className="h-12 w-12 text-destructive mb-4" />

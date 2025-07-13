@@ -5,7 +5,6 @@ import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 import { getAllUserProfiles, updateUserProfileStatus } from '@/lib/actions/admin/users';
-import { getUserProfileById } from '@/lib/actions/users';
 import { getApprovedClubs } from '@/lib/actions/clubs';
 import { getProfileTypeOptions } from '@/lib/actions/profile-types';
 import type { UserFirestoreProfile, UserProfileAdminView, Club, ProfileTypeOption, UserProfileStatus } from '@/types';
@@ -29,21 +28,19 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 
-type PageState = 'loading' | 'error' | 'success';
-
 export default function UserManagementPage() {
-  const { user, loading: authLoading } = useAuth();
+  const { user, profile: userProfile, loading: authLoading } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
 
-  const [pageState, setPageState] = useState<PageState>('loading');
   const [profiles, setProfiles] = useState<UserProfileAdminView[]>([]);
   const [clubs, setClubs] = useState<Club[]>([]);
   const [profileTypes, setProfileTypes] = useState<ProfileTypeOption[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [loadingData, setLoadingData] = useState(true);
 
   const loadData = useCallback(async () => {
-    // No establecer 'loading' aquí si ya estamos cargando desde el efecto principal
+    setLoadingData(true);
     try {
       const [fetchedProfiles, fetchedClubs, fetchedProfileTypes] = await Promise.all([
         getAllUserProfiles(),
@@ -54,45 +51,37 @@ export default function UserManagementPage() {
       setProfiles(fetchedProfiles);
       setClubs(fetchedClubs);
       setProfileTypes(fetchedProfileTypes);
-      setPageState('success');
     } catch (err: any) {
       setError(err.message || "Fallo al cargar los datos de administración.");
-      setPageState('error');
       toast({ variant: "destructive", title: "Error de Carga", description: err.message });
+    } finally {
+      setLoadingData(false);
     }
   }, [toast]);
 
   useEffect(() => {
-    if (authLoading) {
-      setPageState('loading');
-      return;
-    }
+    if (authLoading) return;
+    
     if (!user) {
       router.replace('/login?redirect=/admin/user-management');
       return;
     }
     
-    setPageState('loading');
-    getUserProfileById(user.uid).then(profile => {
-      if (!profile || profile.profileTypeId !== 'super_admin') {
-        setError("Acceso Denegado. Debes ser Super Admin para ver esta página.");
-        setPageState('error');
-      } else {
-        loadData();
-      }
-    }).catch(err => {
-        setError(err.message || "Error al verificar permisos.");
-        setPageState('error');
-    });
+    if (!userProfile || userProfile.profileTypeId !== 'super_admin') {
+      setError("Acceso Denegado. Debes ser Super Admin para ver esta página.");
+      setLoadingData(false);
+    } else {
+      loadData();
+    }
 
-  }, [user, authLoading, router, loadData]);
+  }, [user, userProfile, authLoading, router, loadData]);
 
 
   const handleStatusUpdate = async (uid: string, newStatus: UserProfileStatus, displayName: string | null) => {
     const result = await updateUserProfileStatus(uid, newStatus);
     if (result.success) {
       toast({ title: "Estado Actualizado", description: `El estado del usuario ${displayName || uid} cambió a ${newStatus}.` });
-      loadData(); // Recargar todos los datos para mantener consistencia
+      loadData();
     } else {
       toast({ variant: "destructive", title: "Fallo al Actualizar", description: result.error });
     }
@@ -111,7 +100,7 @@ export default function UserManagementPage() {
   }, [profiles, clubs, profileTypes]);
 
 
-  if (pageState === 'loading' || authLoading) {
+  if (authLoading || loadingData) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)]">
         <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
@@ -120,7 +109,7 @@ export default function UserManagementPage() {
     );
   }
 
-  if (pageState === 'error') {
+  if (error) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)] text-center p-6">
         <AlertTriangle className="h-12 w-12 text-destructive mb-4" />
@@ -149,8 +138,8 @@ export default function UserManagementPage() {
           </h1>
           <p className="text-lg text-muted-foreground mt-1">Aprobar o rechazar nuevos registros de usuarios.</p>
         </div>
-        <Button onClick={loadData} disabled={pageState === 'loading'} variant="outline" className="mt-4 sm:mt-0">
-          <RefreshCw className={`mr-2 h-4 w-4 ${pageState === 'loading' ? 'animate-spin' : ''}`} />
+        <Button onClick={loadData} disabled={loadingData} variant="outline" className="mt-4 sm:mt-0">
+          <RefreshCw className={`mr-2 h-4 w-4 ${loadingData ? 'animate-spin' : ''}`} />
           Actualizar Lista
         </Button>
       </div>
@@ -314,5 +303,3 @@ export default function UserManagementPage() {
     </div>
   );
 }
-
-    

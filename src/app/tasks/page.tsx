@@ -31,7 +31,7 @@ export default function TasksPage() {
     async function fetchTasks() {
       try {
         setLoading(true);
-        const fetchedTasks = await getTasks(user!.uid); // Pass user.uid to fetch tasks for this user
+        const fetchedTasks = await getTasks(user!.uid);
         setTasks(fetchedTasks);
       } catch (e: any) {
         console.error("Failed to fetch tasks:", e);
@@ -44,7 +44,7 @@ export default function TasksPage() {
     
   }, [user, authLoading, router]);
 
-  if (authLoading || loading || !user) {
+  if (authLoading || loading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)] text-center p-6">
         <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />

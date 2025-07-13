@@ -19,12 +19,8 @@ export default function DashboardPage() {
   const [isCreatingGame, setIsCreatingGame] = React.useState(false);
   const [isFinishingGames, setIsFinishingGames] = React.useState(false);
 
-  console.log("DashboardPage: Renderizando. user:", !!user, "loading:", authLoading);
-
   useEffect(() => {
-    console.log("DashboardPage: useEffect disparado. user:", !!user, "loading:", authLoading);
     if (!authLoading && !user) {
-      console.log("DashboardPage: Usuario no autenticado, redirigiendo a login.");
       router.push('/login?redirect=/dashboard');
     }
   }, [authLoading, user, router]);

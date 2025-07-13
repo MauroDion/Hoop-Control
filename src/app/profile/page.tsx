@@ -19,7 +19,7 @@ import { UserCircle, Edit3, ShieldAlert, AlertTriangle, Loader2 } from 'lucide-r
 
 const profileSchema = z.object({
   displayName: z.string().min(2, "El nombre debe tener al menos 2 caracteres.").optional(),
-  email: z.string().email().optional(), // El email normalmente no se cambia aquí
+  email: z.string().email().optional(),
 });
 
 const passwordSchema = z.object({

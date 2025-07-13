@@ -1,10 +1,10 @@
+
 "use client";
 
 import React, { useEffect, useState, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { getUserProfileById } from '@/lib/actions/users';
 import { getApprovedClubs, updateClubStatus } from '@/lib/actions/clubs';
 import type { Club } from '@/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -27,50 +27,47 @@ import {
 } from "@/components/ui/alert-dialog";
 
 export default function ManageClubsPage() {
-  const { user, loading: authLoading } = useAuth();
+  const { user, profile, loading: authLoading } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
 
-  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [loadingData, setLoadingData] = useState(true);
   const [clubs, setClubs] = useState<Club[]>([]);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchData = useCallback(async (userId: string) => {
-    setLoading(true);
+  const fetchData = useCallback(async () => {
+    setLoadingData(true);
     setError(null);
     try {
-      const profile = await getUserProfileById(userId);
-      if (profile?.profileTypeId !== 'super_admin') {
-        throw new Error('Access Denied. You must be a Super Admin to view this page.');
-      }
-      setIsSuperAdmin(true);
-
-      const fetchedClubs = await getApprovedClubs(); // This now fetches all clubs
+      const fetchedClubs = await getApprovedClubs();
       setClubs(fetchedClubs);
 
     } catch (err: any) {
       setError(err.message);
     } finally {
-      setLoading(false);
+      setLoadingData(false);
     }
   }, []);
 
   useEffect(() => {
-    if (!authLoading) {
-      if (!user) {
-        router.push('/login?redirect=/clubs');
-      } else {
-        fetchData(user.uid);
-      }
+    if (authLoading) return;
+    if (!user) {
+      router.push('/login?redirect=/clubs');
+      return;
     }
-  }, [user, authLoading, router, fetchData]);
+    if (profile?.profileTypeId !== 'super_admin') {
+      setError('Acceso Denegado. Debes ser un Super Admin para ver esta página.');
+      setLoadingData(false);
+    } else {
+       fetchData();
+    }
+  }, [user, profile, authLoading, router, fetchData]);
 
   const handleStatusUpdate = async (clubId: string, clubName: string, newStatus: boolean) => {
     const result = await updateClubStatus(clubId, newStatus);
     if (result.success) {
       toast({ title: "Status Updated", description: `Club ${clubName} has been ${newStatus ? 'approved' : 'un-approved'}.` });
-      if (user) fetchData(user.uid);
+      if (user) fetchData();
     } else {
       toast({ variant: "destructive", title: "Update Failed", description: result.error });
     }
@@ -79,10 +76,10 @@ export default function ManageClubsPage() {
   const getStatusBadgeVariant = (approved?: boolean): "default" | "destructive" | "secondary" => {
     if (approved === true) return 'default';
     if (approved === false) return 'destructive';
-    return 'secondary'; // for undefined/null status
+    return 'secondary';
   };
 
-  if (loading || authLoading) {
+  if (authLoading || loadingData) {
     return (
       <div className="flex items-center justify-center min-h-[calc(100vh-10rem)]">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -225,7 +222,7 @@ export default function ManageClubsPage() {
           <CardDescription>Fill in the details to register a new club. It will require approval.</CardDescription>
         </CardHeader>
         <CardContent>
-          <ClubForm onFormSubmit={() => { if(user) fetchData(user.uid) }} />
+          <ClubForm onFormSubmit={() => { if(user) fetchData() }} />
         </CardContent>
       </Card>
     </div>
