@@ -10,7 +10,6 @@ export async function middleware(request: NextRequest) {
   const sessionCookie = request.cookies.get('session')?.value;
   const isAuthed = !!sessionCookie;
 
-  // Allow static assets, images, and API routes to pass through without checks
   if (pathname.startsWith('/_next') || pathname.startsWith('/api') || pathname.includes('.')) {
     return NextResponse.next();
   }
@@ -18,18 +17,15 @@ export async function middleware(request: NextRequest) {
   const isPublicOnlyPath = PUBLIC_ONLY_PATHS.includes(pathname);
   const isOnboardingPath = ONBOARDING_PATHS.some(p => pathname.startsWith(p));
   const isProtectedRoute = PROTECTED_PATH_PREFIXES.some(p => pathname.startsWith(p)) && !isOnboardingPath;
-  const isRootPath = pathname === '/';
-
+  
   if (isAuthed) {
-    // If the user is authenticated, redirect them from public-only pages
-    // and the root page to the dashboard.
-    // Onboarding paths are allowed for authenticated users who need them.
-    if (isPublicOnlyPath || isRootPath) {
+    // If authenticated, redirect away from public-only pages like login/register.
+    // Allow access to onboarding paths.
+    if (isPublicOnlyPath) {
         return NextResponse.redirect(new URL('/dashboard', request.url));
     }
-  } else { // Not authenticated
-    // If the user is not authenticated, redirect them from protected routes
-    // to the login page.
+  } else { 
+    // If not authenticated, protect the routes that require a logged-in user.
     if (isProtectedRoute) {
         const loginUrl = new URL('/login', request.url);
         loginUrl.searchParams.set('redirect', pathname);
@@ -37,11 +33,9 @@ export async function middleware(request: NextRequest) {
     }
   }
   
-  // Allow the request to proceed if none of the above conditions are met.
   return NextResponse.next();
 }
 
 export const config = {
-  // This matcher ensures the middleware runs on all paths except for the ones specified.
   matcher: ['/((?!api|_next/static|_next/image|favicon.ico).*)'],
 };
