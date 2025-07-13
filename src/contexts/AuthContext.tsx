@@ -5,7 +5,7 @@ import { onIdTokenChanged, signOut as firebaseSignOut, User } from 'firebase/aut
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { auth } from '@/lib/firebase/client';
-import { getUserProfileById } from '@/lib/actions/users';
+import { getUserProfileById } from '@/lib/actions/users/get-user-profile';
 import { getBrandingSettings } from '@/lib/actions/admin/settings';
 import type { UserFirestoreProfile, BrandingSettings } from '@/types';
 import { Skeleton } from '@/components/ui/skeleton';
