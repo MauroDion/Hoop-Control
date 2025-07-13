@@ -12,15 +12,15 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Clock, ShieldX, Loader2 } from "lucide-react";
 
 
-export default function LoginPage({ searchParams }: { searchParams: { [key: string]: string | string[] | undefined } }) {
+export default function LoginPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
   const nextSearchParams = useSearchParams();
   const redirectUrl = nextSearchParams.get("redirect") || "/dashboard";
-  const status = searchParams?.status;
+  const status = nextSearchParams.get("status");
 
   useEffect(() => {
-    // If auth state is resolved (not loading) and a user exists, redirect them.
+    // Si la autenticación no está cargando y ya hay un usuario, redirige.
     if (!loading && user) {
       router.push(redirectUrl);
     }
@@ -54,7 +54,8 @@ export default function LoginPage({ searchParams }: { searchParams: { [key: stri
     }
   };
 
-  // If loading or user is detected, show a loading state to prevent flickering of the form
+  // Si la autenticación está en proceso o si ya existe un usuario,
+  // muestra el estado de carga y espera a que el useEffect haga la redirección.
   if (loading || user) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)]">
