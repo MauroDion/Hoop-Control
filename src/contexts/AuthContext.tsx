@@ -1,3 +1,4 @@
+
 'use client';
 
 import { onIdTokenChanged, signOut as firebaseSignOut, User } from 'firebase/auth';
@@ -36,13 +37,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     } finally {
       setUser(null);
       setProfile(null);
-      // Ensure redirect happens after state is cleared
       router.push('/login');
     }
   }, [router]);
 
   useEffect(() => {
-    // Fetch branding settings once on initial load
     getBrandingSettings().then(setBranding);
 
     const unsubscribe = onIdTokenChanged(auth, async (firebaseUser) => {
@@ -52,25 +51,29 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         const userProfile = await getUserProfileById(firebaseUser.uid);
         setProfile(userProfile);
 
-        // Logic for redirection based on profile status
         if (userProfile) {
           if (userProfile.status !== 'approved') {
             await logout();
-            // The login page will show the status message based on the query param
             router.push(`/login?status=${userProfile.status}`);
-            return; // Stop further execution
+            return; 
           }
+
           if (!userProfile.onboardingCompleted) {
-             const isSuperAdmin = userProfile.profileTypeId === 'super_admin';
-              if (isSuperAdmin) {
-                // Super admins are considered onboarded by default
-              } else if (userProfile.profileTypeId === 'parent_guardian' && !pathname.startsWith('/profile/my-children')) {
-                router.push('/profile/my-children');
-              }
+            // This is the main redirection logic for incomplete profiles.
+            // If onboarding is not completed, force the user to the correct page.
+            
+            const isParentOnboarding = userProfile.profileTypeId === 'parent_guardian' && !pathname.startsWith('/profile/my-children');
+            const isGeneralOnboarding = !userProfile.profileTypeId && !pathname.startsWith('/profile/complete-registration');
+
+            if (isParentOnboarding) {
+              router.push('/profile/my-children');
+            } else if (isGeneralOnboarding) {
+              router.push('/profile/complete-registration');
+            }
           }
         } else {
-          // This case is for a brand new user who just signed up via email/password
-          // and needs to complete their profile information.
+          // This handles the case where the Firestore profile hasn't been created yet,
+          // which can happen for a brand new user.
           if (!pathname.startsWith('/profile/complete-registration')) {
             router.push('/profile/complete-registration');
           }
@@ -85,7 +88,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     return () => unsubscribe();
   }, [logout, pathname, router]);
 
-  // This loading screen is crucial to prevent flicker or showing protected content prematurely
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center h-screen">
