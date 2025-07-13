@@ -488,7 +488,6 @@ export async function updateLiveGameState(
                   });
               }
 
-              // This update should now be based on the calculated elapsedSeconds, not the potentially stale client-side `displayTime`.
               finalUpdates.periodTimeRemainingSeconds = (gameData.periodTimeRemainingSeconds || 0) - elapsedSeconds;
               finalUpdates.timerStartedAt = null;
           } else if (updates.isTimerRunning === true && !gameData.isTimerRunning) {
@@ -601,6 +600,28 @@ export async function assignScorer(
     }
 }
 
+const calculatePir = (stats: PlayerGameStats): number => {
+    const points = stats.points || 0;
+    const rebounds = (stats.reb_def || 0) + (stats.reb_off || 0);
+    const assists = stats.assists || 0;
+    const steals = stats.steals || 0;
+    const blocks = stats.blocks || 0;
+    const foulsDrawn = stats.fouls_received || 0;
+
+    const missedFG = (stats.shots_attempted_2p || 0) - (stats.shots_made_2p || 0) + 
+                     ((stats.shots_attempted_3p || 0) - (stats.shots_made_3p || 0));
+    const missedFT = (stats.shots_attempted_1p || 0) - (stats.shots_made_1p || 0);
+    const turnovers = stats.turnovers || 0;
+    const shotsRejected = stats.blocks_against || 0;
+    const foulsCommitted = stats.fouls || 0;
+    
+    const positive = points + rebounds + assists + steals + blocks + foulsDrawn;
+    const negative = missedFG + missedFT + turnovers + shotsRejected + foulsCommitted;
+
+    return positive - negative;
+};
+
+
 export async function recordGameEvent(
   gameId: string,
   userId: string,
@@ -656,11 +677,34 @@ export async function recordGameEvent(
                 foul: () => { finalUpdates[`${pStatsPrefix}.fouls`]=admin.firestore.FieldValue.increment(1); finalUpdates[`${tStatsPrefix}.fouls`]=admin.firestore.FieldValue.increment(1); },
                 block_against: () => { finalUpdates[`${pStatsPrefix}.blocks_against`]=admin.firestore.FieldValue.increment(1); finalUpdates[`${tStatsPrefix}.blocksAgainst`]=admin.firestore.FieldValue.increment(1); },
                 foul_received: () => { finalUpdates[`${pStatsPrefix}.fouls_received`]=admin.firestore.FieldValue.increment(1); finalUpdates[`${teamId === 'home' ? 'away' : 'home'}TeamStats.fouls`]=admin.firestore.FieldValue.increment(1); },
-                team_foul: () => { finalUpdates[`${tStatsPrefix}.fouls`]=admin.firestore.FieldValue.increment(1); },
-                timeout: () => { finalUpdates[`${tStatsPrefix}.timeouts`]=admin.firestore.FieldValue.increment(1); },
             };
             
-            if (actionHandlers[action]) { actionHandlers[action]!(); }
+            if (actionHandlers[action]) {
+                actionHandlers[action]!();
+            }
+
+            const currentStats = gameData.playerStats?.[playerId] || { ...initialPlayerStats };
+            let pirChange = 0;
+            switch(action) {
+                case 'shot_made_1p': pirChange += 1; break;
+                case 'shot_made_2p': pirChange += 2; break;
+                case 'shot_made_3p': pirChange += 3; break;
+                case 'shot_miss_1p': pirChange -= 1; break;
+                case 'shot_miss_2p': pirChange -= 1; break;
+                case 'shot_miss_3p': pirChange -= 1; break;
+                case 'rebound_defensive': pirChange += 1; break;
+                case 'rebound_offensive': pirChange += 1; break;
+                case 'assist': pirChange += 1; break;
+                case 'steal': pirChange += 1; break;
+                case 'block': pirChange += 1; break;
+                case 'turnover': pirChange -= 1; break;
+                case 'foul': pirChange -= 1; break;
+                case 'block_against': pirChange -= 1; break;
+                case 'foul_received': pirChange += 1; break;
+            }
+            if (pirChange !== 0) {
+                 finalUpdates[`${pStatsPrefix}.pir`] = admin.firestore.FieldValue.increment(pirChange);
+            }
 
             if (action.startsWith('shot_made')) {
                 const points = parseInt(action.charAt(10), 10);
