@@ -100,24 +100,25 @@ export default function SettingsPage() {
     }, [toast]);
     
     useEffect(() => {
-        if (authLoading) return;
-        if (!user) {
-            router.replace('/login?redirect=/admin/settings');
-            return;
-        }
-        
-        getUserProfileById(user.uid).then(profile => {
-            if (profile?.profileTypeId === 'super_admin') {
-                setPageState('success');
-                loadSettings();
-            } else {
-                setError('Acceso Denegado. Debes ser Super Admin para ver esta página.');
-                setPageState('error');
+        if (!authLoading) {
+            if (!user) {
+                router.push('/login?redirect=/admin/settings');
+                return;
             }
-        }).catch(() => {
-            setError('Error al verificar permisos.');
-            setPageState('error');
-        });
+            
+            getUserProfileById(user.uid).then(profile => {
+                if (profile?.profileTypeId === 'super_admin') {
+                    setPageState('success');
+                    loadSettings();
+                } else {
+                    setError('Acceso Denegado. Debes ser Super Admin para ver esta página.');
+                    setPageState('error');
+                }
+            }).catch(() => {
+                setError('Error al verificar permisos.');
+                setPageState('error');
+            });
+        }
 
     }, [user, authLoading, router, loadSettings]);
 
@@ -142,7 +143,7 @@ export default function SettingsPage() {
         setIsSavingAppName(false);
     }
     
-    if (pageState === 'loading') {
+    if (pageState === 'loading' || authLoading) {
          return (
             <div className="flex items-center justify-center min-h-[calc(100vh-10rem)]">
                 <Loader2 className="h-12 w-12 animate-spin text-primary" />

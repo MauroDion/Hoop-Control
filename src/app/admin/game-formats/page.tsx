@@ -27,13 +27,11 @@ export default function ManageGameFormatsPage() {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingFormat, setEditingFormat] = useState<GameFormat | null>(null);
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (userId: string) => {
     setLoading(true);
     setError(null);
     try {
-        if (!user) throw new Error("Autenticación requerida.");
-        
-      const profile = await getUserProfileById(user.uid);
+      const profile = await getUserProfileById(userId);
       if (profile?.profileTypeId !== 'super_admin') {
         throw new Error('Acceso Denegado. Debes ser Super Admin para ver esta página.');
       }
@@ -45,14 +43,14 @@ export default function ManageGameFormatsPage() {
     } finally {
       setLoading(false);
     }
-  }, [user]);
+  }, []);
 
   useEffect(() => {
     if (!authLoading) {
       if (!user) {
-        router.replace('/login?redirect=/admin/game-formats');
+        router.push('/login?redirect=/admin/game-formats');
       } else {
-        fetchData();
+        fetchData(user.uid);
       }
     }
   }, [user, authLoading, router, fetchData]);
@@ -68,17 +66,18 @@ export default function ManageGameFormatsPage() {
   }
 
   const handleDelete = async (formatId: string, formatName: string) => {
+    if (!user) return;
     const result = await deleteGameFormat(formatId);
     if (result.success) {
         toast({ title: "Formato Eliminado", description: `El formato "${formatName}" ha sido eliminado.`});
-        fetchData();
+        fetchData(user.uid);
     } else {
         toast({ variant: "destructive", title: "Error al Eliminar", description: result.error });
     }
   }
 
 
-  if (loading || authLoading) {
+  if (authLoading || loading) {
     return (
       <div className="flex items-center justify-center min-h-[calc(100vh-10rem)]">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -110,8 +109,9 @@ export default function ManageGameFormatsPage() {
             </DialogHeader>
             <GameFormatForm
               onFormSubmit={() => {
+                if (!user) return;
                 setIsFormOpen(false);
-                fetchData();
+                fetchData(user.uid);
               }}
               format={editingFormat}
             />

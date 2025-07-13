@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useEffect, useState, useCallback } from 'react';
@@ -37,14 +36,11 @@ export default function ManageClubsPage() {
   const [clubs, setClubs] = useState<Club[]>([]);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (userId: string) => {
     setLoading(true);
     setError(null);
     try {
-      if (!user) {
-        throw new Error("Authentication required.");
-      }
-      const profile = await getUserProfileById(user.uid);
+      const profile = await getUserProfileById(userId);
       if (profile?.profileTypeId !== 'super_admin') {
         throw new Error('Access Denied. You must be a Super Admin to view this page.');
       }
@@ -58,14 +54,14 @@ export default function ManageClubsPage() {
     } finally {
       setLoading(false);
     }
-  }, [user]);
+  }, []);
 
   useEffect(() => {
     if (!authLoading) {
       if (!user) {
-        router.replace('/login?redirect=/clubs');
+        router.push('/login?redirect=/clubs');
       } else {
-        fetchData();
+        fetchData(user.uid);
       }
     }
   }, [user, authLoading, router, fetchData]);
@@ -74,7 +70,7 @@ export default function ManageClubsPage() {
     const result = await updateClubStatus(clubId, newStatus);
     if (result.success) {
       toast({ title: "Status Updated", description: `Club ${clubName} has been ${newStatus ? 'approved' : 'un-approved'}.` });
-      fetchData(); // Refresh data
+      if (user) fetchData(user.uid);
     } else {
       toast({ variant: "destructive", title: "Update Failed", description: result.error });
     }
@@ -229,7 +225,7 @@ export default function ManageClubsPage() {
           <CardDescription>Fill in the details to register a new club. It will require approval.</CardDescription>
         </CardHeader>
         <CardContent>
-          <ClubForm onFormSubmit={fetchData} />
+          <ClubForm onFormSubmit={() => { if(user) fetchData(user.uid) }} />
         </CardContent>
       </Card>
     </div>

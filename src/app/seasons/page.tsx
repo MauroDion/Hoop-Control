@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useEffect, useState, useCallback } from 'react';
@@ -36,13 +35,11 @@ export default function ManageSeasonsPage() {
   const [error, setError] = useState<string | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (userId: string) => {
     setLoading(true);
     setError(null);
     try {
-      if (!user) throw new Error("Autenticación requerida.");
-      
-      const profile = await getUserProfileById(user.uid);
+      const profile = await getUserProfileById(userId);
       if (profile?.profileTypeId !== 'super_admin') {
         throw new Error('Acceso Denegado. Debes ser Super Admin para ver esta página.');
       }
@@ -62,14 +59,14 @@ export default function ManageSeasonsPage() {
     } finally {
       setLoading(false);
     }
-  }, [user]);
+  }, []);
 
   useEffect(() => {
     if (!authLoading) {
       if (!user) {
-        router.replace('/login?redirect=/seasons');
+        router.push('/login?redirect=/seasons');
       } else {
-        fetchData();
+        fetchData(user.uid);
       }
     }
   }, [user, authLoading, router, fetchData]);
@@ -110,8 +107,10 @@ export default function ManageSeasonsPage() {
             allTeams={allTeams}
             allCategories={allCategories}
             onFormSubmit={() => {
-              setIsFormOpen(false);
-              fetchData();
+              if (user) {
+                setIsFormOpen(false);
+                fetchData(user.uid);
+              }
             }}
           />
         </DialogContent>

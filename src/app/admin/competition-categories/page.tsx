@@ -30,13 +30,11 @@ export default function ManageCategoriesPage() {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<CompetitionCategory | null>(null);
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (userId: string) => {
     setLoading(true);
     setError(null);
     try {
-        if (!user) throw new Error("Autenticación requerida.");
-        
-      const profile = await getUserProfileById(user.uid);
+      const profile = await getUserProfileById(userId);
       if (profile?.profileTypeId !== 'super_admin') {
         throw new Error('Acceso Denegado. Debes ser Super Admin para ver esta página.');
       }
@@ -53,14 +51,14 @@ export default function ManageCategoriesPage() {
     } finally {
       setLoading(false);
     }
-  }, [user]);
+  }, []);
 
   useEffect(() => {
     if (!authLoading) {
       if (!user) {
-        router.replace('/login?redirect=/admin/competition-categories');
+        router.push('/login?redirect=/admin/competition-categories');
       } else {
-        fetchData();
+        fetchData(user.uid);
       }
     }
   }, [user, authLoading, router, fetchData]);
@@ -76,16 +74,17 @@ export default function ManageCategoriesPage() {
   }
 
   const handleDelete = async (categoryId: string, categoryName: string) => {
+    if (!user) return;
     const result = await deleteCompetitionCategory(categoryId);
     if (result.success) {
         toast({ title: "Categoría Eliminada", description: `La categoría "${categoryName}" ha sido eliminada.`});
-        fetchData();
+        fetchData(user.uid);
     } else {
         toast({ variant: "destructive", title: "Error al Eliminar", description: result.error });
     }
   }
 
-  if (loading || authLoading) {
+  if (authLoading || loading) {
     return (
       <div className="flex items-center justify-center min-h-[calc(100vh-10rem)]">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -117,8 +116,9 @@ export default function ManageCategoriesPage() {
             </DialogHeader>
             <CompetitionCategoryForm
               onFormSubmit={() => {
+                if (!user) return;
                 setIsFormOpen(false);
-                fetchData();
+                fetchData(user.uid);
               }}
               gameFormats={gameFormats}
               category={editingCategory}
