@@ -9,7 +9,8 @@ import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { createTestGame, finishAllTestGames } from '@/lib/actions/games';
 import { useToast } from '@/hooks/use-toast';
-import React from 'react';
+import React, { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 
 // Dummy data
 const summaryData = {
@@ -27,9 +28,16 @@ const bcsjdApiSampleData = [
 
 export default function DashboardPage() {
   const { user, profile, loading: authLoading } = useAuth();
+  const router = useRouter();
   const { toast } = useToast();
   const [isCreatingGame, setIsCreatingGame] = React.useState(false);
   const [isFinishingGames, setIsFinishingGames] = React.useState(false);
+
+  useEffect(() => {
+    if (!authLoading && !user) {
+      router.push('/login?redirect=/dashboard');
+    }
+  }, [authLoading, user, router]);
 
   const handleCreateTestGame = async () => {
     if (!user) return;

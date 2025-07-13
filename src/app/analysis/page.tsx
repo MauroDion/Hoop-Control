@@ -28,7 +28,7 @@ export default function AnalysisPage() {
       return;
     }
     if (!user) {
-      router.replace('/login?redirect=/analysis');
+      router.push('/login?redirect=/analysis');
       return;
     }
     if (!profile) {
@@ -70,7 +70,7 @@ export default function AnalysisPage() {
     loadPageData();
   }, [user, profile, authLoading, router]);
 
-  if (loading || authLoading) {
+  if (authLoading || loading || !user) {
     return (
       <div className="flex items-center justify-center min-h-[calc(100vh-10rem)]">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />

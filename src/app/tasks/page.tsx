@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useEffect, useState } from 'react';
@@ -19,41 +20,33 @@ export default function TasksPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Client-side guard: If auth is resolved and there is no user, redirect.
-    if (!authLoading && !user) {
-      router.replace('/login?redirect=/tasks');
+    if (authLoading) {
+      setLoading(true);
+      return;
+    }
+    if (!user) {
+      router.push('/login?redirect=/tasks');
       return;
     }
     
-    if (user) {
-       async function fetchTasks() {
-        try {
-          setLoading(true);
-          const fetchedTasks = await getTasks(user.uid); // Pass user.uid to fetch tasks for this user
-          setTasks(fetchedTasks);
-        } catch (e: any) {
-          console.error("Failed to fetch tasks:", e);
-          setError(e.message || "No se pudieron cargar las tareas. Por favor, inténtalo de nuevo más tarde.");
-        } finally {
-          setLoading(false);
-        }
+    async function fetchTasks() {
+      try {
+        setLoading(true);
+        const fetchedTasks = await getTasks(user!.uid); // Pass user.uid to fetch tasks for this user
+        setTasks(fetchedTasks);
+      } catch (e: any) {
+        console.error("Failed to fetch tasks:", e);
+        setError(e.message || "No se pudieron cargar las tareas. Por favor, inténtalo de nuevo más tarde.");
+      } finally {
+        setLoading(false);
       }
-      fetchTasks();
     }
+    fetchTasks();
+    
   }, [user, authLoading, router]);
 
-  if (authLoading || (!user && !error)) {
+  if (authLoading || loading || !user) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)] text-center p-6">
-        <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-        <h1 className="text-2xl font-semibold">Verificando Acceso...</h1>
-        <p className="text-muted-foreground">Por favor, espera.</p>
-      </div>
-    );
-  }
-  
-  if (loading) {
-     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)] text-center p-6">
         <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
         <h1 className="text-2xl font-semibold">Cargando Tareas...</h1>
@@ -61,7 +54,7 @@ export default function TasksPage() {
       </div>
     );
   }
-
+  
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)] text-center p-6">

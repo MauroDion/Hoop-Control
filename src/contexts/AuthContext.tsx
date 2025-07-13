@@ -59,9 +59,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           }
 
           if (!userProfile.onboardingCompleted) {
-            // This is the main redirection logic for incomplete profiles.
-            // If onboarding is not completed, force the user to the correct page.
-            
             const isParentOnboarding = userProfile.profileTypeId === 'parent_guardian' && !pathname.startsWith('/profile/my-children');
             const isGeneralOnboarding = !userProfile.profileTypeId && !pathname.startsWith('/profile/complete-registration');
 
@@ -72,8 +69,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             }
           }
         } else {
-          // This handles the case where the Firestore profile hasn't been created yet,
-          // which can happen for a brand new user.
           if (!pathname.startsWith('/profile/complete-registration')) {
             router.push('/profile/complete-registration');
           }
@@ -87,6 +82,35 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
     return () => unsubscribe();
   }, [logout, pathname, router]);
+
+  useEffect(() => {
+    let inactivityTimeout: NodeJS.Timeout;
+
+    const resetInactivityTimer = () => {
+      clearTimeout(inactivityTimeout);
+      inactivityTimeout = setTimeout(() => {
+        if (auth.currentUser) {
+          console.log("⏱️ Cerrando sesión por inactividad");
+          logout();
+        }
+      }, 15 * 60 * 1000); // 15 minutos
+    };
+
+    if (typeof window !== "undefined" && auth.currentUser) {
+      window.addEventListener("mousemove", resetInactivityTimer);
+      window.addEventListener("keydown", resetInactivityTimer);
+      resetInactivityTimer();
+    }
+
+    return () => {
+      clearTimeout(inactivityTimeout);
+      if (typeof window !== "undefined") {
+        window.removeEventListener("mousemove", resetInactivityTimer);
+        window.removeEventListener("keydown", resetInactivityTimer);
+      }
+    };
+  }, [user, logout]);
+
 
   if (loading) {
     return (

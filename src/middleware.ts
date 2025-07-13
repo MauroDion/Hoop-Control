@@ -1,6 +1,7 @@
-import { NextResponse } from 'next/server';
-import type { NextRequest } from 'next/server';
 
+import { NextRequest, NextResponse } from 'next/server';
+
+const PUBLIC_PATHS = ['/login', '/register', '/', '/reset-password'];
 const PROTECTED_PATHS = [
     '/dashboard', 
     '/games', 
@@ -11,47 +12,38 @@ const PROTECTED_PATHS = [
     '/clubs', 
     '/seasons'
 ];
-const ONBOARDING_PATHS = ['/profile/complete-registration', '/profile/my-children'];
-const PUBLIC_ONLY_PATHS = ['/login', '/register', '/reset-password'];
 
-export async function middleware(request: NextRequest) {
+
+export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const sessionCookie = request.cookies.get('session')?.value;
   const isAuthed = !!sessionCookie;
-
+  
   // Allow static files and API routes to pass through
   if (pathname.startsWith('/_next') || pathname.startsWith('/api') || pathname.includes('.')) {
     return NextResponse.next();
   }
+
+  const isPublic = PUBLIC_PATHS.some(p => pathname === p || (p !== '/' && pathname.startsWith(p)));
+  const isProtected = PROTECTED_PATHS.some(p => pathname.startsWith(p));
   
-  // If user is authenticated and on the root path, redirect to dashboard.
-  if (isAuthed && pathname === '/') {
-    return NextResponse.redirect(new URL('/dashboard', request.url));
-  }
-
-  const isProtectedRoute = PROTECTED_PATHS.some(p => pathname.startsWith(p));
-  const isPublicOnlyPath = PUBLIC_ONLY_PATHS.includes(pathname);
-  const isOnboardingPath = ONBOARDING_PATHS.some(p => pathname.startsWith(p));
-
-  if (!isAuthed && (isProtectedRoute || isOnboardingPath)) {
-    // If user is not authenticated and tries to access a protected or onboarding route, redirect to login
+  if (!isAuthed && isProtected) {
     const loginUrl = new URL('/login', request.url);
     loginUrl.searchParams.set('redirect', pathname);
     return NextResponse.redirect(loginUrl);
   }
-  
-  if (isAuthed && isPublicOnlyPath) {
-    // If user is authenticated and tries to access a public-only page (like /login),
-    // redirect them to the dashboard. This prevents authenticated users from seeing the login page.
+
+  if (isAuthed && isPublic && pathname !== '/') {
     return NextResponse.redirect(new URL('/dashboard', request.url));
   }
   
-  // For all other cases, allow the request to proceed.
-  // This includes authenticated users accessing protected routes or any user accessing public routes.
+  if (isAuthed && pathname === '/') {
+    return NextResponse.redirect(new URL('/dashboard', request.url));
+  }
+
   return NextResponse.next();
 }
 
 export const config = {
-  // Match all paths except for static files, API routes, and image optimization files.
   matcher: ['/((?!api|_next/static|_next/image|favicon.ico).*)'],
 };

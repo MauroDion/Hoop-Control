@@ -21,14 +21,14 @@ export default function GamesPage() {
   const [loading, setLoading] = useState(true);
   const [games, setGames] = useState<Game[]>([]);
   const [error, setError] = useState<string | null>(null);
-
+  
   useEffect(() => {
     if (authLoading) {
-        setLoading(true);
-        return;
+      setLoading(true);
+      return;
     }
     if (!user) {
-      router.replace('/login?redirect=/games');
+      router.push('/login?redirect=/games');
       return;
     }
     if (!profile) {
@@ -70,7 +70,7 @@ export default function GamesPage() {
     loadPageData();
   }, [user, profile, authLoading, router]);
 
-  if (loading || authLoading) {
+  if (authLoading || loading || !user) {
     return (
       <div className="flex items-center justify-center min-h-[calc(100vh-10rem)]">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
