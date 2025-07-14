@@ -19,9 +19,10 @@ export default function LoginPage() {
 
   console.log("LoginPage: Renderizando. user:", !!user, "loading:", loading);
   
-  // If the user is authenticated and the context is no longer loading, they shouldn't be here.
-  // The middleware or a protected route component should handle the redirect.
-  // This page's only job is to show the login form or a loading state.
+  // This component's main responsibility is to show the login form or a loading state.
+  // The middleware handles redirecting authenticated users away from this page.
+  // The LoginForm/GoogleSignInButton handle redirecting *after* a successful login.
+  // This page itself should not handle any redirection logic.
 
   if (loading) {
      return (
@@ -32,20 +33,6 @@ export default function LoginPage() {
     );
   }
 
-  // If there's a user, it means the redirection from LoginForm or middleware is in progress.
-  // We can show a loader to avoid a flash of the login form.
-  if (user) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)]">
-          <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-          <p className="text-lg text-muted-foreground">
-              Redirigiendo...
-          </p>
-      </div>
-    );
-  }
-
-  // If user is not logged in, show the login form.
   const renderStatusMessage = () => {
     switch (status) {
       case 'pending_approval':
