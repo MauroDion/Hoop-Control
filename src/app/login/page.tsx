@@ -1,15 +1,9 @@
-import { NextRequest, NextResponse } from 'next/server';
+// This page is intentionally left blank as the login flow is currently disabled.
+// The application uses a mock user provided by AuthContext.
+// To re-enable, you can restore the previous content for the login form.
+import { redirect } from 'next/navigation';
 
-// Middleware is currently disabled to allow direct access to all pages
-// during development without authentication.
-
-export function middleware(request: NextRequest) {
-  console.log(`Middleware: Bypassed for path: ${request.nextUrl.pathname}`);
-  return NextResponse.next();
+export default function LoginPage() {
+    redirect('/dashboard');
+    return null;
 }
-
-export const config = {
-  // This matcher will now effectively do nothing, but we keep the file
-  // to make re-enabling it easy.
-  matcher: ['/((?!api|_next/static|_next/image|favicon.ico).*)'],
-};
