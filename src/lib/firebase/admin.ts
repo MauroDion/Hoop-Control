@@ -4,6 +4,7 @@ import fs from 'fs';
 
 let adminAuth: admin.auth.Auth | undefined;
 let adminDb: admin.firestore.Firestore | undefined;
+let adminInitError: string | null = null;
 
 // This file should only be used in the Node.js runtime (Server Actions, API Routes).
 
@@ -21,17 +22,17 @@ if (!admin.apps.length) {
       console.log('Initializing Firebase Admin SDK with default credentials...');
       admin.initializeApp();
     }
+    adminAuth = admin.auth();
+    adminDb = admin.firestore();
     console.log('Firebase Admin SDK initialized successfully.');
   } catch (error: any) {
+    adminInitError = error.message;
     console.error('Firebase Admin SDK initialization error:', error.message);
   }
-}
-
-try {
+} else {
   adminAuth = admin.auth();
   adminDb = admin.firestore();
-} catch (error: any) {
-  console.error("Firebase Admin SDK: Failed to export auth or db modules:", error.message);
 }
 
-export { adminAuth, adminDb };
+
+export { adminAuth, adminDb, adminInitError };
