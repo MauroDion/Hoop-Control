@@ -1,9 +1,22 @@
-// This page is intentionally left blank as the login flow is currently disabled.
-// The application uses a mock user provided by AuthContext.
-// To re-enable, you can restore the previous content for the login form.
-import { redirect } from 'next/navigation';
 
+'use client';
+
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { Loader2 } from 'lucide-react';
+
+// This page now acts as a simple redirector to the dashboard.
 export default function LoginPage() {
-    redirect('/dashboard');
-    return null;
+  const router = useRouter();
+
+  useEffect(() => {
+    router.replace('/dashboard');
+  }, [router]);
+
+  return (
+    <div className="flex items-center justify-center min-h-[calc(100vh-10rem)]">
+      <Loader2 className="h-12 w-12 animate-spin text-primary" />
+      <p className="ml-4">Redirigiendo al panel de control...</p>
+    </div>
+  );
 }

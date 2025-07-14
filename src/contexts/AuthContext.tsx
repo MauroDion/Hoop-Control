@@ -3,7 +3,6 @@
 
 import type { User } from 'firebase/auth';
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
 import { getBrandingSettings } from '@/lib/actions/admin/settings';
 import type { UserFirestoreProfile, BrandingSettings } from '@/types';
 
@@ -53,16 +52,16 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
-  const [user, setUser] = useState<User | null>(MOCK_SUPER_ADMIN_USER);
-  const [profile, setProfile] = useState<UserFirestoreProfile | null>(MOCK_SUPER_ADMIN_PROFILE);
   const [branding, setBranding] = useState<BrandingSettings>({});
-  const [loading, setLoading] = useState(false); // No longer loading from Firebase
 
+  // The user is now hardcoded and never changes. Loading is always false.
+  const user = MOCK_SUPER_ADMIN_USER;
+  const profile = MOCK_SUPER_ADMIN_PROFILE;
+  const loading = false;
+
+  // The logout function does nothing, to prevent the user from being logged out.
   const logout = useCallback(async () => {
-    // In mock mode, this does nothing but could clear the state if needed
-    setUser(null);
-    setProfile(null);
-    console.log("User logged out (mock).");
+    console.log("Logout function called, but it's disabled in mock mode.");
   }, []);
 
   useEffect(() => {

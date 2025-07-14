@@ -9,7 +9,6 @@ import {
     LayoutDashboard, 
     ListChecks, 
     BarChart3, 
-    LogIn, 
     UserCog, 
     CalendarClock, 
     CalendarCheck,
@@ -32,7 +31,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 export default function Header() {
-  const { user, loading, profile, branding } = useAuth();
+  const { user, profile, branding } = useAuth();
   const { appName, logoHeaderUrl } = branding || {};
 
   const showAdminTools = profile && ['super_admin'].includes(profile.profileTypeId);
@@ -56,7 +55,7 @@ export default function Header() {
         </Link>
         
         <nav className="hidden md:flex items-center space-x-6 text-sm font-medium">
-          {!loading && user && (
+          {user && (
             <>
               <Link href="/dashboard" className="transition-colors hover:text-primary flex items-center">
                 <LayoutDashboard className="mr-2 h-4 w-4" /> Panel
@@ -98,15 +97,7 @@ export default function Header() {
         </nav>
 
         <div className="ml-auto flex items-center space-x-4">
-          {!loading && user ? (
-            <UserNav />
-          ) : !loading ? ( 
-            <Button asChild variant="default" size="sm">
-              <Link href="/login" className="flex items-center">
-                <LogIn className="mr-2 h-4 w-4" /> Iniciar Sesión / Registro
-              </Link>
-            </Button>
-          ) : null } 
+          {user && <UserNav />}
         </div>
       </div>
     </header>

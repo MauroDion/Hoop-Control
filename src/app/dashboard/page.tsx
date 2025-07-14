@@ -9,24 +9,21 @@ import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { createTestGame, finishAllTestGames } from '@/lib/actions/games';
 import { useToast } from '@/hooks/use-toast';
-import React, { useEffect } from 'react';
+import React from 'react';
 import { useRouter } from 'next/navigation';
 
 export default function DashboardPage() {
-  const { user, profile, loading: authLoading } = useAuth();
+  const { user, profile, loading } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
   const [isCreatingGame, setIsCreatingGame] = React.useState(false);
   const [isFinishingGames, setIsFinishingGames] = React.useState(false);
 
-  console.log("DashboardPage: Renderizando. authLoading:", authLoading, "user:", !!user, "profile:", !!profile);
-
   useEffect(() => {
-    if (!authLoading && !user) {
-      console.log("DashboardPage: Usuario no autenticado, redirigiendo a login.");
-      router.push('/login?redirect=/dashboard');
+    if (!loading && !user) {
+      router.push('/dashboard'); // Should never happen with mock, but good practice
     }
-  }, [authLoading, user, router]);
+  }, [loading, user, router]);
 
   const handleCreateTestGame = async () => {
     if (!user) return;
@@ -67,7 +64,7 @@ export default function DashboardPage() {
   }
 
   const renderClubManagement = () => {
-    if (authLoading || !profile) {
+    if (loading || !profile) {
       return (
         <div className="flex items-center">
           <Loader2 className="mr-2 h-5 w-5 animate-spin" />
@@ -116,7 +113,7 @@ export default function DashboardPage() {
     );
   };
   
-  if (authLoading || !user || !profile) {
+  if (loading || !user || !profile) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)]">
         <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
