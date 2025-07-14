@@ -5,15 +5,14 @@ import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import Link from 'next/link';
-import { type FirebaseUser, doc, onSnapshot } from '@/lib/firebase/client';
-import { db } from '@/lib/firebase/client';
+import { getGameById } from '@/app/games/actions';
 import { updateLiveGameState, endCurrentPeriod, substitutePlayer, assignScorer, recordGameEvent } from '@/app/games/actions';
 import { getGameFormatById } from '@/game-formats/actions';
 import { getPlayersByTeamId } from '@/app/players/actions';
 import type { Game, GameFormat, Player, GameEventAction, PlayerGameStats, UserFirestoreProfile, ProfileType, StatCategory } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, AlertTriangle, ChevronLeft, Gamepad2, Minus, Plus, Play, Flag, Pause, TimerReset, FastForward, Timer as TimerIcon, CheckCircle, Ban, Users, Dribbble, UserCheck } from 'lucide-react';
+import { Loader2, AlertTriangle, ChevronLeft, Gamepad2, Minus, Plus, Play, Flag, Pause, TimerReset, FastForward, Timer as TimerIcon, CheckCircle, Ban, Users, Dribbble, UserCheck, RefreshCw } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Separator } from '@/components/ui/separator';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -98,7 +97,7 @@ const OtherActionButtons = ({ onAction, disabled }: { onAction: (action: GameEve
     </div>
 );
 
-const ScorerAssignmentDialog = ({ game, user, onAssign, onRelease }: { game: Game, user: FirebaseUser, onAssign: (category: StatCategory) => void, onRelease: (category: StatCategory) => void }) => {
+const ScorerAssignmentDialog = ({ game, user, onAssign, onRelease }: { game: Game, user: any, onAssign: (category: StatCategory) => void, onRelease: (category: StatCategory) => void }) => {
     const assignments = game.scorerAssignments || {};
     const categories: { key: StatCategory, label: string }[] = [
         { key: 'shots', label: 'Tiros' },
@@ -187,10 +186,59 @@ export default function LiveGamePage() {
     const handleUpdate = useCallback(async (updates: Partial<Game>) => {
         if (!user) return;
         const result = await updateLiveGameState(gameId, user.uid, updates);
-        if (!result.success) {
+        if (result.success) {
+            await fetchGameData();
+        } else {
             toast({ variant: 'destructive', title: 'Error al Actualizar', description: result.error });
         }
     }, [gameId, toast, user]);
+
+    const fetchGameData = useCallback(async () => {
+        if (!user || !profile) {
+          setError("Debes iniciar sesión para ver esta página.");
+          setLoading(false);
+          return;
+        }
+    
+        try {
+          const gameData = await getGameById(gameId);
+          if (!gameData) {
+            throw new Error("El partido no existe o ha sido eliminado.");
+          }
+    
+          setGame(gameData);
+    
+          const isSuperAdmin = profile.profileTypeId === 'super_admin';
+          const isClubAdmin = ['club_admin', 'coordinator'].includes(profile.profileTypeId) && (profile.clubId === gameData.homeTeamClubId || profile.clubId === gameData.awayTeamClubId);
+          const isParentOfPlayerInGame = profile.profileTypeId === 'parent_guardian' && (profile.children || []).some(child => 
+            (gameData.homeTeamPlayerIds || []).includes(child.playerId) || 
+            (gameData.awayTeamPlayerIds || []).includes(child.playerId)
+          );
+          const isCoachOfGame = false; // Replace with actual check
+    
+          if (isSuperAdmin || isClubAdmin || isCoachOfGame || isParentOfPlayerInGame) {
+            setHasPermission(true);
+          } else {
+            throw new Error("No tienes permiso para ver este partido en vivo.");
+          }
+    
+          if (!gameFormat && gameData.gameFormatId) getGameFormatById(gameData.gameFormatId).then(setGameFormat);
+          if (homePlayers.length === 0 && gameData.homeTeamId) getPlayersByTeamId(gameData.homeTeamId).then(setHomePlayers);
+          if (awayPlayers.length === 0 && gameData.awayTeamId) getPlayersByTeamId(gameData.awayTeamId).then(setAwayPlayers);
+    
+        } catch (err: any) {
+          setError(err.message);
+        } finally {
+          setLoading(false);
+        }
+      }, [gameId, user, profile, gameFormat, homePlayers.length, awayPlayers.length]);
+    
+      useEffect(() => {
+        if (!authLoading) {
+          fetchGameData();
+        }
+      }, [authLoading, fetchGameData]);
+
 
     useEffect(() => {
       if (game) {
@@ -215,69 +263,13 @@ export default function LiveGamePage() {
         return () => clearInterval(timerId);
     }, [game?.isTimerRunning, game?.timerStartedAt, game?.periodTimeRemainingSeconds]);
 
-    useEffect(() => {
-        if (authLoading) return;
-        if (!user || !profile) {
-            setError("Debes iniciar sesión para ver esta página.");
-            setLoading(false);
-            return;
-        }
-
-        const gameRef = doc(db, 'games', gameId);
-        const unsubscribe = onSnapshot(gameRef, async (docSnap) => {
-            if (docSnap.exists()) {
-                const data = docSnap.data();
-                
-                const gameData = {
-                    ...data,
-                    id: docSnap.id,
-                    date: (data.date as any).toDate(),
-                    createdAt: data.createdAt?.toDate(),
-                    updatedAt: data.updatedAt?.toDate(),
-                    timerStartedAt: data.timerStartedAt?.toDate(),
-                } as Game;
-                setGame(gameData);
-                
-                const isSuperAdmin = profile.profileTypeId === 'super_admin';
-                const isClubAdmin = ['club_admin', 'coordinator'].includes(profile.profileTypeId) && (profile.clubId === gameData.homeTeamClubId || profile.clubId === gameData.awayTeamClubId);
-                const isParentOfPlayerInGame = profile.profileTypeId === 'parent_guardian' && (profile.children || []).some(child => 
-                    (gameData.homeTeamPlayerIds || []).includes(child.playerId) || 
-                    (gameData.awayTeamPlayerIds || []).includes(child.playerId)
-                );
-                
-                // Assuming you have a way to check if a user is a coach of a team.
-                // This might involve fetching the teams the user coaches.
-                // For now, let's assume club admins/coordinators can see all their club games.
-                const isCoachOfGame = false; // Replace with actual check
-
-                if (isSuperAdmin || isClubAdmin || isCoachOfGame || isParentOfPlayerInGame) {
-                    setHasPermission(true);
-                } else {
-                    setError("No tienes permiso para ver este partido en vivo.");
-                    setLoading(false);
-                    return;
-                }
-
-                if (!gameFormat && gameData.gameFormatId) getGameFormatById(gameData.gameFormatId).then(setGameFormat);
-                if (homePlayers.length === 0 && gameData.homeTeamId) getPlayersByTeamId(gameData.homeTeamId).then(setHomePlayers);
-                if (awayPlayers.length === 0 && gameData.awayTeamId) getPlayersByTeamId(gameData.awayTeamId).then(setAwayPlayers);
-            } else {
-                setError("El partido no existe o ha sido eliminado.");
-            }
-            setLoading(false);
-        }, (err) => {
-            console.error("Error en el listener del partido:", err);
-            setError("No se pudo conectar para recibir actualizaciones en tiempo real.");
-            setLoading(false);
-        });
-        return () => unsubscribe();
-    }, [gameId, user, profile, authLoading, gameFormat, homePlayers.length, awayPlayers.length]);
-
     const handleGameEvent = async (teamType: 'home' | 'away', playerId: string, playerName: string, action: GameEventAction) => {
         if (!game || game.status !== 'inprogress' || !user) return;
         const result = await recordGameEvent(gameId, user.uid, { teamId: teamType, playerId, playerName, action, period: game.currentPeriod || 1, gameTimeSeconds: displayTime });
         if(!result.success){
             toast({ variant: 'destructive', title: 'Acción no permitida', description: result.error });
+        } else {
+            await fetchGameData();
         }
         setActionPlayerInfo(null);
     };
@@ -289,6 +281,8 @@ export default function LiveGamePage() {
         const result = await substitutePlayer(gameId, user.uid, teamType, playerInInfo, playerOutInfo, game.currentPeriod || 1, displayTime);
         if (!result.success) {
             toast({ variant: 'destructive', title: 'Error de Sustitución', description: result.error });
+        } else {
+            await fetchGameData();
         }
         setSubPlayerInfo(null);
     };
@@ -334,7 +328,9 @@ export default function LiveGamePage() {
     const handleEndPeriod = useCallback(async () => {
         if (!game || !user) return;
         const result = await endCurrentPeriod(game.id, user.uid);
-        if (!result.success) {
+        if (result.success) {
+            await fetchGameData();
+        } else {
             toast({ variant: 'destructive', title: 'Error', description: result.error });
         }
     }, [game, user, toast]);
@@ -363,6 +359,7 @@ export default function LiveGamePage() {
             updates.isTimerRunning = false;
         }
         await updateLiveGameState(gameId, user.uid, updates);
+        await fetchGameData();
     }
 
     const handleAssignScorer = async (category: StatCategory) => {
@@ -370,6 +367,8 @@ export default function LiveGamePage() {
         const result = await assignScorer(gameId, user.uid, user.displayName, category, false);
         if (!result.success) {
             toast({ variant: 'destructive', title: 'Error al asignar', description: result.error });
+        } else {
+            await fetchGameData();
         }
     };
 
@@ -378,6 +377,8 @@ export default function LiveGamePage() {
         const result = await assignScorer(gameId, user.uid, user.displayName, category, true);
         if (!result.success) {
             toast({ variant: 'destructive', title: 'Error al liberar', description: result.error });
+        } else {
+            await fetchGameData();
         }
     };
 
@@ -493,7 +494,12 @@ export default function LiveGamePage() {
                 </DialogContent>
             </Dialog>
 
-             <Button variant="outline" size="sm" asChild><Link href={`/games`}><ChevronLeft className="mr-2 h-4 w-4" />Volver a la Lista de Partidos</Link></Button>
+             <div className="flex justify-between items-center">
+                <Button variant="outline" size="sm" asChild><Link href={`/games`}><ChevronLeft className="mr-2 h-4 w-4" />Volver a la Lista de Partidos</Link></Button>
+                <Button variant="secondary" size="sm" onClick={fetchGameData}>
+                    <RefreshCw className="mr-2 h-4 w-4" /> Actualizar Datos
+                </Button>
+            </div>
             
             <Card>
                 <CardHeader className="text-center"><CardTitle className="text-2xl">Control del Partido</CardTitle></CardHeader>
