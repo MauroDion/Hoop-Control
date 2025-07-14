@@ -36,17 +36,12 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  if (isAuthed && isPublic && pathname !== '/') {
+  if (isAuthed && isPublic) {
     console.log(`Middleware: Authenticated user accessing public path. Redirecting to dashboard.`);
     return NextResponse.redirect(new URL('/dashboard', request.url));
   }
   
-  if (isAuthed && pathname === '/') {
-    console.log(`Middleware: Authenticated user at root. Redirecting to dashboard.`);
-    return NextResponse.redirect(new URL('/dashboard', request.url));
-  }
-  
-  console.log(`Middleware: No redirect condition met. Allowing request.`);
+  console.log(`Middleware: No redirect condition met for path: ${pathname}. Allowing request.`);
   return NextResponse.next();
 }
 

@@ -1,9 +1,7 @@
 
 "use client";
 
-import { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { useRouter, useSearchParams } from 'next/navigation';
 import { LoginForm } from "@/components/auth/LoginForm";
 import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,18 +9,14 @@ import Link from "next/link";
 import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Clock, ShieldX, Loader2 } from "lucide-react";
+import { useSearchParams } from 'next/navigation';
 
 export default function LoginPage() {
-  const { user, loading } = useAuth();
+  const { loading } = useAuth();
   const searchParams = useSearchParams();
   const status = searchParams.get("status");
 
-  console.log("LoginPage: Renderizando. user:", !!user, "loading:", loading);
-  
-  // This component's main responsibility is to show the login form or a loading state.
-  // The middleware handles redirecting authenticated users away from this page.
-  // The LoginForm/GoogleSignInButton handle redirecting *after* a successful login.
-  // This page itself should not handle any redirection logic.
+  console.log("LoginPage: Renderizando. loading:", loading);
 
   if (loading) {
      return (
