@@ -1,26 +1,15 @@
-import { ResetPasswordForm } from "@/components/auth/ResetPasswordForm";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import Link from "next/link";
-import { ChevronLeft } from "lucide-react";
+import { NextRequest, NextResponse } from 'next/server';
 
-export default function ResetPasswordPage() {
-  return (
-    <div className="flex min-h-[calc(100vh-10rem)] items-center justify-center">
-      <Card className="w-full max-w-md shadow-xl">
-        <CardHeader className="text-center">
-          <CardTitle className="text-3xl font-headline">Restablecer Contraseña</CardTitle>
-          <CardDescription>Introduce tu email para recibir un enlace de restablecimiento.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <ResetPasswordForm />
-        </CardContent>
-        <CardFooter className="justify-center">
-          <Link href="/login" className="flex items-center text-sm text-primary hover:underline">
-            <ChevronLeft className="mr-1 h-4 w-4" />
-            Volver a Iniciar Sesión
-          </Link>
-        </CardFooter>
-      </Card>
-    </div>
-  );
+// Middleware is currently disabled to allow direct access to all pages
+// during development without authentication.
+
+export function middleware(request: NextRequest) {
+  console.log(`Middleware: Bypassed for path: ${request.nextUrl.pathname}`);
+  return NextResponse.next();
 }
+
+export const config = {
+  // This matcher will now effectively do nothing, but we keep the file
+  // to make re-enabling it easy.
+  matcher: ['/((?!api|_next/static|_next/image|favicon.ico).*)'],
+};

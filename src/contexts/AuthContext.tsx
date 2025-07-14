@@ -1,14 +1,45 @@
 
 'use client';
 
-import { onIdTokenChanged, signOut as firebaseSignOut, User } from 'firebase/auth';
+import type { User } from 'firebase/auth';
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
-import { useRouter, usePathname } from 'next/navigation';
-import { auth } from '@/lib/firebase/client';
-import { getUserProfileById } from '@/lib/actions/users/get-user-profile';
+import { useRouter } from 'next/navigation';
 import { getBrandingSettings } from '@/lib/actions/admin/settings';
 import type { UserFirestoreProfile, BrandingSettings } from '@/types';
-import { Skeleton } from '@/components/ui/skeleton';
+
+// --- MOCK USER DATA ---
+const MOCK_SUPER_ADMIN_USER: User = {
+  uid: "7jCTpzm9aBbkz0KRk4qaiDsaKG32",
+  email: "mauro@hotmail.com",
+  displayName: "Mauro (Super Admin)",
+  photoURL: null,
+  emailVerified: true,
+  isAnonymous: false,
+  metadata: {},
+  providerData: [],
+  // Implement other methods and properties as needed, but they can be empty for this mock
+  getIdToken: async () => 'mock-token',
+  getIdTokenResult: async () => ({ token: 'mock-token', claims: {}, authTime: '', issuedAtTime: '', signInProvider: null, signInSecondFactor: null, expirationTime: '' }),
+  reload: async () => {},
+  delete: async () => {},
+  toJSON: () => ({}),
+  providerId: 'password',
+};
+
+const MOCK_SUPER_ADMIN_PROFILE: UserFirestoreProfile = {
+  uid: "7jCTpzm9aBbkz0KRk4qaiDsaKG32",
+  email: "mauro@hotmail.com",
+  displayName: "Mauro (Super Admin)",
+  photoURL: null,
+  profileTypeId: 'super_admin',
+  clubId: null,
+  status: 'approved',
+  isSeeded: false,
+  onboardingCompleted: true,
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString(),
+};
+// --- END MOCK USER DATA ---
 
 interface AuthContextType {
   user: User | null;
@@ -21,113 +52,22 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
-  const [user, setUser] = useState<User | null>(null);
-  const [profile, setProfile] = useState<UserFirestoreProfile | null>(null);
+  const [user, setUser] = useState<User | null>(MOCK_SUPER_ADMIN_USER);
+  const [profile, setProfile] = useState<UserFirestoreProfile | null>(MOCK_SUPER_ADMIN_PROFILE);
   const [branding, setBranding] = useState<BrandingSettings>({});
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false); // Set to false as we are not fetching auth state
   const router = useRouter();
-  const pathname = usePathname();
 
   const logout = useCallback(async () => {
-    console.log("AuthContext: Iniciando logout...");
-    try {
-      await fetch('/api/auth/session-logout', { method: 'POST' });
-      await firebaseSignOut(auth);
-      console.log("AuthContext: Logout completado.");
-    } catch (error) {
-      console.error("AuthContext: Error durante el logout:", error);
-    } finally {
-      setUser(null);
-      setProfile(null);
-      router.push('/login');
-    }
-  }, [router]);
+    // In this mock setup, logout does nothing but log to console
+    console.log("Logout function called, but authentication is currently disabled.");
+    // alert("Authentication is currently disabled for development.");
+  }, []);
 
   useEffect(() => {
-    console.log('AuthContext: Montado. Obteniendo ajustes de branding...');
+    // We can still fetch branding settings
     getBrandingSettings().then(setBranding);
-
-    const unsubscribe = onIdTokenChanged(auth, async (firebaseUser) => {
-      console.log('AuthContext: onIdTokenChanged disparado.');
-      setLoading(true);
-      if (firebaseUser) {
-        console.log(`AuthContext: Usuario de Firebase detectado (UID: ${firebaseUser.uid}). Obteniendo perfil...`);
-        setUser(firebaseUser);
-        const userProfile = await getUserProfileById(firebaseUser.uid);
-        setProfile(userProfile);
-        console.log('AuthContext: Perfil de Firestore obtenido:', userProfile);
-
-        if (userProfile) {
-          if (userProfile.status !== 'approved') {
-            console.log(`AuthContext: Estado del perfil es '${userProfile.status}'. Redirigiendo a login.`);
-            await logout();
-            router.push(`/login?status=${userProfile.status}`);
-            return; 
-          }
-
-          if (!userProfile.onboardingCompleted) {
-            console.log('AuthContext: Onboarding no completado.');
-            const isParentOnboarding = userProfile.profileTypeId === 'parent_guardian' && !pathname.startsWith('/profile/my-children');
-            const isGeneralOnboarding = !userProfile.profileTypeId && !pathname.startsWith('/profile/complete-registration');
-            
-            if (isParentOnboarding) {
-              console.log('AuthContext: Redirigiendo a onboarding de padre/tutor.');
-              router.push('/profile/my-children');
-            } else if (isGeneralOnboarding) {
-              console.log('AuthContext: Redirigiendo a onboarding general.');
-              router.push('/profile/complete-registration');
-            }
-          } else {
-             console.log('AuthContext: Usuario aprobado y onboarding completado.');
-          }
-        } else {
-          console.log(`AuthContext: Usuario de Firebase existe pero no tiene perfil en Firestore. Redirigiendo a completar registro.`);
-          if (!pathname.startsWith('/profile/complete-registration')) {
-            router.push('/profile/complete-registration');
-          }
-        }
-      } else {
-        console.log('AuthContext: No hay usuario de Firebase.');
-        setUser(null);
-        setProfile(null);
-      }
-      setLoading(false);
-      console.log('AuthContext: Carga finalizada.');
-    });
-
-    return () => {
-      console.log("AuthContext: Desmontado. Limpiando listener de onIdTokenChanged.");
-      unsubscribe();
-    }
-  }, [logout, pathname, router]);
-
-  useEffect(() => {
-    let inactivityTimeout: NodeJS.Timeout;
-
-    const resetInactivityTimer = () => {
-      clearTimeout(inactivityTimeout);
-      inactivityTimeout = setTimeout(() => {
-        if (auth.currentUser) {
-          console.log("⏱️ AuthContext: Cerrando sesión por inactividad");
-          logout();
-        }
-      }, 15 * 60 * 1000); // 15 minutos
-    };
-
-    if (typeof window !== "undefined" && auth.currentUser) {
-      window.addEventListener("mousemove", resetInactivityTimer);
-      window.addEventListener("keydown", resetInactivityTimer);
-      resetInactivityTimer();
-    }
-
-    return () => {
-      clearTimeout(inactivityTimeout);
-      if (typeof window !== "undefined") {
-        window.removeEventListener("mousemove", resetInactivityTimer);
-        window.removeEventListener("keydown", resetInactivityTimer);
-      }
-    };
-  }, [user, logout]);
+  }, []);
 
 
   return (
