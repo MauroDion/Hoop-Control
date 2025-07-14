@@ -6,7 +6,7 @@ import admin from 'firebase-admin';
 import { revalidatePath } from 'next/cache';
 import type { Game, GameFormData, Team, TeamStats, Player, GameEventAction, UserFirestoreProfile, StatCategory, PlayerGameStats, Season, GameFormat, GameEvent } from '@/types';
 import { getTeamsByCoach as getCoachTeams } from '@/app/teams/actions';
-import { getUserProfileById } from '@/lib/actions/users';
+import { getUserProfileById } from '@/lib/actions/users/get-user-profile';
 import { getPlayersFromIds } from '@/app/players/actions';
 
 const initialPlayerStats: Omit<PlayerGameStats, 'playerId' | 'playerName'> = {
@@ -33,9 +33,9 @@ export async function getAllGames(): Promise<Game[]> {
             return {
                 id: doc.id,
                 ...data,
-                date: (data.date as admin.firestore.Timestamp).toDate(),
-                createdAt: data.createdAt ? (data.createdAt as admin.firestore.Timestamp).toDate() : new Date(),
-                updatedAt: data.updatedAt ? (data.updatedAt as admin.firestore.Timestamp).toDate() : new Date(),
+                date: (data.date as admin.firestore.Timestamp).toDate().toISOString(),
+                createdAt: (data.createdAt as admin.firestore.Timestamp)?.toDate().toISOString(),
+                updatedAt: (data.updatedAt as admin.firestore.Timestamp)?.toDate().toISOString(),
             } as Game;
         });
     } catch (error: any) {
@@ -63,7 +63,7 @@ export async function getGamesByClub(clubId: string): Promise<Game[]> {
                 gamesMap.set(doc.id, {
                     id: doc.id,
                     ...gameData,
-                    date: (gameData.date as admin.firestore.Timestamp).toDate(),
+                    date: (gameData.date as admin.firestore.Timestamp).toDate().toISOString(),
                 } as Game);
             });
         };
@@ -107,7 +107,7 @@ export async function getGamesByCoach(userId: string): Promise<Game[]> {
                 gamesMap.set(doc.id, {
                     id: doc.id,
                     ...gameData,
-                    date: (gameData.date as admin.firestore.Timestamp).toDate(),
+                    date: (gameData.date as admin.firestore.Timestamp).toDate().toISOString(),
                 } as Game);
             });
         };
@@ -153,7 +153,7 @@ export async function getGamesByParent(userId: string): Promise<Game[]> {
                 gamesMap.set(doc.id, {
                     id: doc.id,
                     ...gameData,
-                    date: (gameData.date as admin.firestore.Timestamp).toDate(),
+                    date: (gameData.date as admin.firestore.Timestamp).toDate().toISOString(),
                 } as Game);
             });
         };
@@ -184,9 +184,10 @@ export async function getGameById(gameId: string): Promise<Game | null> {
         return {
             id: docSnap.id,
             ...data,
-            date: (data.date as admin.firestore.Timestamp).toDate(),
-            createdAt: data.createdAt ? (data.createdAt as admin.firestore.Timestamp).toDate() : new Date(),
-            updatedAt: data.updatedAt ? (data.updatedAt as admin.firestore.Timestamp).toDate() : new Date(),
+            date: (data.date as admin.firestore.Timestamp).toDate().toISOString(),
+            createdAt: (data.createdAt as admin.firestore.Timestamp)?.toDate().toISOString(),
+            updatedAt: (data.updatedAt as admin.firestore.Timestamp)?.toDate().toISOString(),
+            timerStartedAt: (data.timerStartedAt as admin.firestore.Timestamp)?.toDate().toISOString() || null,
         } as Game;
     } catch (error: any) {
         return null;
@@ -220,7 +221,7 @@ export async function createGame(formData: GameFormData, userId: string): Promis
             turnovers: 0, blocksAgainst: 0, foulsReceived: 0,
         };
 
-        const newGameData: Omit<Game, 'id'> = {
+        const newGameData: Omit<Game, 'id' | 'createdAt' | 'updatedAt' | 'date'> = {
             homeTeamId: formData.homeTeamId,
             homeTeamClubId: homeTeamData.clubId,
             homeTeamName: homeTeamData.name,
@@ -229,15 +230,12 @@ export async function createGame(formData: GameFormData, userId: string): Promis
             awayTeamClubId: awayTeamData.clubId,
             awayTeamName: awayTeamData.name,
             awayTeamLogoUrl: awayTeamData.logoUrl || null,
-            date: gameDateTime,
             location: formData.location,
             status: 'scheduled',
             seasonId: formData.seasonId,
             competitionCategoryId: formData.competitionCategoryId,
             gameFormatId: formData.gameFormatId || null,
             createdBy: userId,
-            createdAt: new Date(),
-            updatedAt: new Date(),
             homeTeamScore: 0,
             awayTeamScore: 0,
             homeTeamStats: initialTeamStats,
@@ -310,12 +308,17 @@ export async function createTestGame(userId: string): Promise<{ success: boolean
             return { success: false, error: "Found an eligible Valencia team, but no eligible opponent teams (with >= 5 players) to play against." };
         }
         const awayTeamId = opponentTeamIds[Math.floor(Math.random() * opponentTeamIds.length)];
+        
+        const homeTeamPlayers = playersByTeam.get(homeTeamId) || [];
+        const awayTeamPlayers = playersByTeam.get(awayTeamId) || [];
 
-        const [homeTeamSnap, awayTeamSnap, homePlayers, awayPlayers] = await Promise.all([
+        if (homeTeamPlayers.length < 5 || awayTeamPlayers.length < 5) {
+            return { success: false, error: "Selected teams for test game do not have enough players (min 5)." };
+        }
+
+        const [homeTeamSnap, awayTeamSnap] = await Promise.all([
             adminDb.collection('teams').doc(homeTeamId).get(),
             adminDb.collection('teams').doc(awayTeamId).get(),
-            getPlayersFromIds(playersByTeam.get(homeTeamId)?.map(p => p.id) || []),
-            getPlayersFromIds(playersByTeam.get(awayTeamId)?.map(p => p.id) || []),
         ]);
 
         if (!homeTeamSnap.exists || !awayTeamSnap.exists) {
@@ -333,26 +336,26 @@ export async function createTestGame(userId: string): Promise<{ success: boolean
         const competitionCategorySnap = await adminDb.collection('competitionCategories').doc(competitionCategoryId).get();
         const gameFormatId = competitionCategorySnap.data()?.gameFormatId || null;
         
-        const homeTeamPlayerIds = homePlayers.map(p => p.id);
-        const awayTeamPlayerIds = awayPlayers.map(p => p.id);
+        const homeTeamPlayerIds = homeTeamPlayers.map(p => p.id);
+        const awayTeamPlayerIds = awayTeamPlayers.map(p => p.id);
         
         const homeTeamOnCourtPlayerIds = homeTeamPlayerIds.slice(0, 5);
-        const awayTeamOnCourtPlayerIds = awayPlayers.slice(0, 5);
+        const awayTeamOnCourtPlayerIds = awayTeamPlayers.slice(0, 5);
         
         const gameDateTime = new Date();
         const initialTeamStats: TeamStats = { onePointAttempts: 0, onePointMade: 0, twoPointAttempts: 0, twoPointMade: 0, threePointAttempts: 0, threePointMade: 0, fouls: 0, timeouts: 0, reboundsOffensive: 0, reboundsDefensive: 0, assists: 0, steals: 0, blocks: 0, turnovers: 0, blocksAgainst: 0, foulsReceived: 0, };
         
         const playerStats: { [playerId: string]: Partial<PlayerGameStats> } = {};
-        [...homePlayers, ...awayPlayers].forEach(player => {
+        [...homeTeamPlayers, ...awayTeamPlayers].forEach(player => {
             playerStats[player.id] = { ...initialPlayerStats, playerId: player.id, playerName: `${player.firstName} ${player.lastName}` };
         });
 
-        const newGameData: Omit<Game, 'id'> = {
+        const newGameData: Omit<Game, 'id' | 'createdAt' | 'updatedAt' | 'date'> = {
             homeTeamId, homeTeamClubId: homeTeamData.clubId, homeTeamName: homeTeamData.name, homeTeamLogoUrl: homeTeamData.logoUrl || null,
             awayTeamId, awayTeamClubId: awayTeamData.clubId, awayTeamName: awayTeamData.name, awayTeamLogoUrl: awayTeamData.logoUrl || null,
-            date: gameDateTime, location: 'Pista de Pruebas', status: 'scheduled',
+            location: 'Pista de Pruebas', status: 'scheduled',
             seasonId, competitionCategoryId, gameFormatId,
-            createdBy: userId, createdAt: new Date(), updatedAt: new Date(),
+            createdBy: userId,
             homeTeamScore: 0, awayTeamScore: 0, homeTeamStats: initialTeamStats, awayTeamStats: initialTeamStats, playerStats,
             currentPeriod: 1, isTimerRunning: false, periodTimeRemainingSeconds: 0,
             homeTeamPlayerIds, awayTeamPlayerIds, homeTeamOnCourtPlayerIds, awayTeamOnCourtPlayerIds,
@@ -513,7 +516,7 @@ export async function endCurrentPeriod(gameId: string, userId: string): Promise<
             
             if (gameData.isTimerRunning === true && gameData.periodTimeRemainingSeconds !== undefined && gameData.timerStartedAt) {
                  const serverStopTime = Date.now();
-                 const serverStartTime = (gameData.timerStartedAt as admin.firestore.Timestamp).toMillis();
+                 const serverStartTime = (new Date(gameData.timerStartedAt as string)).getTime();
                  const elapsedSeconds = Math.max(0, Math.floor((serverStopTime - serverStartTime) / 1000));
                  
                  onCourtIds.forEach(pId => {
@@ -716,7 +719,7 @@ export async function substitutePlayer(
 
         if (gameData.isTimerRunning && gameData.timerStartedAt) {
             const serverStopTime = Date.now();
-            const serverStartTime = (gameData.timerStartedAt as admin.firestore.Timestamp).toMillis();
+            const serverStartTime = (new Date(gameData.timerStartedAt as string)).getTime();
             const elapsedSeconds = Math.max(0, Math.floor((serverStopTime - serverStartTime) / 1000));
             
             if (elapsedSeconds > 0) {

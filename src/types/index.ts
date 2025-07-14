@@ -146,6 +146,7 @@ export interface CompetitionCategory {
   name: string;
   description?: string;
   level?: number;
+  isFeminine?: boolean;
   gameFormatId?: string | null;
   createdAt?: string | Date;
   updatedAt?: string | Date;
@@ -249,7 +250,7 @@ export interface GameEvent {
     action: GameEventAction;
     period: number;
     gameTimeSeconds: number;
-    createdAt: Date;
+    createdAt: string | Date;
     createdBy: string;
     playerIn?: { id: string, name: string };
     playerOut?: { id: string, name: string };
@@ -288,7 +289,7 @@ export interface Game {
     awayTeamName: string;
     homeTeamLogoUrl?: string | null;
     awayTeamLogoUrl?: string | null;
-    date: Date;
+    date: string | Date;
     location: string;
     status: 'scheduled' | 'inprogress' | 'completed' | 'cancelled';
     seasonId: string;
@@ -306,7 +307,7 @@ export interface Game {
     currentPeriod?: number;
     periodTimeRemainingSeconds?: number;
     isTimerRunning?: boolean;
-    timerStartedAt?: Date | null;
+    timerStartedAt?: string | Date | null;
     scorerAssignments?: {
       [key in StatCategory]?: {
         uid: string;
@@ -314,8 +315,8 @@ export interface Game {
       } | null;
     };
     createdBy: string;
-    createdAt: Date;
-    updatedAt: Date;
+    createdAt: string | Date;
+    updatedAt: string | Date;
 }
 
 export interface GameFormData {

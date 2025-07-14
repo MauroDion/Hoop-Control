@@ -3,7 +3,7 @@
 
 import { adminDb, adminAuth } from '@/lib/firebase/admin';
 import admin from 'firebase-admin';
-import type { Game, Player, Season, Team, UserFirestoreProfile, PlayerGameStats } from '@/types';
+import type { Game, Player, Season, Team, UserFirestoreProfile, PlayerGameStats, CompetitionCategory } from '@/types';
 
 // Helper function to delete all documents in a collection
 async function deleteCollection(db: admin.firestore.Firestore, collectionPath: string, batchSize: number = 100) {
@@ -140,14 +140,19 @@ export async function seedDatabase(): Promise<{ success: boolean; error?: string
         batch.set(db.collection('gameFormats').doc(gameFormat3v3.id), gameFormat3v3);
 
         // --- 2. Competition Categories ---
-        const categories = [
-            { id: 'u10-mixto', name: 'U10 Mixto', level: 10, gameFormatId: gameFormat5v5.id, isFeminine: false },
-            { id: 'u12-masculino', name: 'U12 Masculino', level: 12, gameFormatId: gameFormat5v5.id, isFeminine: false },
-            { id: 'u14-femenino', name: 'U14 Femenino', level: 14, gameFormatId: gameFormat5v5.id, isFeminine: true },
-            { id: 'u16-masculino', name: 'U16 Masculino', level: 16, gameFormatId: gameFormat5v5.id, isFeminine: false },
-            { id: 'senior-femenino', name: 'Senior Femenino', level: 99, gameFormatId: gameFormat5v5.id, isFeminine: true },
+        const categories: Omit<CompetitionCategory, 'id'>[] = [
+            { name: 'U10 Mixto', level: 10, gameFormatId: gameFormat5v5.id, isFeminine: false },
+            { name: 'U12 Masculino', level: 12, gameFormatId: gameFormat5v5.id, isFeminine: false },
+            { name: 'U14 Femenino', level: 14, gameFormatId: gameFormat5v5.id, isFeminine: true },
+            { name: 'U16 Masculino', level: 16, gameFormatId: gameFormat5v5.id, isFeminine: false },
+            { name: 'Senior Femenino', level: 99, gameFormatId: gameFormat5v5.id, isFeminine: true },
         ];
-        categories.forEach(cat => batch.set(db.collection('competitionCategories').doc(cat.id), {name: cat.name, level: cat.level, gameFormatId: cat.gameFormatId, isFeminine: cat.isFeminine}));
+        const categoryRefs: admin.firestore.DocumentReference[] = [];
+        categories.forEach(cat => {
+            const catRef = db.collection('competitionCategories').doc();
+            batch.set(catRef, cat);
+            categoryRefs.push(catRef);
+        });
 
         // --- 3. Clubs ---
         const clubs = [
@@ -161,7 +166,7 @@ export async function seedDatabase(): Promise<{ success: boolean; error?: string
 
         // --- Setup for Season Data ---
         const seasonCompetitionsMap = new Map<string, string[]>();
-        categories.forEach(cat => seasonCompetitionsMap.set(cat.id, []));
+        categoryRefs.forEach(catRef => seasonCompetitionsMap.set(catRef.id, []));
 
         // --- 4. Users, Teams, Players ---
         let userCounter = 1;
@@ -175,9 +180,12 @@ export async function seedDatabase(): Promise<{ success: boolean; error?: string
             batch.set(db.collection('user_profiles').doc(coordId), {...coordinator, uid: coordId, createdAt: serverTimestamp, updatedAt: serverTimestamp });
             userCounter++;
             
-            for(const category of categories) {
+            for(let i=0; i < categories.length; i++) {
+                const category = categories[i];
+                const categoryId = categoryRefs[i].id;
+                
                  const coachIds: string[] = [];
-                for (let i = 0; i < 2; i++) {
+                for (let j = 0; j < 2; j++) {
                     const coachName = `${getRandomItem(firstNamesFeminine)} ${getRandomItem(lastNames)}`;
                     const coachId = `user-coach-${userCounter}`;
                     coachIds.push(coachId);
@@ -189,16 +197,16 @@ export async function seedDatabase(): Promise<{ success: boolean; error?: string
                     userCounter++;
                  }
 
-                const teamId = `${club.shortName?.toLowerCase()}-${category.id}`;
+                const teamId = `${club.shortName?.toLowerCase()}-${categoryId}`;
                 const teamDocRef = db.collection('teams').doc(teamId);
                 const teamData: any = {
                     id: teamId, name: `${club.name} ${category.name}`, clubId: club.id,
-                    competitionCategoryId: category.id, coachIds, coordinatorIds: [coordId],
+                    competitionCategoryId: categoryId, coachIds, coordinatorIds: [coordId],
                     createdAt: serverTimestamp, updatedAt: serverTimestamp
                 };
                 batch.set(teamDocRef, teamData);
                 
-                seasonCompetitionsMap.get(category.id)?.push(teamId);
+                seasonCompetitionsMap.get(categoryId)?.push(teamId);
 
                 for (let p = 0; p < 9; p++) {
                     const playerName = generatePlayerName(category.isFeminine);
