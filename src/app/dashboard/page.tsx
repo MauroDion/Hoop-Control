@@ -19,12 +19,6 @@ export default function DashboardPage() {
   const [isCreatingGame, setIsCreatingGame] = React.useState(false);
   const [isFinishingGames, setIsFinishingGames] = React.useState(false);
 
-  useEffect(() => {
-    if (!loading && !user) {
-      router.push('/dashboard'); // Should never happen with mock, but good practice
-    }
-  }, [loading, user, router]);
-
   const handleCreateTestGame = async () => {
     if (!user) return;
     setIsCreatingGame(true);
