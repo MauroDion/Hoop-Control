@@ -5,25 +5,14 @@ import type { User } from 'firebase/auth';
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { getBrandingSettings } from '@/lib/actions/admin/settings';
+import { getUserProfileById } from '@/lib/actions/users/get-user-profile';
 import type { UserFirestoreProfile, BrandingSettings } from '@/types';
+import { auth, signInWithEmailAndPassword } from '@/lib/firebase/client';
 
 // --- MOCK USER DATA ---
-const MOCK_SUPER_ADMIN_USER: User = {
-  uid: "7jCTpzm9aBbkz0KRk4qaiDsaKG32",
+const MOCK_SUPER_ADMIN_USER_CREDENTIALS = {
   email: "mauro@hotmail.com",
-  displayName: "Mauro (Super Admin)",
-  photoURL: null,
-  emailVerified: true,
-  isAnonymous: false,
-  metadata: {},
-  providerData: [],
-  // Implement other methods and properties as needed, but they can be empty for this mock
-  getIdToken: async () => 'mock-token',
-  getIdTokenResult: async () => ({ token: 'mock-token', claims: {}, authTime: '', issuedAtTime: '', signInProvider: null, signInSecondFactor: null, expirationTime: '' }),
-  reload: async () => {},
-  delete: async () => {},
-  toJSON: () => ({}),
-  providerId: 'password',
+  password: "super-secret-password-for-dev", // Use a throwaway password
 };
 
 const MOCK_SUPER_ADMIN_PROFILE: UserFirestoreProfile = {
@@ -52,21 +41,49 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
-  const [user, setUser] = useState<User | null>(MOCK_SUPER_ADMIN_USER);
-  const [profile, setProfile] = useState<UserFirestoreProfile | null>(MOCK_SUPER_ADMIN_PROFILE);
+  const [user, setUser] = useState<User | null>(null);
+  const [profile, setProfile] = useState<UserFirestoreProfile | null>(null);
   const [branding, setBranding] = useState<BrandingSettings>({});
-  const [loading, setLoading] = useState(false); // Set to false as we are not fetching auth state
-  const router = useRouter();
+  const [loading, setLoading] = useState(true);
 
   const logout = useCallback(async () => {
-    // In this mock setup, logout does nothing but log to console
-    console.log("Logout function called, but authentication is currently disabled.");
-    // alert("Authentication is currently disabled for development.");
+    await auth.signOut();
+    setUser(null);
+    setProfile(null);
   }, []);
 
   useEffect(() => {
-    // We can still fetch branding settings
+    const signInDevUser = async () => {
+      try {
+        if (!auth.currentUser) {
+          console.log("AuthContext: No user signed in, attempting to sign in dev user...");
+          await signInWithEmailAndPassword(auth, MOCK_SUPER_ADMIN_USER_CREDENTIALS.email, MOCK_SUPER_ADMIN_USER_CREDENTIALS.password);
+          console.log("AuthContext: Dev user signed in successfully.");
+        } else {
+            console.log("AuthContext: User already signed in.");
+        }
+      } catch (error) {
+        console.error("AuthContext: Failed to sign in dev user. Please ensure the user exists in Firebase Auth.", error);
+      }
+    };
+    
+    signInDevUser();
+
+    const unsubscribe = auth.onAuthStateChanged(async (firebaseUser) => {
+      if (firebaseUser) {
+        setUser(firebaseUser);
+        const userProfile = await getUserProfileById(firebaseUser.uid);
+        setProfile(userProfile);
+      } else {
+        setUser(null);
+        setProfile(null);
+      }
+      setLoading(false);
+    });
+
     getBrandingSettings().then(setBranding);
+
+    return () => unsubscribe();
   }, []);
 
 
