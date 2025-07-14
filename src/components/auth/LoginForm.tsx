@@ -60,6 +60,7 @@ export function LoginForm() {
       }
 
       const idToken = await userCredential.user.getIdToken();
+      console.log("LoginForm: ID token obtained. Calling /api/auth/session-login...");
       const response = await fetch('/api/auth/session-login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -67,10 +68,12 @@ export function LoginForm() {
       });
 
       const responseData = await response.json();
+      console.log("LoginForm: Response from session-login API:", responseData);
 
       if (!response.ok) {
-        await signOut(auth);
+        await signOut(auth); // Ensure client is signed out if server rejects session
         if (responseData.reason) {
+          console.log(`LoginForm: Server rejected session. Reason: ${responseData.reason}. Redirecting to login with status.`);
           router.push(`/login?status=${responseData.reason}`);
           return;
         }

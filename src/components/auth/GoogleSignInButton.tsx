@@ -32,6 +32,7 @@ export function GoogleSignInButton() {
       }
 
       const idToken = await result.user.getIdToken();
+      console.log("GoogleSignIn: ID token obtained. Calling /api/auth/session-login...");
       const response = await fetch('/api/auth/session-login', {
         method: 'POST',
         headers: {
@@ -41,12 +42,14 @@ export function GoogleSignInButton() {
       });
 
       const responseData = await response.json();
+      console.log("GoogleSignIn: Response from session-login API:", responseData);
 
       if (!response.ok) {
         // If server rejects session, sign out client-side
         await signOut(auth);
 
         if (responseData.reason) {
+          console.log(`GoogleSignIn: Server rejected session. Reason: ${responseData.reason}. Redirecting to login with status.`);
           router.push(`/login?status=${responseData.reason}`);
           return;
         }

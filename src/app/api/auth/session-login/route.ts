@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb, adminInitError } from '@/lib/firebase/admin';
-import { getUserProfileById } from '@/lib/actions/users';
+import { getUserProfileById } from '@/lib/actions/users/get-user-profile';
 
 export async function POST(request: NextRequest) {
   if (!adminAuth) {
@@ -15,6 +15,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'ID token is required.' }, { status: 400 });
     }
     
+    console.log("API (session-login): Received ID token. Attempting to verify...");
     const decodedToken = await adminAuth.verifyIdToken(idToken);
     const uid = decodedToken.uid;
     console.log(`API (session-login): Verified ID token for UID ${uid}. Checking profile status...`);
@@ -44,6 +45,7 @@ export async function POST(request: NextRequest) {
     console.log(`API (session-login): Profile status for UID ${uid} is 'approved'. Creating session cookie.`);
     const expiresIn = 60 * 60 * 24 * 5 * 1000; // 5 days
     const sessionCookie = await adminAuth.createSessionCookie(idToken, { expiresIn });
+    console.log("API (session-login): Session cookie created successfully. Setting cookie in response.");
     
     const options = {
       name: 'session',
