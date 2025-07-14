@@ -85,8 +85,8 @@ export function LoginForm() {
         title: "Inicio de Sesión Exitoso",
         description: "¡Bienvenido de nuevo!",
       });
+      // Explicit navigation after successful session creation
       router.push(redirectUrl);
-      router.refresh(); 
     } catch (error: any) {
       console.error("Error de inicio de sesión: ", error);
       toast({

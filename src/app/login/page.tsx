@@ -12,27 +12,25 @@ import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Clock, ShieldX, Loader2 } from "lucide-react";
 
+// This component now only handles users who are ALREADY logged in when they land on this page.
 const RedirectingLoader = () => {
     const { user, loading } = useAuth();
     const router = useRouter();
     const searchParams = useSearchParams();
     const redirectUrl = searchParams.get("redirect") || "/dashboard";
-    const [redirected, setRedirected] = useState(false);
 
     useEffect(() => {
-        console.log("LoginPage (RedirectingLoader): Montado. user:", !!user, "loading:", loading, "redirected:", redirected);
-        if (!loading && user && !redirected) {
-             setRedirected(true); // Set flag before redirecting
-             console.log('🔁 LoginPage: Redirigiendo a:', redirectUrl);
+        if (!loading && user) {
+             console.log('🔁 RedirectingLoader: Usuario ya autenticado, redirigiendo a:', redirectUrl);
              router.push(redirectUrl);
         }
-    }, [user, loading, router, redirectUrl, redirected]);
+    }, [user, loading, router, redirectUrl]);
 
     return (
         <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)]">
             <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
             <p className="text-lg text-muted-foreground">
-                Usuario autenticado, redirigiendo a: {redirectUrl}
+                Sesión verificada, redirigiendo...
             </p>
         </div>
     );
@@ -55,10 +53,12 @@ export default function LoginPage() {
     );
   }
 
+  // If user is already logged in, show loader which will handle the redirect.
   if (user) {
     return <RedirectingLoader />;
   }
 
+  // If user is not logged in, show the login form.
   const renderStatusMessage = () => {
     switch (status) {
       case 'pending_approval':

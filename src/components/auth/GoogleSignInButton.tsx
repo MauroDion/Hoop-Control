@@ -58,8 +58,8 @@ export function GoogleSignInButton() {
       }
 
       toast({ title: "Signed in with Google", description: `Welcome, ${result.user.displayName}!` });
+      // Explicit navigation after successful session creation
       router.push(redirectUrl);
-      router.refresh(); 
     } catch (error: any) {
       console.error("Google Sign-In error: ", error);
       toast({
