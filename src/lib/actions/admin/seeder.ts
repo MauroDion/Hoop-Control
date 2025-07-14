@@ -3,7 +3,7 @@
 
 import { adminDb, adminAuth } from '@/lib/firebase/admin';
 import admin from 'firebase-admin';
-import type { Game, Player, Season, Team, UserFirestoreProfile } from '@/types';
+import type { Game, Player, Season, Team, UserFirestoreProfile, PlayerGameStats } from '@/types';
 
 // Helper function to delete all documents in a collection
 async function deleteCollection(db: admin.firestore.Firestore, collectionPath: string, batchSize: number = 100) {

@@ -309,12 +309,17 @@ export async function createTestGame(userId: string): Promise<{ success: boolean
             return { success: false, error: "Found an eligible Valencia team, but no eligible opponent teams (with >= 5 players) to play against." };
         }
         const awayTeamId = opponentTeamIds[Math.floor(Math.random() * opponentTeamIds.length)];
+        
+        const homeTeamPlayers = playersByTeam.get(homeTeamId) || [];
+        const awayTeamPlayers = playersByTeam.get(awayTeamId) || [];
 
-        const [homeTeamSnap, awayTeamSnap, homePlayers, awayPlayers] = await Promise.all([
+        if (homeTeamPlayers.length < 5 || awayTeamPlayers.length < 5) {
+            return { success: false, error: "Selected teams for test game do not have enough players (min 5)." };
+        }
+
+        const [homeTeamSnap, awayTeamSnap] = await Promise.all([
             adminDb.collection('teams').doc(homeTeamId).get(),
             adminDb.collection('teams').doc(awayTeamId).get(),
-            getPlayersFromIds(playersByTeam.get(homeTeamId)?.map(p => p.id) || []),
-            getPlayersFromIds(playersByTeam.get(awayTeamId)?.map(p => p.id) || []),
         ]);
 
         if (!homeTeamSnap.exists || !awayTeamSnap.exists) {
@@ -332,17 +337,17 @@ export async function createTestGame(userId: string): Promise<{ success: boolean
         const competitionCategorySnap = await adminDb.collection('competitionCategories').doc(competitionCategoryId).get();
         const gameFormatId = competitionCategorySnap.data()?.gameFormatId || null;
         
-        const homeTeamPlayerIds = homePlayers.map(p => p.id);
-        const awayTeamPlayerIds = awayPlayers.map(p => p.id);
+        const homeTeamPlayerIds = homeTeamPlayers.map(p => p.id);
+        const awayTeamPlayerIds = awayTeamPlayers.map(p => p.id);
         
         const homeTeamOnCourtPlayerIds = homeTeamPlayerIds.slice(0, 5);
-        const awayTeamOnCourtPlayerIds = awayPlayers.slice(0, 5);
+        const awayTeamOnCourtPlayerIds = awayTeamPlayerIds.slice(0, 5);
         
         const gameDateTime = new Date();
         const initialTeamStats: TeamStats = { onePointAttempts: 0, onePointMade: 0, twoPointAttempts: 0, twoPointMade: 0, threePointAttempts: 0, threePointMade: 0, fouls: 0, timeouts: 0, reboundsOffensive: 0, reboundsDefensive: 0, assists: 0, steals: 0, blocks: 0, turnovers: 0, blocksAgainst: 0, foulsReceived: 0, };
         
         const playerStats: { [playerId: string]: Partial<PlayerGameStats> } = {};
-        [...homePlayers, ...awayPlayers].forEach(player => {
+        [...homeTeamPlayers, ...awayTeamPlayers].forEach(player => {
             playerStats[player.id] = { ...initialPlayerStats, playerId: player.id, playerName: `${player.firstName} ${player.lastName}` };
         });
 
@@ -773,5 +778,3 @@ export async function substitutePlayer(
     return { success: false, error: error.message };
   }
 }
-
-    

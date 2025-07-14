@@ -5,8 +5,7 @@ import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import Link from 'next/link';
-import { getGameById } from '@/app/games/actions';
-import { updateLiveGameState, endCurrentPeriod, substitutePlayer, assignScorer, recordGameEvent } from '@/app/games/actions';
+import { getGameById, updateLiveGameState, endCurrentPeriod, substitutePlayer, assignScorer, recordGameEvent } from '@/lib/actions/games';
 import { getGameFormatById } from '@/game-formats/actions';
 import { getPlayersByTeamId } from '@/app/players/actions';
 import type { Game, GameFormat, Player, GameEventAction, PlayerGameStats, UserFirestoreProfile, ProfileType, StatCategory } from '@/types';
@@ -209,7 +208,7 @@ export default function LiveGamePage() {
           setGame(gameData);
     
           const isSuperAdmin = profile.profileTypeId === 'super_admin';
-          const isClubAdmin = ['club_admin', 'coordinator'].includes(profile.profileTypeId) && (profile.clubId === gameData.homeTeamClubId || profile.clubId === gameData.awayTeamClubId);
+          const isClubAdmin = ['club_admin', 'coordinator'].includes(profile.profileTypeId || "") && (profile.clubId === gameData.homeTeamClubId || profile.clubId === gameData.awayTeamClubId);
           const isParentOfPlayerInGame = profile.profileTypeId === 'parent_guardian' && (profile.children || []).some(child => 
             (gameData.homeTeamPlayerIds || []).includes(child.playerId) || 
             (gameData.awayTeamPlayerIds || []).includes(child.playerId)
@@ -289,7 +288,7 @@ export default function LiveGamePage() {
 
     const handleBenchPlayerClick = (player: Player, teamType: 'home' | 'away') => {
         if (!game || !profile) return;
-        const canSub = ['super_admin', 'club_admin', 'coordinator', 'coach'].includes(profile.profileTypeId);
+        const canSub = ['super_admin', 'club_admin', 'coordinator', 'coach'].includes(profile.profileTypeId || "");
         if (!canSub) {
             toast({ variant: "default", title: "Solo Vista", description: "Solo los entrenadores o administradores pueden hacer sustituciones." });
             return;
@@ -301,7 +300,7 @@ export default function LiveGamePage() {
             toast({ variant: 'default', title: 'Jugador en pista', description: 'Este jugador ya está en la pista.' });
             return;
         }
-        // Determine number of players required on court (e.g., 5 for 5v5, 3 for 3v3)
+        
         const requiredPlayers = gameFormat?.name?.includes('3v3') ? 3 : 5;
 
         if (onCourtIds.length < requiredPlayers) {
@@ -336,7 +335,7 @@ export default function LiveGamePage() {
         } else {
             toast({ variant: 'destructive', title: 'Error', description: result.error });
         }
-    }, [game, user, toast]);
+    }, [game, user, toast, fetchGameData]);
 
     const handleResetTimer = useCallback(() => {
         if (!game || !gameFormat || !user) return;
