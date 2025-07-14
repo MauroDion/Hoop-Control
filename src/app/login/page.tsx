@@ -12,31 +12,6 @@ import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Clock, ShieldX, Loader2 } from "lucide-react";
 
-// This component now only handles users who are ALREADY logged in when they land on this page.
-const RedirectingLoader = () => {
-    const { user, loading } = useAuth();
-    const router = useRouter();
-    const searchParams = useSearchParams();
-    const redirectUrl = searchParams.get("redirect") || "/dashboard";
-
-    useEffect(() => {
-        if (!loading && user) {
-             console.log('🔁 RedirectingLoader: Usuario ya autenticado, redirigiendo a:', redirectUrl);
-             router.push(redirectUrl);
-        }
-    }, [user, loading, router, redirectUrl]);
-
-    return (
-        <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)]">
-            <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-            <p className="text-lg text-muted-foreground">
-                Sesión verificada, redirigiendo...
-            </p>
-        </div>
-    );
-};
-
-
 export default function LoginPage() {
   const { user, loading } = useAuth();
   const searchParams = useSearchParams();
@@ -44,6 +19,10 @@ export default function LoginPage() {
 
   console.log("LoginPage: Renderizando. user:", !!user, "loading:", loading);
   
+  // If the user is authenticated and the context is no longer loading, they shouldn't be here.
+  // The middleware or a protected route component should handle the redirect.
+  // This page's only job is to show the login form or a loading state.
+
   if (loading) {
      return (
         <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)]">
@@ -53,9 +32,17 @@ export default function LoginPage() {
     );
   }
 
-  // If user is already logged in, show loader which will handle the redirect.
+  // If there's a user, it means the redirection from LoginForm or middleware is in progress.
+  // We can show a loader to avoid a flash of the login form.
   if (user) {
-    return <RedirectingLoader />;
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)]">
+          <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
+          <p className="text-lg text-muted-foreground">
+              Redirigiendo...
+          </p>
+      </div>
+    );
   }
 
   // If user is not logged in, show the login form.
