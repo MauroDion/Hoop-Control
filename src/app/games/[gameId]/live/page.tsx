@@ -28,7 +28,7 @@ const PlayerStatCard = ({ player, stats, onClick, userProfileType, isChild }: { 
     const plusMinusValue = stats.plusMinus || 0;
     const pirValue = stats.pir || 0;
     const periodsPlayedSet = stats.periodsPlayedSet || [];
-    const periodsPlayedString = periodsPlayedSet.join(', ');
+    const periodsPlayedString = Array.from(periodsPlayedSet).sort().join(', ');
     const periodsPlayedCount = periodsPlayedSet.length;
 
     return (
@@ -301,7 +301,10 @@ export default function LiveGamePage() {
             toast({ variant: 'default', title: 'Jugador en pista', description: 'Este jugador ya está en la pista.' });
             return;
         }
-        if (onCourtIds.length < 5) {
+        // Determine number of players required on court (e.g., 5 for 5v5, 3 for 3v3)
+        const requiredPlayers = gameFormat?.name?.includes('3v3') ? 3 : 5;
+
+        if (onCourtIds.length < requiredPlayers) {
             handleExecuteSubstitution(teamType, player, null);
         } else {
             setSubPlayerInfo({ player, teamType });
@@ -441,7 +444,7 @@ export default function LiveGamePage() {
                         {onCourtPlayers.length > 0 ? onCourtPlayers.map(p => {
                              const stats = game.playerStats?.[p.id] || { ...defaultStats, playerId: p.id, playerName: `${p.firstName} ${p.lastName}` };
                              const isChild = parentChildInfo.childIds.has(p.id);
-                             return <PlayerStatCard key={p.id} player={p} stats={stats} onClick={canRecordAnyStat ? () => setActionPlayerInfo({ player: p, teamType }) : undefined} userProfileType={profile.profileTypeId} isChild={isChild} />
+                             return <PlayerStatCard key={p.id} player={p} stats={stats as PlayerGameStats} onClick={canRecordAnyStat ? () => setActionPlayerInfo({ player: p, teamType }) : undefined} userProfileType={profile.profileTypeId} isChild={isChild} />
                         }) : <p className="text-sm text-muted-foreground text-center italic col-span-full self-center">Sin jugadores en pista</p>}
                     </div>
                     <Separator/>
@@ -450,7 +453,7 @@ export default function LiveGamePage() {
                        {onBenchPlayers.length > 0 ? onBenchPlayers.map(p => {
                            const stats = game.playerStats?.[p.id] || { ...defaultStats, playerId: p.id, playerName: `${p.firstName} ${p.lastName}` };
                            const isChild = parentChildInfo.childIds.has(p.id);
-                           return <PlayerStatCard key={p.id} player={p} stats={stats} onClick={canManageControls ? () => handleBenchPlayerClick(p, teamType) : undefined} userProfileType={profile.profileTypeId} isChild={isChild}/>
+                           return <PlayerStatCard key={p.id} player={p} stats={stats as PlayerGameStats} onClick={canManageControls ? () => handleBenchPlayerClick(p, teamType) : undefined} userProfileType={profile.profileTypeId} isChild={isChild}/>
                        }) : <p className="text-sm text-muted-foreground text-center italic col-span-full self-center">Banquillo vacío</p>}
                     </div>
                 </CardContent>
@@ -485,7 +488,7 @@ export default function LiveGamePage() {
                                 .map(player => {
                                     const stats = game.playerStats?.[player.id] || { ...defaultStats, playerId: player.id, playerName: `${player.firstName} ${player.lastName}` };
                                     const isChild = parentChildInfo.childIds.has(player.id);
-                                    return <PlayerStatCard key={player.id} player={player} stats={stats} onClick={() => handleCourtPlayerClickInSubDialog(player)} userProfileType={profile.profileTypeId} isChild={isChild}/>
+                                    return <PlayerStatCard key={player.id} player={player} stats={stats as PlayerGameStats} onClick={() => handleCourtPlayerClickInSubDialog(player)} userProfileType={profile.profileTypeId} isChild={isChild}/>
                                 })
                             }
                         </div>

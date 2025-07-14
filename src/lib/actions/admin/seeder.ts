@@ -117,9 +117,9 @@ export async function seedDatabase(): Promise<{ success: boolean; error?: string
             }
         }
         
-        const superAdminUid = superAdminUserRecord ? superAdminUserRecord.uid : 'manual-super-admin-uid-placeholder';
+        const superAdminUid = superAdminUserRecord ? superAdminUserRecord.uid : '7jCTpzm9aBbkz0KRk4qaiDsaKG32';
         const superAdminProfile: Omit<UserFirestoreProfile, 'createdAt' | 'updatedAt' | 'uid' | 'children'> = {
-            displayName: "mauro",
+            displayName: "Mauro (Super Admin)",
             email: superAdminEmail,
             profileTypeId: 'super_admin',
             clubId: null, // Super admins don't belong to a club
@@ -147,7 +147,7 @@ export async function seedDatabase(): Promise<{ success: boolean; error?: string
             { id: 'u16-masculino', name: 'U16 Masculino', level: 16, gameFormatId: gameFormat5v5.id, isFeminine: false },
             { id: 'senior-femenino', name: 'Senior Femenino', level: 99, gameFormatId: gameFormat5v5.id, isFeminine: true },
         ];
-        categories.forEach(cat => batch.set(db.collection('competitionCategories').doc(cat.id), {name: cat.name, level: cat.level, gameFormatId: cat.gameFormatId}));
+        categories.forEach(cat => batch.set(db.collection('competitionCategories').doc(cat.id), {name: cat.name, level: cat.level, gameFormatId: cat.gameFormatId, isFeminine: cat.isFeminine}));
 
         // --- 3. Clubs ---
         const clubs = [
