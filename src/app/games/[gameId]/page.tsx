@@ -12,7 +12,7 @@ import { es } from 'date-fns/locale';
 import { getGameById, updateGameRoster } from '@/app/games/actions';
 import { getPlayersByTeamId } from '@/app/players/actions';
 import { getTeamsByCoach, getTeamById } from '@/app/teams/actions';
-import { getUserProfileById } from '@/lib/actions/users';
+import { getUserProfileById } from '@/lib/actions/users/get-user-profile';
 
 
 // Types
@@ -144,7 +144,7 @@ export default function ManageGamePage() {
             let isParentOfPlayerInGame = false;
             if (profile.profileTypeId === 'parent_guardian' && profile.children && profile.children.length > 0) {
                 const childrenPlayerIds = new Set(profile.children.map(c => c.playerId));
-                const allTeamPlayerIds = new Set([...homeTeamPlayers.map(p => p.id), ...awayTeamPlayers.map(p => p.id)]);
+                const allTeamPlayerIds = new Set([...homeTeamPlayers.map(p => p.id), ...awayPlayers.map(p => p.id)]);
                 for (const childPlayerId of childrenPlayerIds) {
                     if (allTeamPlayerIds.has(childPlayerId)) {
                         isParentOfPlayerInGame = true;
@@ -340,3 +340,5 @@ export default function ManageGamePage() {
         </div>
     );
 }
+
+    
