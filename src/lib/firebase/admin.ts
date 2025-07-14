@@ -12,16 +12,17 @@ if (!admin.apps.length) {
   try {
     const serviceAccountPath = process.env.FIREBASE_ADMIN_SERVICE_ACCOUNT_PATH;
     
-    if (serviceAccountPath) {
+    if (serviceAccountPath && fs.existsSync(serviceAccountPath)) {
       console.log('Initializing Firebase Admin SDK with service account from path...');
       const serviceAccount = JSON.parse(fs.readFileSync(serviceAccountPath, 'utf8'));
       admin.initializeApp({
         credential: admin.credential.cert(serviceAccount),
       });
     } else {
-      console.log('Initializing Firebase Admin SDK with default credentials...');
-      admin.initializeApp();
+      const errorMessage = 'Firebase Admin Service Account file path is not defined or file does not exist. Please set FIREBASE_ADMIN_SERVICE_ACCOUNT_PATH in your environment variables.';
+      throw new Error(errorMessage);
     }
+
     adminAuth = admin.auth();
     adminDb = admin.firestore();
     console.log('Firebase Admin SDK initialized successfully.');
