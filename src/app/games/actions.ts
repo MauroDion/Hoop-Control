@@ -36,8 +36,8 @@ export async function getAllGames(): Promise<Game[]> {
                 id: doc.id,
                 ...data,
                 date: (data.date as admin.firestore.Timestamp).toDate().toISOString(),
-                createdAt: (data.createdAt as admin.firestore.Timestamp)?.toDate().toISOString(),
-                updatedAt: (data.updatedAt as admin.firestore.Timestamp)?.toDate().toISOString(),
+                createdAt: (data.createdAt as admin.firestore.Timestamp)?.toDate().toISOString() || new Date().toISOString(),
+                updatedAt: (data.updatedAt as admin.firestore.Timestamp)?.toDate().toISOString() || new Date().toISOString(),
             } as Game;
         });
     } catch (error: any) {
@@ -803,3 +803,5 @@ export async function substitutePlayer(
     return { success: false, error: error.message };
   }
 }
+
+    
