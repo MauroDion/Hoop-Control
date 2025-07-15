@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { createTestGame, finishAllTestGames } from '@/lib/actions/games';
 import { useToast } from '@/hooks/use-toast';
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
 export default function DashboardPage() {
@@ -18,6 +18,12 @@ export default function DashboardPage() {
   const { toast } = useToast();
   const [isCreatingGame, setIsCreatingGame] = React.useState(false);
   const [isFinishingGames, setIsFinishingGames] = React.useState(false);
+
+  useEffect(() => {
+    if (!loading && !user) {
+      router.push('/dashboard'); // Should never happen with mock, but good practice
+    }
+  }, [user, loading, router]);
 
   const handleCreateTestGame = async () => {
     if (!user) return;
@@ -125,7 +131,7 @@ export default function DashboardPage() {
     alerts: 2,
   };
 
-  const bcsjdApiSampleData = [
+  const hoopControlApiSampleData = [
     { keyMetric: "Progreso General", value: "75%" },
     { keyMetric: "Uso del Presupuesto", value: "60%" },
   ];
@@ -231,7 +237,7 @@ export default function DashboardPage() {
           <CardDescription>Métricas clave obtenidas de la API integrada.</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4 md:grid-cols-2">
-          {bcsjdApiSampleData.map((item, index) => (
+          {hoopControlApiSampleData.map((item, index) => (
             <div key={index} className="p-4 border rounded-md bg-secondary/30">
               <h3 className="text-sm font-medium text-muted-foreground">{item.keyMetric}</h3>
               <p className="text-2xl font-bold text-primary">{item.value}</p>
