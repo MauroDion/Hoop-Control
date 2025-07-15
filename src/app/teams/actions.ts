@@ -72,7 +72,6 @@ export async function updateTeam(
 
   try {
     const teamRef = adminDb.collection("teams").doc(teamId);
-    // TODO: Add permission check here if needed
     
     const updateData = {
       name: formData.name.trim(),
@@ -101,13 +100,10 @@ export async function updateTeam(
 }
 
 export async function getTeamsByClubId(clubId: string): Promise<Team[]> {
-  console.log(`TeamActions: Attempting to fetch teams for clubId: ${clubId}`);
   if (!adminDb) {
-    console.warn("TeamActions (getTeamsByClubId): Admin SDK not available. Returning empty array.");
     return [];
   }
   if (!clubId) {
-    console.warn("TeamActions (getTeamsByClubId): clubId is required.");
     return [];
   }
 
@@ -117,23 +113,29 @@ export async function getTeamsByClubId(clubId: string): Promise<Team[]> {
     const querySnapshot = await q.get();
 
     if (querySnapshot.empty) {
-      console.log(`TeamActions: No teams found for clubId: ${clubId}`);
       return [];
     }
-    
-    console.log(`TeamActions: Found ${querySnapshot.docs.length} teams for clubId: ${clubId}.`);
     
     const teams = querySnapshot.docs.map(doc => {
       const data = doc.data();
       return {
         id: doc.id,
-        ...data,
-        createdAt: data.createdAt ? (data.createdAt as admin.firestore.Timestamp).toDate().toISOString() : undefined,
-        updatedAt: data.updatedAt ? (data.updatedAt as admin.firestore.Timestamp).toDate().toISOString() : undefined,
+        name: data.name || '',
+        clubId: data.clubId,
+        coachIds: data.coachIds || [],
+        coordinatorIds: data.coordinatorIds || [],
+        gameFormatId: data.gameFormatId || null,
+        competitionCategoryId: data.competitionCategoryId || null,
+        playerIds: data.playerIds || [],
+        logoUrl: data.logoUrl || null,
+        city: data.city || null,
+        createdAt: data.createdAt ? (data.createdAt as admin.firestore.Timestamp).toDate().toISOString() : null,
+        updatedAt: data.updatedAt ? (data.updatedAt as admin.firestore.Timestamp).toDate().toISOString() : null,
+        createdByUserId: data.createdByUserId || null
       } as Team;
     });
 
-    teams.sort((a, b) => new Date(b.createdAt as string).getTime() - new Date(a.createdAt as string).getTime());
+    teams.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
     
     return teams;
   } catch (error: any) {
@@ -146,13 +148,10 @@ export async function getTeamsByClubId(clubId: string): Promise<Team[]> {
 }
 
 export async function getTeamById(teamId: string): Promise<Team | null> {
-  console.log(`TeamActions: Attempting to fetch team by ID: ${teamId}`);
   if (!adminDb) {
-    console.warn("TeamActions (getTeamById): Admin SDK not available. Returning null.");
     return null;
   }
   if (!teamId) {
-    console.warn("TeamActions (getTeamById): teamId is required.");
     return null;
   }
 
@@ -161,18 +160,25 @@ export async function getTeamById(teamId: string): Promise<Team | null> {
     const docSnap = await teamDocRef.get();
 
     if (!docSnap.exists) {
-      console.warn(`TeamActions: No team found with ID: ${teamId}`);
       return null;
     }
     
     const data = docSnap.data()!;
-    console.log(`TeamActions: Found team: ${data.name}`);
     
     return {
       id: docSnap.id,
-      ...data,
-      createdAt: data.createdAt ? (data.createdAt as admin.firestore.Timestamp).toDate().toISOString() : undefined,
-      updatedAt: data.updatedAt ? (data.updatedAt as admin.firestore.Timestamp).toDate().toISOString() : undefined,
+      name: data.name || '',
+      clubId: data.clubId,
+      coachIds: data.coachIds || [],
+      coordinatorIds: data.coordinatorIds || [],
+      gameFormatId: data.gameFormatId || null,
+      competitionCategoryId: data.competitionCategoryId || null,
+      playerIds: data.playerIds || [],
+      logoUrl: data.logoUrl || null,
+      city: data.city || null,
+      createdAt: data.createdAt ? (data.createdAt as admin.firestore.Timestamp).toDate().toISOString() : null,
+      updatedAt: data.updatedAt ? (data.updatedAt as admin.firestore.Timestamp).toDate().toISOString() : null,
+      createdByUserId: data.createdByUserId || null
     } as Team;
   } catch (error: any) {
     console.error(`TeamActions: Error fetching team by ID ${teamId}:`, error.message, error.stack);
@@ -189,9 +195,18 @@ export async function getAllTeams(): Promise<Team[]> {
             const data = doc.data();
             return {
                 id: doc.id,
-                ...data,
-                createdAt: data.createdAt ? (data.createdAt as admin.firestore.Timestamp).toDate().toISOString() : undefined,
-                updatedAt: data.updatedAt ? (data.updatedAt as admin.firestore.Timestamp).toDate().toISOString() : undefined,
+                name: data.name || '',
+                clubId: data.clubId,
+                coachIds: data.coachIds || [],
+                coordinatorIds: data.coordinatorIds || [],
+                gameFormatId: data.gameFormatId || null,
+                competitionCategoryId: data.competitionCategoryId || null,
+                playerIds: data.playerIds || [],
+                logoUrl: data.logoUrl || null,
+                city: data.city || null,
+                createdAt: data.createdAt ? (data.createdAt as admin.firestore.Timestamp).toDate().toISOString() : null,
+                updatedAt: data.updatedAt ? (data.updatedAt as admin.firestore.Timestamp).toDate().toISOString() : null,
+                createdByUserId: data.createdByUserId || null
             } as Team;
         });
         return teams;
@@ -204,7 +219,7 @@ export async function getAllTeams(): Promise<Team[]> {
 }
 
 export async function getTeamsByCoach(userId: string): Promise<Team[]> {
-    if (!adminDb) return [];
+    if (!adminDb || !userId) return [];
     try {
         const teamsRef = adminDb.collection('teams');
         const querySnapshot = await teamsRef.where('coachIds', 'array-contains', userId).get();
@@ -212,9 +227,18 @@ export async function getTeamsByCoach(userId: string): Promise<Team[]> {
             const data = doc.data();
              return {
                 id: doc.id,
-                ...data,
-                createdAt: data.createdAt ? (data.createdAt as admin.firestore.Timestamp).toDate().toISOString() : undefined,
-                updatedAt: data.updatedAt ? (data.updatedAt as admin.firestore.Timestamp).toDate().toISOString() : undefined,
+                name: data.name || '',
+                clubId: data.clubId,
+                coachIds: data.coachIds || [],
+                coordinatorIds: data.coordinatorIds || [],
+                gameFormatId: data.gameFormatId || null,
+                competitionCategoryId: data.competitionCategoryId || null,
+                playerIds: data.playerIds || [],
+                logoUrl: data.logoUrl || null,
+                city: data.city || null,
+                createdAt: data.createdAt ? (data.createdAt as admin.firestore.Timestamp).toDate().toISOString() : null,
+                updatedAt: data.updatedAt ? (data.updatedAt as admin.firestore.Timestamp).toDate().toISOString() : null,
+                createdByUserId: data.createdByUserId || null
             } as Team;
         });
     } catch (e: any) {

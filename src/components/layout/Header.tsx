@@ -3,11 +3,9 @@
 
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
-import { UserNav } from './UserNav';
 import { Button } from '@/components/ui/button';
 import { 
     LayoutDashboard, 
-    ListChecks, 
     BarChart3, 
     UserCog, 
     CalendarClock, 
@@ -18,7 +16,9 @@ import {
     ListOrdered,
     Database,
     Dribbble,
-    Settings
+    Settings,
+    UserCircle,
+    LogOut
 } from 'lucide-react';
 import Image from 'next/image';
 import {
@@ -29,19 +29,30 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+
 
 export default function Header() {
-  const { user, profile, branding } = useAuth();
+  const { user, profile, branding, logout } = useAuth();
   const { appName, logoHeaderUrl } = branding || {};
 
   const showAdminTools = profile && ['super_admin'].includes(profile.profileTypeId);
-  const showGameTools = profile && ['super_admin', 'club_admin', 'coordinator', 'coach'].includes(profile.profileTypeId);
+  const showGameTools = profile && ['super_admin', 'club_admin', 'coordinator', 'coach', 'parent_guardian'].includes(profile.profileTypeId);
   const showAnalysisTools = profile && ['super_admin', 'club_admin', 'coordinator', 'coach', 'parent_guardian'].includes(profile.profileTypeId);
+
+  const getInitials = (name?: string | null) => {
+    if (!name) return 'U';
+    const names = name.split(' ');
+    if (names.length > 1) {
+      return `${names[0][0]}${names[names.length - 1][0]}`.toUpperCase();
+    }
+    return names[0].substring(0, 2).toUpperCase();
+  };
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 shadow-sm">
       <div className="container flex h-20 items-center">
-        <Link href="/" className="mr-8 flex items-center space-x-2">
+        <Link href="/dashboard" className="mr-8 flex items-center space-x-2">
             {logoHeaderUrl ? (
                 <div className="relative h-12 w-40">
                     <Image src={logoHeaderUrl} alt={appName || "Hoop Control Logo"} fill style={{objectFit: 'contain'}} />
@@ -97,7 +108,46 @@ export default function Header() {
         </nav>
 
         <div className="ml-auto flex items-center space-x-4">
-          {user && <UserNav />}
+           {user && (
+             <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" className="relative h-10 w-10 rounded-full">
+                        <Avatar className="h-10 w-10">
+                            <AvatarImage src={user.photoURL || ''} alt={user.displayName || 'Usuario'} />
+                            <AvatarFallback>{getInitials(user.displayName)}</AvatarFallback>
+                        </Avatar>
+                    </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                    <DropdownMenuLabel>
+                        <div className="flex flex-col space-y-1">
+                            <p className="text-sm font-medium leading-none">{user.displayName}</p>
+                            <p className="text-xs leading-none text-muted-foreground">{user.email}</p>
+                        </div>
+                    </DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem asChild>
+                        <Link href="/profile" className="cursor-pointer">
+                            <UserCircle className="mr-2 h-4 w-4" />
+                            <span>Mi Perfil</span>
+                        </Link>
+                    </DropdownMenuItem>
+                    {profile?.profileTypeId === 'parent_guardian' && (
+                       <DropdownMenuItem asChild>
+                           <Link href="/profile/my-children" className="cursor-pointer">
+                                <Users className="mr-2 h-4 w-4" />
+                                <span>Mis Hijos/as</span>
+                           </Link>
+                       </DropdownMenuItem>
+                    )}
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={logout} className="cursor-pointer text-destructive focus:bg-destructive/10 focus:text-destructive">
+                        <LogOut className="mr-2 h-4 w-4" />
+                        <span>Cerrar Sesión</span>
+                    </DropdownMenuItem>
+                </DropdownMenuContent>
+            </DropdownMenu>
+           )}
         </div>
       </div>
     </header>

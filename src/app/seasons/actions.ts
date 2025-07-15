@@ -1,3 +1,4 @@
+
 'use server';
 import { adminDb } from '@/lib/firebase/admin';
 import type { Season, SeasonFormData } from '@/types';
@@ -13,9 +14,13 @@ export async function getSeasons(): Promise<Season[]> {
             const data = doc.data();
             return {
                 id: doc.id,
-                ...data,
-                createdAt: data.createdAt ? (data.createdAt as admin.firestore.Timestamp).toDate().toISOString() : undefined,
-                updatedAt: data.updatedAt ? (data.updatedAt as admin.firestore.Timestamp).toDate().toISOString() : undefined,
+                name: data.name || '',
+                status: data.status || 'upcoming',
+                competitions: data.competitions || [],
+                createdAt: data.createdAt ? (data.createdAt as admin.firestore.Timestamp).toDate().toISOString() : null,
+                createdBy: data.createdBy || null,
+                updatedAt: data.updatedAt ? (data.updatedAt as admin.firestore.Timestamp).toDate().toISOString() : null,
+                updatedBy: data.updatedBy || null,
             } as Season;
         });
     } catch (error) {
@@ -25,20 +30,23 @@ export async function getSeasons(): Promise<Season[]> {
 }
 
 export async function getSeasonById(seasonId: string): Promise<Season | null> {
-    if (!adminDb) return null;
+    if (!adminDb || !seasonId) return null;
     try {
         const seasonRef = adminDb.collection('seasons').doc(seasonId);
         const docSnap = await seasonRef.get();
         if (!docSnap.exists) {
-            console.warn(`Could not find season with ID: ${seasonId}`);
             return null;
         }
         const data = docSnap.data()!;
         return {
             id: docSnap.id,
-            ...data,
-            createdAt: data.createdAt ? (data.createdAt as admin.firestore.Timestamp).toDate().toISOString() : undefined,
-            updatedAt: data.updatedAt ? (data.updatedAt as admin.firestore.Timestamp).toDate().toISOString() : undefined,
+            name: data.name || '',
+            status: data.status || 'upcoming',
+            competitions: data.competitions || [],
+            createdAt: data.createdAt ? (data.createdAt as admin.firestore.Timestamp).toDate().toISOString() : null,
+            createdBy: data.createdBy || null,
+            updatedAt: data.updatedAt ? (data.updatedAt as admin.firestore.Timestamp).toDate().toISOString() : null,
+            updatedBy: data.updatedBy || null,
         } as Season;
     } catch (error: any) {
         console.error(`Error fetching season by ID ${seasonId}:`, error);
@@ -84,7 +92,7 @@ export async function updateSeason(
         await seasonRef.update(updateData);
         
         revalidatePath('/seasons');
-        revalidatePath(`/seasons/${seasonId}/edit`);
+        revalidatePath(`/seasons/edit/${seasonId}`);
 
         return { success: true };
     } catch (error: any) {

@@ -1,6 +1,4 @@
 
-// This file was causing a syntax error because of leftover characters.
-// This is the clean, correct version.
 'use server';
 import { adminDb } from '@/lib/firebase/admin';
 import admin from 'firebase-admin';
@@ -23,6 +21,18 @@ const initialPlayerStats: Omit<PlayerGameStats, 'playerId' | 'playerName'> = {
     pir: 0, plusMinus: 0
 };
 
+const gameToSerializable = (doc: admin.firestore.DocumentSnapshot): Game => {
+    const data = doc.data()!;
+    return {
+        id: doc.id,
+        ...data,
+        date: (data.date as admin.firestore.Timestamp).toDate().toISOString(),
+        createdAt: data.createdAt ? (data.createdAt as admin.firestore.Timestamp).toDate().toISOString() : null,
+        updatedAt: data.updatedAt ? (data.updatedAt as admin.firestore.Timestamp).toDate().toISOString() : null,
+        timerStartedAt: data.timerStartedAt ? (data.timerStartedAt as admin.firestore.Timestamp).toDate().toISOString() : null,
+    } as Game;
+}
+
 // --- Public Actions ---
 
 export async function getAllGames(): Promise<Game[]> {
@@ -30,16 +40,7 @@ export async function getAllGames(): Promise<Game[]> {
     try {
         const gamesRef = adminDb.collection('games');
         const snapshot = await gamesRef.orderBy('date', 'desc').get();
-        return snapshot.docs.map(doc => {
-            const data = doc.data();
-            return {
-                id: doc.id,
-                ...data,
-                date: (data.date as admin.firestore.Timestamp).toDate().toISOString(),
-                createdAt: (data.createdAt as admin.firestore.Timestamp)?.toDate().toISOString() || new Date().toISOString(),
-                updatedAt: (data.updatedAt as admin.firestore.Timestamp)?.toDate().toISOString() || new Date().toISOString(),
-            } as Game;
-        });
+        return snapshot.docs.map(gameToSerializable);
     } catch (error: any) {
         console.error("Error fetching all games: ", error);
         if (error.code === 'failed-precondition') {
@@ -59,22 +60,12 @@ export async function getGamesByClub(clubId: string): Promise<Game[]> {
         const [homeGamesSnap, awayGamesSnap] = await Promise.all([homeGamesQuery, awayGamesQuery]);
         
         const gamesMap = new Map<string, Game>();
-        const processSnapshot = (snap: admin.firestore.QuerySnapshot) => {
-            snap.forEach(doc => {
-                const gameData = doc.data();
-                gamesMap.set(doc.id, {
-                    id: doc.id,
-                    ...gameData,
-                    date: (gameData.date as admin.firestore.Timestamp).toDate().toISOString(),
-                } as Game);
-            });
-        };
-
-        processSnapshot(homeGamesSnap);
-        processSnapshot(awayGamesSnap);
+        
+        homeGamesSnap.forEach(doc => gamesMap.set(doc.id, gameToSerializable(doc)));
+        awayGamesSnap.forEach(doc => gamesMap.set(doc.id, gameToSerializable(doc)));
 
         const games = Array.from(gamesMap.values());
-        games.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()); // Sort recent first
+        games.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
         return games;
     } catch (error: any) {
@@ -88,7 +79,7 @@ export async function getGamesByClub(clubId: string): Promise<Game[]> {
 
 
 export async function getGamesByCoach(userId: string): Promise<Game[]> {
-    if (!adminDb) return [];
+    if (!adminDb || !userId) return [];
     try {
         const coachTeams = await getCoachTeams(userId);
         if (coachTeams.length === 0) return [];
@@ -103,19 +94,8 @@ export async function getGamesByCoach(userId: string): Promise<Game[]> {
         const [homeGamesSnap, awayGamesSnap] = await Promise.all([homeGamesQuery, awayGamesQuery]);
 
         const gamesMap = new Map<string, Game>();
-        const processSnapshot = (snap: admin.firestore.QuerySnapshot) => {
-             snap.forEach(doc => {
-                const gameData = doc.data();
-                gamesMap.set(doc.id, {
-                    id: doc.id,
-                    ...gameData,
-                    date: (gameData.date as admin.firestore.Timestamp).toDate().toISOString(),
-                } as Game);
-            });
-        };
-       
-        processSnapshot(homeGamesSnap);
-        processSnapshot(awayGamesSnap);
+        homeGamesSnap.forEach(doc => gamesMap.set(doc.id, gameToSerializable(doc)));
+        awayGamesSnap.forEach(doc => gamesMap.set(doc.id, gameToSerializable(doc)));
 
         const games = Array.from(gamesMap.values());
         games.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -128,7 +108,7 @@ export async function getGamesByCoach(userId: string): Promise<Game[]> {
 }
 
 export async function getGamesByParent(userId: string): Promise<Game[]> {
-    if (!adminDb) return [];
+    if (!adminDb || !userId) return [];
     try {
         const profile = await getUserProfileById(userId);
         if (!profile || profile.profileTypeId !== 'parent_guardian' || !profile.children || profile.children.length === 0) {
@@ -149,19 +129,8 @@ export async function getGamesByParent(userId: string): Promise<Game[]> {
         const [homeGamesSnap, awayGamesSnap] = await Promise.all([homeGamesQuery, awayGamesQuery]);
 
         const gamesMap = new Map<string, Game>();
-        const processSnapshot = (snap: admin.firestore.QuerySnapshot) => {
-             snap.forEach(doc => {
-                const gameData = doc.data();
-                gamesMap.set(doc.id, {
-                    id: doc.id,
-                    ...gameData,
-                    date: (gameData.date as admin.firestore.Timestamp).toDate().toISOString(),
-                } as Game);
-            });
-        };
-       
-        processSnapshot(homeGamesSnap);
-        processSnapshot(awayGamesSnap);
+        homeGamesSnap.forEach(doc => gamesMap.set(doc.id, gameToSerializable(doc)));
+        awayGamesSnap.forEach(doc => gamesMap.set(doc.id, gameToSerializable(doc)));
 
         const games = Array.from(gamesMap.values());
         games.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -175,22 +144,14 @@ export async function getGamesByParent(userId: string): Promise<Game[]> {
 }
 
 export async function getGameById(gameId: string): Promise<Game | null> {
-    if (!adminDb) return null;
+    if (!adminDb || !gameId) return null;
     try {
         const gameRef = adminDb.collection('games').doc(gameId);
         const docSnap = await gameRef.get();
         if (!docSnap.exists) {
             return null;
         }
-        const data = docSnap.data()!;
-        return {
-            id: docSnap.id,
-            ...data,
-            date: (data.date as admin.firestore.Timestamp).toDate().toISOString(),
-            createdAt: (data.createdAt as admin.firestore.Timestamp)?.toDate().toISOString(),
-            updatedAt: (data.updatedAt as admin.firestore.Timestamp)?.toDate().toISOString(),
-            timerStartedAt: (data.timerStartedAt as admin.firestore.Timestamp)?.toDate().toISOString() || null,
-        } as Game;
+        return gameToSerializable(docSnap);
     } catch (error: any) {
         return null;
     }
@@ -250,6 +211,8 @@ export async function createGame(formData: GameFormData, userId: string): Promis
             awayTeamPlayerIds: [],
             homeTeamOnCourtPlayerIds: [],
             awayTeamOnCourtPlayerIds: [],
+            timerStartedAt: null,
+            scorerAssignments: {},
         };
         
         const docRef = await adminDb.collection('games').add({
@@ -342,7 +305,7 @@ export async function createTestGame(userId: string): Promise<{ success: boolean
         const awayTeamPlayerIds = awayTeamPlayers.map(p => p.id);
         
         const homeTeamOnCourtPlayerIds = homeTeamPlayerIds.slice(0, 5);
-        const awayTeamOnCourtPlayerIds = awayTeamPlayers.slice(0, 5);
+        const awayTeamOnCourtPlayerIds = awayTeamPlayerIds.slice(0, 5);
         
         const gameDateTime = new Date();
         const initialTeamStats: TeamStats = { onePointAttempts: 0, onePointMade: 0, twoPointAttempts: 0, twoPointMade: 0, threePointAttempts: 0, threePointMade: 0, fouls: 0, timeouts: 0, reboundsOffensive: 0, reboundsDefensive: 0, assists: 0, steals: 0, blocks: 0, turnovers: 0, blocksAgainst: 0, foulsReceived: 0, };
@@ -361,6 +324,7 @@ export async function createTestGame(userId: string): Promise<{ success: boolean
             homeTeamScore: 0, awayTeamScore: 0, homeTeamStats: initialTeamStats, awayTeamStats: initialTeamStats, playerStats,
             currentPeriod: 1, isTimerRunning: false, periodTimeRemainingSeconds: 0,
             homeTeamPlayerIds, awayTeamPlayerIds, homeTeamOnCourtPlayerIds, awayTeamOnCourtPlayerIds,
+            timerStartedAt: null, scorerAssignments: {},
         };
         
         const gameRef = await adminDb.collection('games').add({
@@ -666,8 +630,8 @@ export async function recordGameEvent(
             }
 
             const incrementPlayerStat = (pId: string, field: keyof PlayerGameStats, amount: number) => {
-                const currentVal = getPlayerStats(pId)[field] || 0;
-                updatePlayerStat(pId, field, (currentVal as number) + amount);
+                const currentVal = getPlayerStats(pId)[field] as number || 0;
+                updatePlayerStat(pId, field, currentVal + amount);
             }
             
             const actionHandlers: Partial<Record<GameEventAction, () => void>> = {
@@ -700,13 +664,9 @@ export async function recordGameEvent(
                 const finalPlayerStats = getPlayerStats(pId);
                 const newPir = calculatePir(finalPlayerStats);
                 updatePlayerStat(pId, 'pir', newPir);
-                finalUpdates[`playerStats.${pId}`] = admin.firestore.FieldValue.delete();
+                finalUpdates[`playerStats.${pId}`] = { ...gameData.playerStats?.[pId], ...playerStatsUpdates[pId] };
             }
              transaction.update(gameRef, finalUpdates);
-
-             for(const pId in playerStatsUpdates){
-                transaction.set(gameRef, { playerStats: { [pId]: getPlayerStats(pId) } }, { merge: true });
-             }
 
             transaction.set(eventRef, { ...eventData, gameId, createdAt: admin.firestore.FieldValue.serverTimestamp(), createdBy: userId });
         });
@@ -803,5 +763,3 @@ export async function substitutePlayer(
     return { success: false, error: error.message };
   }
 }
-
-    

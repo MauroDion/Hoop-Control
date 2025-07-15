@@ -105,11 +105,9 @@ export async function deletePlayer(playerId: string, clubId: string, teamId: str
 
 export async function getPlayersByTeamId(teamId: string): Promise<Player[]> {
   if (!adminDb) {
-    console.warn('PlayerActions (getPlayersByTeamId): Admin SDK not available. Returning empty array.');
     return [];
   }
   if (!teamId) {
-    console.warn('PlayerActions (getPlayersByTeamId): teamId is required.');
     return [];
   }
 
@@ -126,8 +124,13 @@ export async function getPlayersByTeamId(teamId: string): Promise<Player[]> {
       const data = doc.data();
       return {
         id: doc.id,
-        ...data,
-        createdAt: data.createdAt ? (data.createdAt as admin.firestore.Timestamp).toDate().toISOString() : undefined,
+        firstName: data.firstName || '',
+        lastName: data.lastName || '',
+        jerseyNumber: data.jerseyNumber || null,
+        position: data.position || null,
+        teamId: data.teamId || null,
+        createdBy: data.createdBy || null,
+        createdAt: data.createdAt ? (data.createdAt as admin.firestore.Timestamp).toDate().toISOString() : null,
       } as Player;
     });
 
@@ -168,8 +171,13 @@ export async function getPlayersByClub(clubId: string): Promise<Player[]> {
             const data = doc.data();
             players.push({
                 id: doc.id,
-                ...data,
-                createdAt: data.createdAt ? (data.createdAt as admin.firestore.Timestamp).toDate().toISOString() : undefined,
+                firstName: data.firstName || '',
+                lastName: data.lastName || '',
+                jerseyNumber: data.jerseyNumber || null,
+                position: data.position || null,
+                teamId: data.teamId || null,
+                createdBy: data.createdBy || null,
+                createdAt: data.createdAt ? (data.createdAt as admin.firestore.Timestamp).toDate().toISOString() : null,
             } as Player);
         });
     });
@@ -199,8 +207,13 @@ export async function getPlayersFromIds(playerIds: string[]): Promise<Player[]> 
                 const data = doc.data();
                 players.push({
                     id: doc.id,
-                    ...data,
-                    createdAt: data.createdAt ? (data.createdAt as admin.firestore.Timestamp).toDate().toISOString() : undefined,
+                    firstName: data.firstName || '',
+                    lastName: data.lastName || '',
+                    jerseyNumber: data.jerseyNumber || null,
+                    position: data.position || null,
+                    teamId: data.teamId || null,
+                    createdBy: data.createdBy || null,
+                    createdAt: data.createdAt ? (data.createdAt as admin.firestore.Timestamp).toDate().toISOString() : null,
                 } as Player);
             });
         });

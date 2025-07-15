@@ -7,38 +7,35 @@ import admin from 'firebase-admin';
 import { revalidatePath } from 'next/cache';
 
 export async function getCompetitionCategories(): Promise<CompetitionCategory[]> {
-  console.log("CompetitionCategoryActions: Attempting to fetch competition categories from Firestore using Admin SDK.");
   if (!adminDb) {
     console.warn("CompetitionCategoryActions (getCompetitionCategories): Admin SDK not available. Returning empty array.");
     return [];
   }
   try {
     const categoriesCollectionRef = adminDb.collection('competitionCategories');
-    const querySnapshot = await categoriesCollectionRef.get();
+    const querySnapshot = await categoriesCollectionRef.orderBy('name').get();
 
     if (querySnapshot.empty) {
-      console.warn("CompetitionCategoryActions: No documents found in 'competitionCategories' collection.");
       return [];
     }
-    
-    console.log(`CompetitionCategoryActions: Found ${querySnapshot.docs.length} documents in 'competitionCategories' collection.`);
     
     const allCategories = querySnapshot.docs.map(doc => {
       const data = doc.data();
       return {
         id: doc.id,
-        name: data.name || `Unnamed Category (ID: ${doc.id})`,
-        description: data.description,
-        level: data.level,
-        gameFormatId: data.gameFormatId,
-        createdAt: data.createdAt ? (data.createdAt as admin.firestore.Timestamp).toDate().toISOString() : undefined,
-        updatedAt: data.updatedAt ? (data.updatedAt as admin.firestore.Timestamp).toDate().toISOString() : undefined,
+        name: data.name || 'Categoría sin nombre',
+        description: data.description || null,
+        level: data.level || null,
+        isFeminine: data.isFeminine || false,
+        gameFormatId: data.gameFormatId || null,
+        createdAt: data.createdAt ? (data.createdAt as admin.firestore.Timestamp).toDate().toISOString() : null,
+        updatedAt: data.updatedAt ? (data.updatedAt as admin.firestore.Timestamp).toDate().toISOString() : null,
+        createdBy: data.createdBy || null,
       } as CompetitionCategory; 
     });
     
     allCategories.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
 
-    console.log("CompetitionCategoryActions: Successfully fetched and sorted categories using Admin SDK.");
     return allCategories;
   } catch (error: any) {
     console.error('CompetitionCategoryActions: Error fetching competition categories with Admin SDK:', error.message, error.stack);
@@ -101,6 +98,11 @@ export async function updateCompetitionCategory(
 export async function deleteCompetitionCategory(categoryId: string): Promise<{ success: boolean; error?: string }> {
     if (!adminDb) return { success: false, error: 'Database not initialized.' };
     try {
+        const teamsUsingCategory = await adminDb.collection('teams').where('competitionCategoryId', '==', categoryId).limit(1).get();
+        if(!teamsUsingCategory.empty){
+            return { success: false, error: "No se puede eliminar la categoría porque está siendo utilizada por al menos un equipo." };
+        }
+
         await adminDb.collection('competitionCategories').doc(categoryId).delete();
         revalidatePath('/admin/competition-categories');
         return { success: true };

@@ -7,39 +7,33 @@ import admin from 'firebase-admin';
 import { revalidatePath } from 'next/cache';
 
 export async function getGameFormats(): Promise<GameFormat[]> {
-  console.log("GameFormatActions: Attempting to fetch game formats from Firestore using Admin SDK.");
   if (!adminDb) {
     console.warn("GameFormatActions (getGameFormats): Admin SDK not available. Returning empty array.");
     return [];
   }
   try {
     const gameFormatsCollectionRef = adminDb.collection('gameFormats');
-    const querySnapshot = await gameFormatsCollectionRef.get();
+    const querySnapshot = await gameFormatsCollectionRef.orderBy('name').get();
 
     if (querySnapshot.empty) {
-      console.warn("GameFormatActions: No documents found in 'gameFormats' collection.");
       return [];
     }
-    
-    console.log(`GameFormatActions: Found ${querySnapshot.docs.length} documents in 'gameFormats' collection.`);
     
     const allGameFormats = querySnapshot.docs.map(doc => {
       const data = doc.data();
       return {
         id: doc.id,
-        name: data.name || `Unnamed Format (ID: ${doc.id})`,
-        description: data.description,
-        numPeriods: data.numPeriods,
-        periodDurationMinutes: data.periodDurationMinutes,
-        defaultTotalTimeouts: data.defaultTotalTimeouts,
-        minPeriodsPlayerMustPlay: data.minPeriodsPlayerMustPlay,
-        createdAt: data.createdAt ? (data.createdAt as admin.firestore.Timestamp).toDate().toISOString() : undefined,
+        name: data.name || `Formato sin nombre`,
+        description: data.description || null,
+        numPeriods: data.numPeriods || null,
+        periodDurationMinutes: data.periodDurationMinutes || null,
+        defaultTotalTimeouts: data.defaultTotalTimeouts || null,
+        minPeriodsPlayerMustPlay: data.minPeriodsPlayerMustPlay || null,
+        createdAt: data.createdAt ? (data.createdAt as admin.firestore.Timestamp).toDate().toISOString() : null,
+        createdBy: data.createdBy || null,
       } as GameFormat; 
     });
     
-    allGameFormats.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-    
-    console.log("GameFormatActions: Successfully fetched and sorted game formats using Admin SDK.");
     return allGameFormats;
   } catch (error: any) {
     console.error('GameFormatActions: Error fetching game formats with Admin SDK:', error.message, error.stack);
@@ -48,7 +42,7 @@ export async function getGameFormats(): Promise<GameFormat[]> {
 }
 
 export async function getGameFormatById(formatId: string): Promise<GameFormat | null> {
-    if (!adminDb) return null;
+    if (!adminDb || !formatId) return null;
     try {
         const docRef = adminDb.collection('gameFormats').doc(formatId);
         const docSnap = await docRef.get();
@@ -57,9 +51,15 @@ export async function getGameFormatById(formatId: string): Promise<GameFormat | 
         }
         const data = docSnap.data() as Omit<GameFormat, 'id' | 'createdAt'> & { createdAt: admin.firestore.Timestamp };
         return { 
-            id: docSnap.id, 
-            ...data,
-            createdAt: data.createdAt ? (data.createdAt as admin.firestore.Timestamp).toDate().toISOString() : undefined,
+            id: docSnap.id,
+            name: data.name || 'Formato sin nombre',
+            description: data.description || null,
+            numPeriods: data.numPeriods || null,
+            periodDurationMinutes: data.periodDurationMinutes || null,
+            defaultTotalTimeouts: data.defaultTotalTimeouts || null,
+            minPeriodsPlayerMustPlay: data.minPeriodsPlayerMustPlay || null,
+            createdAt: data.createdAt ? (data.createdAt as admin.firestore.Timestamp).toDate().toISOString() : null,
+            createdBy: data.createdBy || null,
         } as GameFormat;
     } catch (error) {
         console.error(`Error getting game format by id ${formatId}:`, error);
@@ -127,6 +127,11 @@ export async function updateGameFormat(
 export async function deleteGameFormat(formatId: string): Promise<{ success: boolean; error?: string }> {
     if (!adminDb) return { success: false, error: 'Database not initialized.' };
     try {
+        const categoriesUsingFormat = await adminDb.collection('competitionCategories').where('gameFormatId', '==', formatId).limit(1).get();
+        if(!categoriesUsingFormat.empty){
+            return { success: false, error: "No se puede eliminar el formato porque está siendo utilizado por al menos una categoría de competición." };
+        }
+
         await adminDb.collection('gameFormats').doc(formatId).delete();
         revalidatePath('/admin/game-formats');
         return { success: true };
