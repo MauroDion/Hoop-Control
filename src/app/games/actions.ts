@@ -1,4 +1,5 @@
 
+
 'use server';
 import { adminDb } from '@/lib/firebase/admin';
 import admin from 'firebase-admin';
@@ -89,14 +90,26 @@ export async function getGamesByCoach(userId: string): Promise<Game[]> {
         if (teamIds.length === 0) return [];
 
         const gamesRef = adminDb.collection('games');
-        const homeGamesQuery = gamesRef.where('homeTeamId', 'in', teamIds).get();
-        const awayGamesQuery = gamesRef.where('awayTeamId', 'in', teamIds).get();
+        // Firestore 'in' queries are limited to 30 values.
+        // We will need to chunk if a coach has more than 30 teams.
+        const teamIdChunks: string[][] = [];
+        for (let i = 0; i < teamIds.length; i += 30) {
+            teamIdChunks.push(teamIds.slice(i, i + 30));
+        }
 
-        const [homeGamesSnap, awayGamesSnap] = await Promise.all([homeGamesQuery, awayGamesQuery]);
+        const gamePromises: Promise<admin.firestore.QuerySnapshot<admin.firestore.DocumentData>>[] = [];
+        teamIdChunks.forEach(chunk => {
+            const homeQuery = gamesRef.where('homeTeamId', 'in', chunk).get();
+            const awayQuery = gamesRef.where('awayTeamId', 'in', chunk).get();
+            gamePromises.push(homeQuery, awayQuery);
+        });
 
+        const gameSnapshots = await Promise.all(gamePromises);
+        
         const gamesMap = new Map<string, Game>();
-        homeGamesSnap.forEach(doc => gamesMap.set(doc.id, gameToSerializable(doc)));
-        awayGamesSnap.forEach(doc => gamesMap.set(doc.id, gameToSerializable(doc)));
+        gameSnapshots.forEach(snapshot => {
+            snapshot.forEach(doc => gamesMap.set(doc.id, gameToSerializable(doc)));
+        });
 
         const games = Array.from(gamesMap.values());
         games.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -120,7 +133,7 @@ export async function getGamesByParent(userId: string): Promise<Game[]> {
         if (childrenPlayerIds.length === 0) return [];
         
         const allPlayers = await getPlayersFromIds(childrenPlayerIds);
-        const teamIds = Array.from(new Set(allPlayers.map(p => p.teamId).filter(Boolean))) as string[];
+        const teamIds = Array.from(new Set(allPlayers.map(p => p.teamId).filter((id): id is string => !!id)));
         if (teamIds.length === 0) return [];
         
         const gamesRef = adminDb.collection('games');
@@ -205,6 +218,7 @@ export async function createGame(formData: GameFormData, userId: string): Promis
             homeTeamStats: initialTeamStats,
             awayTeamStats: initialTeamStats,
             playerStats: {},
+            teamFoulsByPeriod: { home: {}, away: {} },
             currentPeriod: 1,
             isTimerRunning: false,
             periodTimeRemainingSeconds: 0,
@@ -294,10 +308,7 @@ export async function createTestGame(userId: string): Promise<{ success: boolean
         const homeTeamData = homeTeamSnap.data() as Team;
         const awayTeamData = awayTeamSnap.data() as Team;
 
-        const competitionCategoryId = homeTeamData.competitionCategoryId;
-        if (!competitionCategoryId) {
-             return { success: false, error: "Selected Valencia team does not have a competition category assigned." };
-        }
+        const competitionCategoryId = homeTeamData.competitionCategoryId!;
 
         const competitionCategorySnap = await adminDb.collection('competitionCategories').doc(competitionCategoryId).get();
         const gameFormatId = competitionCategorySnap.data()?.gameFormatId || null;
@@ -323,6 +334,7 @@ export async function createTestGame(userId: string): Promise<{ success: boolean
             seasonId, competitionCategoryId, gameFormatId,
             createdBy: userId,
             homeTeamScore: 0, awayTeamScore: 0, homeTeamStats: initialTeamStats, awayTeamStats: initialTeamStats, playerStats,
+            teamFoulsByPeriod: { home: {}, away: {} },
             currentPeriod: 1, isTimerRunning: false, periodTimeRemainingSeconds: 0,
             homeTeamPlayerIds, awayTeamPlayerIds, homeTeamOnCourtPlayerIds, awayTeamOnCourtPlayerIds,
             timerStartedAt: null, scorerAssignments: {},
@@ -448,10 +460,10 @@ export async function updateLiveGameState(
           if (updates.isTimerRunning === true && !gameData.isTimerRunning) {
               finalUpdates.timerStartedAt = admin.firestore.FieldValue.serverTimestamp();
           } else if (updates.isTimerRunning === false && gameData.isTimerRunning) {
-              const timerStartedAtMs = (gameData.timerStartedAt as admin.firestore.Timestamp)?.toMillis();
+              const timerStartedAtMs = (new Date(gameData.timerStartedAt as string)).getTime();
               if (timerStartedAtMs) {
                   const elapsedSeconds = Math.floor((Date.now() - timerStartedAtMs) / 1000);
-                  const newTimeRemaining = Math.max(0, (gameData.periodTimeRemainingSeconds || 0) - elapsedSeconds);
+                  const newTimeRemaining = Math.max(0, (gameData.periodTimeRemainingSeconds ?? 0) - elapsedSeconds);
                   finalUpdates.periodTimeRemainingSeconds = newTimeRemaining;
               }
               finalUpdates.timerStartedAt = null;
@@ -487,15 +499,16 @@ export async function endCurrentPeriod(gameId: string, userId: string): Promise<
             const onCourtIds = [...(gameData.homeTeamOnCourtPlayerIds || []), ...(gameData.awayTeamOnCourtPlayerIds || [])];
             let timePlayedInPeriod = 0;
             
-            const timeRemaining = typeof gameData.periodTimeRemainingSeconds === 'number' ? gameData.periodTimeRemainingSeconds : totalPeriodDuration;
+            let timeRemaining = gameData.periodTimeRemainingSeconds ?? totalPeriodDuration;
 
             if (gameData.isTimerRunning && gameData.timerStartedAt) {
                  const serverStopTime = Date.now();
                  const serverStartTime = (new Date(gameData.timerStartedAt as string)).getTime();
                  const elapsedSeconds = Math.max(0, Math.floor((serverStopTime - serverStartTime) / 1000));
                  timePlayedInPeriod = elapsedSeconds;
+                 timeRemaining -= elapsedSeconds;
             } else if (!gameData.isTimerRunning && timeRemaining < totalPeriodDuration) {
-                 // Timer was paused, calculate based on remaining time
+                 // Timer was paused or has reached zero
                  timePlayedInPeriod = totalPeriodDuration - timeRemaining;
             }
             
@@ -551,7 +564,7 @@ export async function assignScorer(
 
             if (release) {
                 if (assignments[category]?.uid === userId) {
-                    transaction.update(gameRef, { [`scorerAssignments.${category}`]: null });
+                    transaction.update(gameRef, { [`scorerAssignments.${category}`]: admin.firestore.FieldValue.delete() });
                 }
             } else {
                 if (assignments[category] && assignments[category].uid !== userId) {
@@ -621,6 +634,10 @@ export async function recordGameEvent(
             if (!hasPermission) {
                 throw new Error("Acción no permitida. No tienes asignada esta categoría de estadísticas.");
             }
+
+            if (action === 'foul' && (gameData.playerStats?.[playerId!]?.fouls || 0) >= 5) {
+                throw new Error("El jugador ya tiene 5 faltas y no puede cometer más.");
+            }
             
             const finalUpdates: { [key: string]: any } = { updatedAt: admin.firestore.FieldValue.serverTimestamp() };
             const playerStatsUpdates: { [playerId: string]: Partial<PlayerGameStats> } = {};
@@ -654,9 +671,18 @@ export async function recordGameEvent(
                 steal: () => { incrementPlayerStat(playerId, 'steals', 1); finalUpdates[`${teamId}TeamStats.steals`]=admin.firestore.FieldValue.increment(1); },
                 block: () => { incrementPlayerStat(playerId, 'blocks', 1); finalUpdates[`${teamId}TeamStats.blocks`]=admin.firestore.FieldValue.increment(1); },
                 turnover: () => { incrementPlayerStat(playerId, 'turnovers', 1); finalUpdates[`${teamId}TeamStats.turnovers`]=admin.firestore.FieldValue.increment(1); },
-                foul: () => { incrementPlayerStat(playerId, 'fouls', 1); finalUpdates[`${teamId}TeamStats.fouls`]=admin.firestore.FieldValue.increment(1); },
+                foul: () => { 
+                    incrementPlayerStat(playerId, 'fouls', 1); 
+                    finalUpdates[`${teamId}TeamStats.fouls`]=admin.firestore.FieldValue.increment(1);
+                    finalUpdates[`teamFoulsByPeriod.${teamId}.${gameData.currentPeriod}`] = admin.firestore.FieldValue.increment(1);
+                },
                 block_against: () => { incrementPlayerStat(playerId, 'blocks_against', 1); finalUpdates[`${teamId}TeamStats.blocksAgainst`]=admin.firestore.FieldValue.increment(1); },
-                foul_received: () => { incrementPlayerStat(playerId, 'fouls_received', 1); finalUpdates[`${teamId === 'home' ? 'away' : 'home'}TeamStats.fouls`]=admin.firestore.FieldValue.increment(1); },
+                foul_received: () => { 
+                    incrementPlayerStat(playerId, 'fouls_received', 1); 
+                    const opponentTeam = teamId === 'home' ? 'away' : 'home';
+                    finalUpdates[`${opponentTeam}TeamStats.fouls`]=admin.firestore.FieldValue.increment(1); 
+                    finalUpdates[`teamFoulsByPeriod.${opponentTeam}.${gameData.currentPeriod}`] = admin.firestore.FieldValue.increment(1);
+                },
             };
             
             if (actionHandlers[action]) { actionHandlers[action]!(); }
@@ -672,7 +698,6 @@ export async function recordGameEvent(
             const newPir = calculatePir(finalPlayerStats);
             updatePlayerStat(pId, 'pir', newPir);
             
-            // This is the key change: Use dot notation for specific fields instead of overwriting the whole object
             for (const key in playerStatsUpdates[pId]) {
                  finalUpdates[`playerStats.${pId}.${key}`] = playerStatsUpdates[pId][key as keyof PlayerGameStats];
             }
@@ -724,7 +749,8 @@ export async function substitutePlayer(
                     finalUpdates[`playerStats.${pId}.timePlayedSeconds`] = admin.firestore.FieldValue.increment(elapsedSeconds);
                 });
             }
-            finalUpdates.periodTimeRemainingSeconds = (gameData.periodTimeRemainingSeconds || 0) - elapsedSeconds;
+            const newTimeRemaining = (gameData.periodTimeRemainingSeconds || 0) - elapsedSeconds;
+            finalUpdates.periodTimeRemainingSeconds = Math.max(0, newTimeRemaining);
             finalUpdates.timerStartedAt = admin.firestore.FieldValue.serverTimestamp();
         }
 
@@ -747,7 +773,6 @@ export async function substitutePlayer(
             const eventInRef = gameRef.collection('events').doc();
             transaction.set(eventInRef, { ...baseEventPayload, action: 'substitution_in', playerId: playerIn.id, playerName: playerIn.name });
 
-            // Ensure player stats object exists
             if (!gameData.playerStats?.[playerIn.id]) {
                 finalUpdates[`playerStats.${playerIn.id}`] = { ...initialPlayerStats, playerId: playerIn.id, playerName: playerIn.name };
             }

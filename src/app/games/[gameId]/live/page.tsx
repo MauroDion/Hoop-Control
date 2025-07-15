@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
@@ -261,16 +262,16 @@ export default function LiveGamePage() {
     useEffect(() => {
         let timerId: NodeJS.Timeout | undefined;
         if (game?.isTimerRunning && game.timerStartedAt) {
-            const serverStartTimeMs = new Date(game.timerStartedAt).getTime();
+            const serverStartTimeMs = (new Date(game.timerStartedAt as string)).getTime();
             const initialRemainingSeconds = game.periodTimeRemainingSeconds ?? 0;
             
             const updateDisplay = () => {
                 const elapsedSeconds = Math.floor((Date.now() - serverStartTimeMs) / 1000);
                 const newDisplayTime = Math.max(0, initialRemainingSeconds - elapsedSeconds);
                 setDisplayTime(newDisplayTime);
-                if (newDisplayTime <= 0) {
+                if (newDisplayTime <= 0 && game.isTimerRunning) {
                     clearInterval(timerId);
-                    handleEndPeriod();
+                    if (!isEndingPeriod) handleEndPeriod();
                 }
             };
             
@@ -278,7 +279,8 @@ export default function LiveGamePage() {
             timerId = setInterval(updateDisplay, 1000);
         }
         return () => clearInterval(timerId);
-    }, [game?.isTimerRunning, game?.timerStartedAt, game?.periodTimeRemainingSeconds, handleEndPeriod]);
+    }, [game?.isTimerRunning, game?.timerStartedAt, game?.periodTimeRemainingSeconds, handleEndPeriod, isEndingPeriod]);
+
 
     const handleGameEvent = async (teamType: 'home' | 'away', playerId: string, playerName: string, action: GameEventAction) => {
         if (!game || game.status !== 'inprogress' || !user) return;
@@ -358,7 +360,7 @@ export default function LiveGamePage() {
         if (status === 'inprogress') {
             let format = gameFormat;
             if (!format && game.gameFormatId) {
-                format = await getGameFormatById(game.gameFormatId);
+                format = await getFormat(game.gameFormatId);
                 if (format) setGameFormat(format);
             }
             updates.periodTimeRemainingSeconds = (format?.periodDurationMinutes || 10) * 60;
@@ -435,15 +437,28 @@ export default function LiveGamePage() {
         const teamName = teamType === 'home' ? game.homeTeamName : game.awayTeamName;
         const onCourtIds = new Set(teamType === 'home' ? game.homeTeamOnCourtPlayerIds : game.awayTeamOnCourtPlayerIds);
         const gameRosterIds = new Set(teamType === 'home' ? game.homeTeamPlayerIds : game.awayTeamPlayerIds);
+        
+        const periodFouls = game.teamFoulsByPeriod?.[teamType]?.[game.currentPeriod] || 0;
 
         const onCourtPlayers = playersList.filter(p => gameRosterIds.has(p.id) && onCourtIds.has(p.id));
         const onBenchPlayers = playersList.filter(p => gameRosterIds.has(p.id) && !onCourtIds.has(p.id));
         
         return (
             <Card className="shadow-lg">
-                <CardHeader><CardTitle className="truncate">{teamName}</CardTitle><CardDescription>Equipo {teamType === 'home' ? 'Local' : 'Visitante'}</CardDescription></CardHeader>
+                <CardHeader>
+                    <CardTitle className="truncate">{teamName}</CardTitle>
+                    <CardDescription>Equipo {teamType === 'home' ? 'Local' : 'Visitante'}</CardDescription>
+                </CardHeader>
                 <CardContent className="space-y-4">
-                    <div className="text-8xl font-bold text-primary text-center">{teamType === 'home' ? game.homeTeamScore : game.awayTeamScore}</div>
+                    <div className="flex items-center justify-center gap-4">
+                        <div className="text-8xl font-bold text-primary text-center">{teamType === 'home' ? game.homeTeamScore : game.awayTeamScore}</div>
+                        <div className="flex flex-col items-center">
+                            <span className="text-xs font-semibold text-muted-foreground">FALTAS</span>
+                            <div className="flex items-center justify-center h-12 w-12 bg-destructive rounded-md text-destructive-foreground text-3xl font-bold">
+                                {periodFouls}
+                            </div>
+                        </div>
+                    </div>
                     <Separator/>
                     <h4 className="font-semibold text-center">Jugadores en Pista</h4>
                     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 min-h-[10rem]">

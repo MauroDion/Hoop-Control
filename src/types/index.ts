@@ -1,3 +1,4 @@
+
 import type { Timestamp } from 'firebase/firestore';
 
 export interface Task {
@@ -59,6 +60,7 @@ export interface UserFirestoreProfile {
   isSeeded?: boolean;
   onboardingCompleted?: boolean;
   children?: Child[];
+  teamsAsCoach?: Team[];
 }
 
 export interface UserProfileAdminView extends UserFirestoreProfile {
@@ -69,15 +71,13 @@ export interface UserProfileAdminView extends UserFirestoreProfile {
 export interface Club {
   id: string;
   name: string;
-  shortName?: string;
-  province_code?: string;
-  city_code?: string;
-  province_name?: string;
-  city_name?: string;
-  logoUrl?: string;
-  approved?: boolean;
+  shortName: string | null;
+  province_name: string | null;
+  city_name: string | null;
+  logoUrl: string | null;
+  approved: boolean;
+  createdAt: string | Date | null;
   createdBy?: string;
-  createdAt?: string | Date;
 }
 
 export interface ClubFormData {
@@ -102,14 +102,14 @@ export interface Team {
   clubId: string;
   coachIds?: string[];
   coordinatorIds?: string[];
-  gameFormatId?: string | null;
-  competitionCategoryId?: string | null;
+  gameFormatId: string | null;
+  competitionCategoryId: string | null;
   playerIds?: string[];
-  logoUrl?: string | null;
-  city?: string | null;
-  createdAt: string | Date;
-  updatedAt: string | Date;
-  createdByUserId: string;
+  logoUrl: string | null;
+  city: string | null;
+  createdAt: string | Date | null;
+  updatedAt: string | Date | null;
+  createdByUserId: string | null;
 }
 
 export interface TeamFormData {
@@ -123,13 +123,13 @@ export interface TeamFormData {
 export interface GameFormat {
   id: string;
   name: string;
-  description?: string;
-  numPeriods?: number;
-  periodDurationMinutes?: number;
-  defaultTotalTimeouts?: number;
-  minPeriodsPlayerMustPlay?: number;
-  createdAt?: string | Date;
-  createdBy?: string;
+  description: string | null;
+  numPeriods: number | null;
+  periodDurationMinutes: number | null;
+  defaultTotalTimeouts: number | null;
+  minPeriodsPlayerMustPlay: number | null;
+  createdAt: string | Date | null;
+  createdBy: string | null;
 }
 
 export interface GameFormatFormData {
@@ -144,13 +144,13 @@ export interface GameFormatFormData {
 export interface CompetitionCategory {
   id: string;
   name: string;
-  description?: string;
-  level?: number;
-  isFeminine?: boolean;
-  gameFormatId?: string | null;
-  createdAt?: string | Date;
-  updatedAt?: string | Date;
-  createdBy?: string;
+  description: string | null;
+  level: number | null;
+  isFeminine: boolean;
+  gameFormatId: string | null;
+  createdAt: string | Date | null;
+  updatedAt: string | Date | null;
+  createdBy: string | null;
 }
 
 export interface CompetitionCategoryFormData {
@@ -165,11 +165,11 @@ export interface Player {
   id: string;
   firstName: string;
   lastName: string;
-  jerseyNumber?: number;
-  position?: string;
-  teamId?: string;
-  createdBy?: string;
-  createdAt?: string | Date;
+  jerseyNumber: number | null;
+  position: string | null;
+  teamId: string | null;
+  createdBy: string | null;
+  createdAt: string | Date | null;
 }
 
 export interface PlayerFormData {
@@ -187,10 +187,10 @@ export interface Season {
         competitionCategoryId: string;
         teamIds: string[];
     }[];
-    createdAt?: string | Date;
-    createdBy?: string;
-    updatedAt?: string | Date;
-    updatedBy?: string;
+    createdAt: string | Date | null;
+    createdBy: string | null;
+    updatedAt: string | Date | null;
+    updatedBy: string | null;
 }
 
 export interface SeasonFormData {
@@ -261,7 +261,7 @@ export interface PlayerGameStats {
   playerName: string;
   timePlayedSeconds: number;
   periodsPlayed: number;
-  periodsPlayedSet?: number[];
+  periodsPlayedSet: number[];
   points: number;
   shots_made_1p: number; shots_attempted_1p: number;
   shots_made_2p: number; shots_attempted_2p: number;
@@ -287,28 +287,32 @@ export interface Game {
     awayTeamId: string;
     awayTeamClubId: string;
     awayTeamName: string;
-    homeTeamLogoUrl?: string | null;
-    awayTeamLogoUrl?: string | null;
+    homeTeamLogoUrl: string | null;
+    awayTeamLogoUrl: string | null;
     date: string | Date;
     location: string;
     status: 'scheduled' | 'inprogress' | 'completed' | 'cancelled';
     seasonId: string;
     competitionCategoryId: string;
-    gameFormatId?: string | null;
-    homeTeamPlayerIds?: string[];
-    awayTeamPlayerIds?: string[];
-    homeTeamOnCourtPlayerIds?: string[];
-    awayTeamOnCourtPlayerIds?: string[];
-    homeTeamScore?: number;
-    awayTeamScore?: number;
-    homeTeamStats?: TeamStats;
-    awayTeamStats?: TeamStats;
-    playerStats?: { [playerId: string]: Partial<PlayerGameStats> };
-    currentPeriod?: number;
-    periodTimeRemainingSeconds?: number;
-    isTimerRunning?: boolean;
-    timerStartedAt?: string | Date | null;
-    scorerAssignments?: {
+    gameFormatId: string | null;
+    homeTeamPlayerIds: string[];
+    awayTeamPlayerIds: string[];
+    homeTeamOnCourtPlayerIds: string[];
+    awayTeamOnCourtPlayerIds: string[];
+    homeTeamScore: number;
+    awayTeamScore: number;
+    homeTeamStats: TeamStats;
+    awayTeamStats: TeamStats;
+    playerStats: { [playerId: string]: Partial<PlayerGameStats> };
+    teamFoulsByPeriod: {
+      home: { [period: number]: number };
+      away: { [period: number]: number };
+    };
+    currentPeriod: number;
+    periodTimeRemainingSeconds: number;
+    isTimerRunning: boolean;
+    timerStartedAt: string | Date | null;
+    scorerAssignments: {
       [key in StatCategory]?: {
         uid: string;
         displayName: string;
