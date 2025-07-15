@@ -133,7 +133,7 @@ export async function getGamesByParent(userId: string): Promise<Game[]> {
         if (childrenPlayerIds.length === 0) return [];
         
         const allPlayers = await getPlayersFromIds(childrenPlayerIds);
-        const teamIds = Array.from(new Set(allPlayers.map(p => p.teamId).filter(Boolean))) as string[];
+        const teamIds = Array.from(new Set(allPlayers.map(p => p.teamId).filter((id): id is string => !!id)));
         if (teamIds.length === 0) return [];
         
         const gamesRef = adminDb.collection('games');
@@ -637,80 +637,85 @@ export async function recordGameEvent(
                 throw new Error("Acción no permitida. No tienes asignada esta categoría de estadísticas.");
             }
             
-            const finalUpdates: { [key: string]: any } = { updatedAt: admin.firestore.FieldValue.serverTimestamp() };
+            // --- Start of Refactored Logic ---
 
-            // Create a deep copy of player stats to modify in memory
-            const playerStatsUpdates = JSON.parse(JSON.stringify(gameData.playerStats || {}));
-
+            // 1. Create a deep copy of the game data to manipulate in memory.
+            const gameDataCopy: Game = JSON.parse(JSON.stringify(gameData));
+            if (!gameDataCopy.playerStats) gameDataCopy.playerStats = {};
+            
             const getPlayerStats = (pId: string): PlayerGameStats => {
-                if (!playerStatsUpdates[pId]) {
-                    playerStatsUpdates[pId] = { ...initialPlayerStats, playerId: pId, playerName: '' };
+                 if (!gameDataCopy.playerStats[pId]) {
+                    gameDataCopy.playerStats[pId] = { ...initialPlayerStats, playerId: pId, playerName: '' };
                 }
-                return playerStatsUpdates[pId];
+                return gameDataCopy.playerStats[pId] as PlayerGameStats;
             };
 
             const actingPlayerStats = getPlayerStats(playerId);
             actingPlayerStats.playerName = eventData.playerName;
 
-            if (action === 'foul' && actingPlayerStats.fouls >= 5) {
+            if (action === 'foul' && (actingPlayerStats.fouls || 0) >= 5) {
                 throw new Error("El jugador ya tiene 5 faltas y está expulsado.");
             }
-            
-            const actionHandlers: Partial<Record<GameEventAction, () => void>> = {
-                shot_made_1p: () => { actingPlayerStats.points += 1; actingPlayerStats.shots_made_1p += 1; actingPlayerStats.shots_attempted_1p += 1; finalUpdates[`${teamId}TeamScore`]=admin.firestore.FieldValue.increment(1); },
-                shot_miss_1p: () => { actingPlayerStats.shots_attempted_1p += 1; },
-                shot_made_2p: () => { actingPlayerStats.points += 2; actingPlayerStats.shots_made_2p += 1; actingPlayerStats.shots_attempted_2p += 1; finalUpdates[`${teamId}TeamScore`]=admin.firestore.FieldValue.increment(2); },
-                shot_miss_2p: () => { actingPlayerStats.shots_attempted_2p += 1; },
-                shot_made_3p: () => { actingPlayerStats.points += 3; actingPlayerStats.shots_made_3p += 1; actingPlayerStats.shots_attempted_3p += 1; finalUpdates[`${teamId}TeamScore`]=admin.firestore.FieldValue.increment(3); },
-                shot_miss_3p: () => { actingPlayerStats.shots_attempted_3p += 1; },
-                rebound_defensive: () => { actingPlayerStats.reb_def += 1; finalUpdates[`${teamId}TeamStats.reboundsDefensive`]=admin.firestore.FieldValue.increment(1); },
-                rebound_offensive: () => { actingPlayerStats.reb_off += 1; finalUpdates[`${teamId}TeamStats.reboundsOffensive`]=admin.firestore.FieldValue.increment(1); },
-                assist: () => { actingPlayerStats.assists += 1; finalUpdates[`${teamId}TeamStats.assists`]=admin.firestore.FieldValue.increment(1); },
-                steal: () => { actingPlayerStats.steals += 1; finalUpdates[`${teamId}TeamStats.steals`]=admin.firestore.FieldValue.increment(1); },
-                block: () => { actingPlayerStats.blocks += 1; finalUpdates[`${teamId}TeamStats.blocks`]=admin.firestore.FieldValue.increment(1); },
-                turnover: () => { actingPlayerStats.turnovers += 1; finalUpdates[`${teamId}TeamStats.turnovers`]=admin.firestore.FieldValue.increment(1); },
-                foul: () => { 
-                    actingPlayerStats.fouls += 1; 
-                    finalUpdates[`${teamId}TeamStats.fouls`]=admin.firestore.FieldValue.increment(1); 
-                    finalUpdates[`teamFoulsByPeriod.${teamId}.${gameData.currentPeriod}`] = admin.firestore.FieldValue.increment(1);
-                    if (actingPlayerStats.fouls >= 5) {
-                        const onCourtField = teamId === 'home' ? 'homeTeamOnCourtPlayerIds' : 'awayTeamOnCourtPlayerIds';
-                        finalUpdates[onCourtField] = admin.firestore.FieldValue.arrayRemove(playerId);
-                    }
-                },
-                block_against: () => { actingPlayerStats.blocks_against += 1; finalUpdates[`${teamId}TeamStats.blocksAgainst`]=admin.firestore.FieldValue.increment(1); },
-                foul_received: () => { 
-                    actingPlayerStats.fouls_received += 1; 
-                    const opponentTeam = teamId === 'home' ? 'away' : 'home';
-                    finalUpdates[`${opponentTeam}TeamStats.fouls`]=admin.firestore.FieldValue.increment(1); 
-                    finalUpdates[`teamFoulsByPeriod.${opponentTeam}.${gameData.currentPeriod}`] = admin.firestore.FieldValue.increment(1);
-                },
-            };
-            
-            if (actionHandlers[action]) { actionHandlers[action]!(); }
 
-            // Recalculate PIR for the acting player
-            actingPlayerStats.pir = calculatePir(actingPlayerStats);
-
-            if (action.startsWith('shot_made')) {
-                const points = parseInt(action.slice(10, 11), 10);
-                (gameData.homeTeamOnCourtPlayerIds || []).forEach((pId: string) => { 
-                    getPlayerStats(pId).plusMinus += (teamId === 'home' ? points : -points); 
-                });
-                (gameData.awayTeamOnCourtPlayerIds || []).forEach((pId: string) => { 
-                    getPlayerStats(pId).plusMinus += (teamId === 'away' ? points : -points); 
-                });
+            // 2. Apply stat changes to the in-memory copy
+            let pointsScored = 0;
+            switch(action) {
+                case 'shot_made_1p': actingPlayerStats.points += 1; actingPlayerStats.shots_made_1p += 1; actingPlayerStats.shots_attempted_1p += 1; pointsScored = 1; break;
+                case 'shot_miss_1p': actingPlayerStats.shots_attempted_1p += 1; break;
+                case 'shot_made_2p': actingPlayerStats.points += 2; actingPlayerStats.shots_made_2p += 1; actingPlayerStats.shots_attempted_2p += 1; pointsScored = 2; break;
+                case 'shot_miss_2p': actingPlayerStats.shots_attempted_2p += 1; break;
+                case 'shot_made_3p': actingPlayerStats.points += 3; actingPlayerStats.shots_made_3p += 1; actingPlayerStats.shots_attempted_3p += 1; pointsScored = 3; break;
+                case 'shot_miss_3p': actingPlayerStats.shots_attempted_3p += 1; break;
+                case 'rebound_defensive': actingPlayerStats.reb_def += 1; break;
+                case 'rebound_offensive': actingPlayerStats.reb_off += 1; break;
+                case 'assist': actingPlayerStats.assists += 1; break;
+                case 'steal': actingPlayerStats.steals += 1; break;
+                case 'block': actingPlayerStats.blocks += 1; break;
+                case 'turnover': actingPlayerStats.turnovers += 1; break;
+                case 'block_against': actingPlayerStats.blocks_against += 1; break;
+                case 'foul': actingPlayerStats.fouls += 1; break;
+                case 'foul_received': actingPlayerStats.fouls_received += 1; break;
             }
             
-            const onCourtIds = [...(gameData.homeTeamOnCourtPlayerIds || []), ...(gameData.awayTeamOnCourtPlayerIds || [])];
-            onCourtIds.forEach(pId => {
-                if (playerStatsUpdates[pId]) {
-                   playerStatsUpdates[pId].pir = calculatePir(playerStatsUpdates[pId]);
+            // 3. Update scores and other game-level stats on the copy
+            if (pointsScored > 0) {
+                if (teamId === 'home') gameDataCopy.homeTeamScore += pointsScored;
+                else gameDataCopy.awayTeamScore += pointsScored;
+                
+                (gameDataCopy.homeTeamOnCourtPlayerIds || []).forEach(pId => { getPlayerStats(pId).plusMinus += (teamId === 'home' ? pointsScored : -pointsScored) });
+                (gameDataCopy.awayTeamOnCourtPlayerIds || []).forEach(pId => { getPlayerStats(pId).plusMinus += (teamId === 'away' ? pointsScored : -pointsScored) });
+            }
+            
+            if (action === 'foul') {
+                const currentFouls = gameDataCopy.teamFoulsByPeriod?.[teamId]?.[gameData.currentPeriod] || 0;
+                if (!gameDataCopy.teamFoulsByPeriod) gameDataCopy.teamFoulsByPeriod = { home: {}, away: {} };
+                if (!gameDataCopy.teamFoulsByPeriod[teamId]) gameDataCopy.teamFoulsByPeriod[teamId] = {};
+                gameDataCopy.teamFoulsByPeriod[teamId][gameData.currentPeriod] = currentFouls + 1;
+                
+                if (actingPlayerStats.fouls >= 5) {
+                   const court = teamId === 'home' ? 'homeTeamOnCourtPlayerIds' : 'awayTeamOnCourtPlayerIds';
+                   gameDataCopy[court] = gameDataCopy[court].filter(id => id !== playerId);
                 }
+            }
+            
+            // 4. Recalculate PIR for all affected players
+            const affectedPlayerIds = new Set([playerId, ...gameDataCopy.homeTeamOnCourtPlayerIds, ...gameDataCopy.awayTeamOnCourtPlayerIds]);
+            affectedPlayerIds.forEach(pId => {
+                const stats = getPlayerStats(pId);
+                if (stats) stats.pir = calculatePir(stats);
             });
             
-            finalUpdates['playerStats'] = playerStatsUpdates;
-             
+            // 5. Build final update object and commit transaction
+            const finalUpdates = {
+                homeTeamScore: gameDataCopy.homeTeamScore,
+                awayTeamScore: gameDataCopy.awayTeamScore,
+                playerStats: gameDataCopy.playerStats,
+                teamFoulsByPeriod: gameDataCopy.teamFoulsByPeriod,
+                homeTeamOnCourtPlayerIds: gameDataCopy.homeTeamOnCourtPlayerIds,
+                awayTeamOnCourtPlayerIds: gameDataCopy.awayTeamOnCourtPlayerIds,
+                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            };
+
             transaction.update(gameRef, finalUpdates);
             transaction.set(eventRef, { ...eventData, gameId, createdAt: admin.firestore.FieldValue.serverTimestamp(), createdBy: userId });
         });
