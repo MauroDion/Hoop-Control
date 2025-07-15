@@ -1,3 +1,4 @@
+
 // This file was causing a syntax error because of leftover characters.
 // This is the clean, correct version.
 'use server';
@@ -523,11 +524,14 @@ export async function endCurrentPeriod(gameId: string, userId: string): Promise<
                  onCourtIds.forEach(pId => {
                     finalUpdates[`playerStats.${pId}.timePlayedSeconds`] = admin.firestore.FieldValue.increment(elapsedSeconds);
                  });
-            } else if (gameData.isTimerRunning === false && gameData.periodTimeRemainingSeconds !== undefined) {
-                 const timePlayedThisRun = totalPeriodDuration - gameData.periodTimeRemainingSeconds;
-                 onCourtIds.forEach(pId => {
-                     finalUpdates[`playerStats.${pId}.timePlayedSeconds`] = admin.firestore.FieldValue.increment(timePlayedThisRun);
-                 });
+            } else if (gameData.isTimerRunning === false) {
+                 const timeRemaining = typeof gameData.periodTimeRemainingSeconds === 'number' ? gameData.periodTimeRemainingSeconds : totalPeriodDuration;
+                 const timePlayedThisRun = totalPeriodDuration - timeRemaining;
+                 if (timePlayedThisRun > 0) {
+                     onCourtIds.forEach(pId => {
+                         finalUpdates[`playerStats.${pId}.timePlayedSeconds`] = admin.firestore.FieldValue.increment(timePlayedThisRun);
+                     });
+                 }
             }
             
             const maxPeriods = gameFormat?.numPeriods || 4;
@@ -651,10 +655,9 @@ export async function recordGameEvent(
             const playerStatsUpdates: { [playerId: string]: Partial<PlayerGameStats> } = {};
 
             const getPlayerStats = (pId: string): PlayerGameStats => {
-                 return {
-                    ...(gameData.playerStats?.[pId] || initialPlayerStats),
-                    ...playerStatsUpdates[pId],
-                 } as PlayerGameStats
+                 const originalStats = gameData.playerStats?.[pId] || { ...initialPlayerStats, playerId: pId };
+                 const currentUpdates = playerStatsUpdates[pId] || {};
+                 return { ...originalStats, ...currentUpdates } as PlayerGameStats;
             }
 
             const updatePlayerStat = (pId: string, field: keyof PlayerGameStats, value: any) => {
@@ -697,11 +700,15 @@ export async function recordGameEvent(
                 const finalPlayerStats = getPlayerStats(pId);
                 const newPir = calculatePir(finalPlayerStats);
                 updatePlayerStat(pId, 'pir', newPir);
-                finalUpdates[`playerStats.${pId}`] = getPlayerStats(pId);
+                finalUpdates[`playerStats.${pId}`] = admin.firestore.FieldValue.delete();
             }
-            
+             transaction.update(gameRef, finalUpdates);
+
+             for(const pId in playerStatsUpdates){
+                transaction.set(gameRef, { playerStats: { [pId]: getPlayerStats(pId) } }, { merge: true });
+             }
+
             transaction.set(eventRef, { ...eventData, gameId, createdAt: admin.firestore.FieldValue.serverTimestamp(), createdBy: userId });
-            transaction.update(gameRef, finalUpdates);
         });
         return { success: true };
     } catch(error: any) {
