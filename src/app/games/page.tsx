@@ -27,7 +27,7 @@ export default function GamesPage() {
       return;
     }
     if (!user) {
-      router.push('/login?redirect=/games');
+      router.push('/dashboard');
       return;
     }
     if (!profile) {
