@@ -12,7 +12,7 @@ import { getPlayersByTeamId } from '@/app/players/actions';
 import type { Game, GameFormat, Player, GameEventAction, PlayerGameStats, UserFirestoreProfile, ProfileType, StatCategory } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, AlertTriangle, ChevronLeft, Gamepad2, Minus, Plus, Play, Flag, Pause, TimerReset, FastForward, Timer as TimerIcon, CheckCircle, Ban, Users, Dribbble, UserCheck, RefreshCw } from 'lucide-react';
+import { Loader2, AlertTriangle, ChevronLeft, Gamepad2, Minus, Plus, Play, Flag, Pause, TimerReset, FastForward, Timer as TimerIcon, CheckCircle, Ban, Users, Dribbble, UserCheck, RefreshCw, ShieldOff } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Separator } from '@/components/ui/separator';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -20,6 +20,7 @@ import Image from 'next/image';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
+import { cn } from '@/lib/utils';
 
 const PlayerStatCard = ({ player, stats, onClick, userProfileType, isChild }: { player: Player; stats: PlayerGameStats; onClick?: () => void, userProfileType?: ProfileType, isChild: boolean }) => {
     
@@ -30,9 +31,24 @@ const PlayerStatCard = ({ player, stats, onClick, userProfileType, isChild }: { 
     const periodsPlayedSet = stats.periodsPlayedSet || [];
     const periodsPlayedString = Array.from(periodsPlayedSet).sort().join(', ');
     const periodsPlayedCount = periodsPlayedSet.length;
+    const hasFouledOut = stats.fouls >= 5;
 
     return (
-        <Card onClick={onClick} className={`p-2 relative h-full flex flex-col items-center justify-center overflow-hidden transition-all duration-300 bg-card ${onClick ? "hover:shadow-xl hover:scale-105 cursor-pointer" : "cursor-default"}`}>
+        <Card 
+            onClick={onClick} 
+            className={cn(
+                "p-2 relative h-full flex flex-col items-center justify-center overflow-hidden transition-all duration-300 bg-card",
+                onClick && !hasFouledOut && "hover:shadow-xl hover:scale-105 cursor-pointer",
+                hasFouledOut && "bg-destructive/80 cursor-not-allowed border-red-500",
+                onClick && hasFouledOut && "cursor-not-allowed"
+            )}
+        >
+            {hasFouledOut && (
+                <div className='absolute inset-0 bg-black/50 z-10 flex flex-col items-center justify-center'>
+                    <ShieldOff className="h-10 w-10 text-white mb-2" />
+                    <span className="text-white font-bold text-lg">EXPULSADO</span>
+                </div>
+            )}
             <div className='absolute top-2 left-2 text-2xl font-black text-green-600'>{stats.points}</div>
             {stats.fouls > 0 && <div className='absolute top-2 right-2 flex items-center justify-center px-1.5 h-6 bg-destructive border-2 border-white/70 rounded-sm shadow-lg z-20'><span className="text-yellow-300 text-sm font-extrabold" style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.5)' }}>F: {stats.fouls}</span></div>}
             
@@ -308,6 +324,13 @@ export default function LiveGamePage() {
 
     const handleBenchPlayerClick = (player: Player, teamType: 'home' | 'away') => {
         if (!game || !profile) return;
+        
+        const stats = game.playerStats?.[player.id];
+        if (stats?.fouls && stats.fouls >= 5) {
+            toast({ variant: 'destructive', title: 'Jugador Expulsado', description: 'Este jugador no puede volver a entrar al partido.' });
+            return;
+        }
+
         const canSub = ['super_admin', 'club_admin', 'coordinator', 'coach'].includes(profile.profileTypeId || "");
         if (!canSub) {
             toast({ variant: "default", title: "Solo Vista", description: "Solo los entrenadores o administradores pueden hacer sustituciones." });

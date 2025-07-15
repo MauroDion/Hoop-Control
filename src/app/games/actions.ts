@@ -59,12 +59,12 @@ export async function getGamesByClub(clubId: string): Promise<Game[]> {
         const homeGamesQuery = gamesRef.where('homeTeamClubId', '==', clubId).get();
         const awayGamesQuery = gamesRef.where('awayTeamClubId', '==', clubId).get();
 
-        const [homeGamesSnap, awayGamesSnap] = await Promise.all([homeGamesQuery, awayGamesQuery]);
+        const [homeGamesSnap, awayGamesQuery] = await Promise.all([homeGamesQuery, awayGamesQuery]);
         
         const gamesMap = new Map<string, Game>();
         
         homeGamesSnap.forEach(doc => gamesMap.set(doc.id, gameToSerializable(doc)));
-        awayGamesSnap.forEach(doc => gamesMap.set(doc.id, gameToSerializable(doc)));
+        awayGamesQuery.forEach(doc => gamesMap.set(doc.id, gameToSerializable(doc)));
 
         const games = Array.from(gamesMap.values());
         games.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -507,9 +507,9 @@ export async function endCurrentPeriod(gameId: string, userId: string): Promise<
                  const elapsedSeconds = Math.max(0, Math.floor((serverStopTime - serverStartTime) / 1000));
                  timePlayedInPeriod = elapsedSeconds;
                  timeRemaining -= elapsedSeconds;
-            } else if (!gameData.isTimerRunning && timeRemaining < totalPeriodDuration) {
-                 // Timer was paused or has reached zero
-                 timePlayedInPeriod = totalPeriodDuration - timeRemaining;
+            } else if (gameData.periodTimeRemainingSeconds === 0) {
+                // If timer is not running and time is zero, it means the full period was played before.
+                 timePlayedInPeriod = totalPeriodDuration;
             }
             
             if (timePlayedInPeriod > 0) {
@@ -635,50 +635,47 @@ export async function recordGameEvent(
                 throw new Error("Acción no permitida. No tienes asignada esta categoría de estadísticas.");
             }
 
-            if (action === 'foul' && (gameData.playerStats?.[playerId!]?.fouls || 0) >= 5) {
-                throw new Error("El jugador ya tiene 5 faltas y no puede cometer más.");
+            const currentFouls = gameData.playerStats?.[playerId!]?.fouls || 0;
+            if (action === 'foul' && currentFouls >= 5) {
+                throw new Error("El jugador ya tiene 5 faltas y está expulsado.");
             }
             
             const finalUpdates: { [key: string]: any } = { updatedAt: admin.firestore.FieldValue.serverTimestamp() };
-            const playerStatsUpdates: { [playerId: string]: Partial<PlayerGameStats> } = {};
-
+            
             const getPlayerStats = (pId: string): PlayerGameStats => {
-                 const originalStats = gameData.playerStats?.[pId] || { ...initialPlayerStats, playerId: pId };
-                 const currentUpdates = playerStatsUpdates[pId] || {};
-                 return { ...originalStats, ...currentUpdates } as PlayerGameStats;
+                 return { ...initialPlayerStats, ...gameData.playerStats?.[pId] } as PlayerGameStats;
             }
 
-            const updatePlayerStat = (pId: string, field: keyof PlayerGameStats, value: any) => {
-                if (!playerStatsUpdates[pId]) playerStatsUpdates[pId] = {};
-                (playerStatsUpdates[pId] as any)[field] = value;
-            }
-
-            const incrementPlayerStat = (pId: string, field: keyof PlayerGameStats, amount: number) => {
-                const currentVal = (getPlayerStats(pId)[field] || 0) as number;
-                updatePlayerStat(pId, field, currentVal + amount);
+            const incrementPlayerStat = (pId: string, field: keyof PlayerGameStats, amount: number = 1) => {
+                const statPath = `playerStats.${pId}.${field}`;
+                finalUpdates[statPath] = admin.firestore.FieldValue.increment(amount);
             }
             
             const actionHandlers: Partial<Record<GameEventAction, () => void>> = {
-                shot_made_1p: () => { incrementPlayerStat(playerId, 'points', 1); incrementPlayerStat(playerId, 'shots_made_1p', 1); incrementPlayerStat(playerId, 'shots_attempted_1p', 1); finalUpdates[`${teamId}TeamScore`]=admin.firestore.FieldValue.increment(1); },
-                shot_miss_1p: () => { incrementPlayerStat(playerId, 'shots_attempted_1p', 1); },
-                shot_made_2p: () => { incrementPlayerStat(playerId, 'points', 2); incrementPlayerStat(playerId, 'shots_made_2p', 1); incrementPlayerStat(playerId, 'shots_attempted_2p', 1); finalUpdates[`${teamId}TeamScore`]=admin.firestore.FieldValue.increment(2); },
-                shot_miss_2p: () => { incrementPlayerStat(playerId, 'shots_attempted_2p', 1); },
-                shot_made_3p: () => { incrementPlayerStat(playerId, 'points', 3); incrementPlayerStat(playerId, 'shots_made_3p', 1); incrementPlayerStat(playerId, 'shots_attempted_3p', 1); finalUpdates[`${teamId}TeamScore`]=admin.firestore.FieldValue.increment(3); },
-                shot_miss_3p: () => { incrementPlayerStat(playerId, 'shots_attempted_3p', 1); },
-                rebound_defensive: () => { incrementPlayerStat(playerId, 'reb_def', 1); finalUpdates[`${teamId}TeamStats.reboundsDefensive`]=admin.firestore.FieldValue.increment(1); },
-                rebound_offensive: () => { incrementPlayerStat(playerId, 'reb_off', 1); finalUpdates[`${teamId}TeamStats.reboundsOffensive`]=admin.firestore.FieldValue.increment(1); },
-                assist: () => { incrementPlayerStat(playerId, 'assists', 1); finalUpdates[`${teamId}TeamStats.assists`]=admin.firestore.FieldValue.increment(1); },
-                steal: () => { incrementPlayerStat(playerId, 'steals', 1); finalUpdates[`${teamId}TeamStats.steals`]=admin.firestore.FieldValue.increment(1); },
-                block: () => { incrementPlayerStat(playerId, 'blocks', 1); finalUpdates[`${teamId}TeamStats.blocks`]=admin.firestore.FieldValue.increment(1); },
-                turnover: () => { incrementPlayerStat(playerId, 'turnovers', 1); finalUpdates[`${teamId}TeamStats.turnovers`]=admin.firestore.FieldValue.increment(1); },
+                shot_made_1p: () => { incrementPlayerStat(playerId, 'points', 1); incrementPlayerStat(playerId, 'shots_made_1p'); incrementPlayerStat(playerId, 'shots_attempted_1p'); finalUpdates[`${teamId}TeamScore`]=admin.firestore.FieldValue.increment(1); },
+                shot_miss_1p: () => { incrementPlayerStat(playerId, 'shots_attempted_1p'); },
+                shot_made_2p: () => { incrementPlayerStat(playerId, 'points', 2); incrementPlayerStat(playerId, 'shots_made_2p'); incrementPlayerStat(playerId, 'shots_attempted_2p'); finalUpdates[`${teamId}TeamScore`]=admin.firestore.FieldValue.increment(2); },
+                shot_miss_2p: () => { incrementPlayerStat(playerId, 'shots_attempted_2p'); },
+                shot_made_3p: () => { incrementPlayerStat(playerId, 'points', 3); incrementPlayerStat(playerId, 'shots_made_3p'); incrementPlayerStat(playerId, 'shots_attempted_3p'); finalUpdates[`${teamId}TeamScore`]=admin.firestore.FieldValue.increment(3); },
+                shot_miss_3p: () => { incrementPlayerStat(playerId, 'shots_attempted_3p'); },
+                rebound_defensive: () => { incrementPlayerStat(playerId, 'reb_def'); finalUpdates[`${teamId}TeamStats.reboundsDefensive`]=admin.firestore.FieldValue.increment(1); },
+                rebound_offensive: () => { incrementPlayerStat(playerId, 'reb_off'); finalUpdates[`${teamId}TeamStats.reboundsOffensive`]=admin.firestore.FieldValue.increment(1); },
+                assist: () => { incrementPlayerStat(playerId, 'assists'); finalUpdates[`${teamId}TeamStats.assists`]=admin.firestore.FieldValue.increment(1); },
+                steal: () => { incrementPlayerStat(playerId, 'steals'); finalUpdates[`${teamId}TeamStats.steals`]=admin.firestore.FieldValue.increment(1); },
+                block: () => { incrementPlayerStat(playerId, 'blocks'); finalUpdates[`${teamId}TeamStats.blocks`]=admin.firestore.FieldValue.increment(1); },
+                turnover: () => { incrementPlayerStat(playerId, 'turnovers'); finalUpdates[`${teamId}TeamStats.turnovers`]=admin.firestore.FieldValue.increment(1); },
                 foul: () => { 
-                    incrementPlayerStat(playerId, 'fouls', 1); 
+                    incrementPlayerStat(playerId, 'fouls'); 
                     finalUpdates[`${teamId}TeamStats.fouls`]=admin.firestore.FieldValue.increment(1);
                     finalUpdates[`teamFoulsByPeriod.${teamId}.${gameData.currentPeriod}`] = admin.firestore.FieldValue.increment(1);
+                    if (currentFouls + 1 >= 5) {
+                        const onCourtField = teamId === 'home' ? 'homeTeamOnCourtPlayerIds' : 'awayTeamOnCourtPlayerIds';
+                        finalUpdates[onCourtField] = admin.firestore.FieldValue.arrayRemove(playerId);
+                    }
                 },
-                block_against: () => { incrementPlayerStat(playerId, 'blocks_against', 1); finalUpdates[`${teamId}TeamStats.blocksAgainst`]=admin.firestore.FieldValue.increment(1); },
+                block_against: () => { incrementPlayerStat(playerId, 'blocks_against'); finalUpdates[`${teamId}TeamStats.blocksAgainst`]=admin.firestore.FieldValue.increment(1); },
                 foul_received: () => { 
-                    incrementPlayerStat(playerId, 'fouls_received', 1); 
+                    incrementPlayerStat(playerId, 'fouls_received'); 
                     const opponentTeam = teamId === 'home' ? 'away' : 'home';
                     finalUpdates[`${opponentTeam}TeamStats.fouls`]=admin.firestore.FieldValue.increment(1); 
                     finalUpdates[`teamFoulsByPeriod.${opponentTeam}.${gameData.currentPeriod}`] = admin.firestore.FieldValue.increment(1);
@@ -693,15 +690,6 @@ export async function recordGameEvent(
                 (gameData.awayTeamOnCourtPlayerIds || []).forEach((pId: string) => { incrementPlayerStat(pId, 'plusMinus', teamId === 'away' ? points : -points); });
             }
             
-            const pId = playerId;
-            const finalPlayerStats = getPlayerStats(pId);
-            const newPir = calculatePir(finalPlayerStats);
-            updatePlayerStat(pId, 'pir', newPir);
-            
-            for (const key in playerStatsUpdates[pId]) {
-                 finalUpdates[`playerStats.${pId}.${key}`] = playerStatsUpdates[pId][key as keyof PlayerGameStats];
-            }
-             
             transaction.update(gameRef, finalUpdates);
 
             transaction.set(eventRef, { ...eventData, gameId, createdAt: admin.firestore.FieldValue.serverTimestamp(), createdBy: userId });
@@ -731,6 +719,10 @@ export async function substitutePlayer(
         if (!gameDoc.exists) throw new Error("Game not found.");
         
         const gameData = gameDoc.data() as Game;
+
+        if ((gameData.playerStats?.[playerIn.id]?.fouls || 0) >= 5) {
+            throw new Error(`El jugador ${playerIn.name} está expulsado y no puede entrar.`);
+        }
         
         const onCourtField = teamType === 'home' ? 'homeTeamOnCourtPlayerIds' : 'awayTeamOnCourtPlayerIds';
         let onCourtIds = (gameData[onCourtField] as string[] || []);
@@ -773,6 +765,7 @@ export async function substitutePlayer(
             const eventInRef = gameRef.collection('events').doc();
             transaction.set(eventInRef, { ...baseEventPayload, action: 'substitution_in', playerId: playerIn.id, playerName: playerIn.name });
 
+            // Ensure player stats object exists
             if (!gameData.playerStats?.[playerIn.id]) {
                 finalUpdates[`playerStats.${playerIn.id}`] = { ...initialPlayerStats, playerId: playerIn.id, playerName: playerIn.name };
             }
