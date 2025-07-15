@@ -316,6 +316,9 @@ export async function createTestGame(userId: string): Promise<{ success: boolean
         const competitionCategorySnap = await adminDb.collection('competitionCategories').doc(competitionCategoryId).get();
         const gameFormatId = competitionCategorySnap.data()?.gameFormatId || null;
         
+        const gameFormat = gameFormatId ? await getFormat(gameFormatId) : null;
+        const initialTime = (gameFormat?.periodDurationMinutes ?? 10) * 60;
+        
         const homeTeamPlayerIds = homeTeamPlayers.map(p => p.id);
         const awayTeamPlayerIds = awayTeamPlayers.map(p => p.id);
         
@@ -338,7 +341,7 @@ export async function createTestGame(userId: string): Promise<{ success: boolean
             createdBy: userId,
             homeTeamScore: 0, awayTeamScore: 0, homeTeamStats: initialTeamStats, awayTeamStats: initialTeamStats, playerStats,
             teamFoulsByPeriod: { home: {}, away: {} },
-            currentPeriod: 1, isTimerRunning: false, periodTimeRemainingSeconds: 0,
+            currentPeriod: 1, isTimerRunning: false, periodTimeRemainingSeconds: initialTime,
             homeTeamPlayerIds, awayTeamPlayerIds, homeTeamOnCourtPlayerIds, awayTeamOnCourtPlayerIds,
             timerStartedAt: null, scorerAssignments: {},
         };
@@ -502,10 +505,11 @@ export async function endCurrentPeriod(gameId: string, userId: string): Promise<
             const onCourtIds = [...(gameData.homeTeamOnCourtPlayerIds || []), ...(gameData.awayTeamOnCourtPlayerIds || [])];
             let timePlayedInPeriod = 0;
             
-            if (gameData.isTimerRunning) {
+            // If timer was running, calculate elapsed time since it started.
+            // If it was not running, time played is the difference between total duration and remaining time.
+            if (gameData.isTimerRunning && gameData.timerStartedAt) {
                 const timerStartedAtMs = (new Date(gameData.timerStartedAt as string)).getTime();
-                const elapsedSeconds = Math.floor((Date.now() - timerStartedAtMs) / 1000);
-                timePlayedInPeriod = elapsedSeconds;
+                timePlayedInPeriod = Math.floor((Date.now() - timerStartedAtMs) / 1000);
             } else {
                 timePlayedInPeriod = totalPeriodDuration - (gameData.periodTimeRemainingSeconds || 0);
             }
@@ -614,7 +618,7 @@ export async function recordGameEvent(
             const gameDoc = await transaction.get(gameRef);
             if (!gameDoc.exists) throw new Error("Game not found.");
             
-            const gameData = JSON.parse(JSON.stringify(gameDoc.data())) as Game;
+            const gameData = gameDoc.data() as Game;
             const profile = await getUserProfileById(userId);
             if (!profile) throw new Error("User profile not found.");
             
@@ -632,9 +636,14 @@ export async function recordGameEvent(
             if (!hasPermission) {
                 throw new Error("Acción no permitida. No tienes asignada esta categoría de estadísticas.");
             }
-            
-            const newPlayerStats: {[key: string]: PlayerGameStats} = gameData.playerStats || {};
 
+            const newPlayerStats: {[key: string]: PlayerGameStats} = JSON.parse(JSON.stringify(gameData.playerStats || {}));
+            let newHomeTeamScore = gameData.homeTeamScore || 0;
+            let newAwayTeamScore = gameData.awayTeamScore || 0;
+            let newTeamFoulsByPeriod = JSON.parse(JSON.stringify(gameData.teamFoulsByPeriod || { home: {}, away: {} }));
+            let newHomeOnCourt = [...(gameData.homeTeamOnCourtPlayerIds || [])];
+            let newAwayOnCourt = [...(gameData.awayTeamOnCourtPlayerIds || [])];
+            
             const getPlayerStats = (pId: string): PlayerGameStats => {
                  if (!newPlayerStats[pId]) {
                     newPlayerStats[pId] = { ...initialPlayerStats, playerId: pId, playerName: '' };
@@ -651,61 +660,60 @@ export async function recordGameEvent(
 
             let pointsScored = 0;
             switch(action) {
-                case 'shot_made_1p': actingPlayerStats.points = (actingPlayerStats.points || 0) + 1; actingPlayerStats.shots_made_1p = (actingPlayerStats.shots_made_1p || 0) + 1; actingPlayerStats.shots_attempted_1p = (actingPlayerStats.shots_attempted_1p || 0) + 1; pointsScored = 1; break;
-                case 'shot_miss_1p': actingPlayerStats.shots_attempted_1p = (actingPlayerStats.shots_attempted_1p || 0) + 1; break;
-                case 'shot_made_2p': actingPlayerStats.points = (actingPlayerStats.points || 0) + 2; actingPlayerStats.shots_made_2p = (actingPlayerStats.shots_made_2p || 0) + 1; actingPlayerStats.shots_attempted_2p = (actingPlayerStats.shots_attempted_2p || 0) + 1; pointsScored = 2; break;
-                case 'shot_miss_2p': actingPlayerStats.shots_attempted_2p = (actingPlayerStats.shots_attempted_2p || 0) + 1; break;
-                case 'shot_made_3p': actingPlayerStats.points = (actingPlayerStats.points || 0) + 3; actingPlayerStats.shots_made_3p = (actingPlayerStats.shots_made_3p || 0) + 1; actingPlayerStats.shots_attempted_3p = (actingPlayerStats.shots_attempted_3p || 0) + 1; pointsScored = 3; break;
-                case 'shot_miss_3p': actingPlayerStats.shots_attempted_3p = (actingPlayerStats.shots_attempted_3p || 0) + 1; break;
-                case 'rebound_defensive': actingPlayerStats.reb_def = (actingPlayerStats.reb_def || 0) + 1; break;
-                case 'rebound_offensive': actingPlayerStats.reb_off = (actingPlayerStats.reb_off || 0) + 1; break;
-                case 'assist': actingPlayerStats.assists = (actingPlayerStats.assists || 0) + 1; break;
-                case 'steal': actingPlayerStats.steals = (actingPlayerStats.steals || 0) + 1; break;
-                case 'block': actingPlayerStats.blocks = (actingPlayerStats.blocks || 0) + 1; break;
-                case 'turnover': actingPlayerStats.turnovers = (actingPlayerStats.turnovers || 0) + 1; break;
-                case 'block_against': actingPlayerStats.blocks_against = (actingPlayerStats.blocks_against || 0) + 1; break;
-                case 'foul': actingPlayerStats.fouls = (actingPlayerStats.fouls || 0) + 1; break;
-                case 'foul_received': actingPlayerStats.fouls_received = (actingPlayerStats.fouls_received || 0) + 1; break;
+                case 'shot_made_1p': actingPlayerStats.points += 1; actingPlayerStats.shots_made_1p += 1; actingPlayerStats.shots_attempted_1p += 1; pointsScored = 1; break;
+                case 'shot_miss_1p': actingPlayerStats.shots_attempted_1p += 1; break;
+                case 'shot_made_2p': actingPlayerStats.points += 2; actingPlayerStats.shots_made_2p += 1; actingPlayerStats.shots_attempted_2p += 1; pointsScored = 2; break;
+                case 'shot_miss_2p': actingPlayerStats.shots_attempted_2p += 1; break;
+                case 'shot_made_3p': actingPlayerStats.points += 3; actingPlayerStats.shots_made_3p += 1; actingPlayerStats.shots_attempted_3p += 1; pointsScored = 3; break;
+                case 'shot_miss_3p': actingPlayerStats.shots_attempted_3p += 1; break;
+                case 'rebound_defensive': actingPlayerStats.reb_def += 1; break;
+                case 'rebound_offensive': actingPlayerStats.reb_off += 1; break;
+                case 'assist': actingPlayerStats.assists += 1; break;
+                case 'steal': actingPlayerStats.steals += 1; break;
+                case 'block': actingPlayerStats.blocks += 1; break;
+                case 'turnover': actingPlayerStats.turnovers += 1; break;
+                case 'block_against': actingPlayerStats.blocks_against += 1; break;
+                case 'foul': actingPlayerStats.fouls += 1; break;
+                case 'foul_received': actingPlayerStats.fouls_received += 1; break;
             }
             
             if (pointsScored > 0) {
-                if (teamId === 'home') gameData.homeTeamScore = (gameData.homeTeamScore || 0) + pointsScored;
-                else gameData.awayTeamScore = (gameData.awayTeamScore || 0) + pointsScored;
+                if (teamId === 'home') newHomeTeamScore += pointsScored;
+                else newAwayTeamScore += pointsScored;
                 
-                (gameData.homeTeamOnCourtPlayerIds || []).forEach(pId => { getPlayerStats(pId).plusMinus = (getPlayerStats(pId).plusMinus || 0) + (teamId === 'home' ? pointsScored : -pointsScored) });
-                (gameData.awayTeamOnCourtPlayerIds || []).forEach(pId => { getPlayerStats(pId).plusMinus = (getPlayerStats(pId).plusMinus || 0) + (teamId === 'away' ? pointsScored : -pointsScored) });
+                newHomeOnCourt.forEach(pId => { getPlayerStats(pId).plusMinus += (teamId === 'home' ? pointsScored : -pointsScored) });
+                newAwayOnCourt.forEach(pId => { getPlayerStats(pId).plusMinus += (teamId === 'away' ? pointsScored : -pointsScored) });
             }
             
             if (action === 'foul') {
-                const currentFouls = gameData.teamFoulsByPeriod?.[teamId]?.[gameData.currentPeriod] || 0;
-                if (!gameData.teamFoulsByPeriod) gameData.teamFoulsByPeriod = { home: {}, away: {} };
-                if (!gameData.teamFoulsByPeriod[teamId]) gameData.teamFoulsByPeriod[teamId] = {};
-                gameData.teamFoulsByPeriod[teamId][gameData.currentPeriod] = currentFouls + 1;
+                const currentFouls = newTeamFoulsByPeriod[teamId]?.[gameData.currentPeriod] || 0;
+                if (!newTeamFoulsByPeriod[teamId]) newTeamFoulsByPeriod[teamId] = {};
+                newTeamFoulsByPeriod[teamId][gameData.currentPeriod] = currentFouls + 1;
                 
                 if (actingPlayerStats.fouls >= 5) {
-                   const court = teamId === 'home' ? 'homeTeamOnCourtPlayerIds' : 'awayTeamOnCourtPlayerIds';
-                   gameData[court] = gameData[court].filter(id => id !== playerId);
+                   if (teamId === 'home') newHomeOnCourt = newHomeOnCourt.filter(id => id !== playerId);
+                   else newAwayOnCourt = newAwayOnCourt.filter(id => id !== playerId);
                 }
             }
             
             const affectedPlayerIds = new Set<string>([playerId]);
             if(pointsScored > 0) {
-                (gameData.homeTeamOnCourtPlayerIds || []).forEach(pId => affectedPlayerIds.add(pId));
-                (gameData.awayTeamOnCourtPlayerIds || []).forEach(pId => affectedPlayerIds.add(pId));
+                newHomeOnCourt.forEach(pId => affectedPlayerIds.add(pId));
+                newAwayOnCourt.forEach(pId => affectedPlayerIds.add(pId));
             }
 
             affectedPlayerIds.forEach(pId => {
                 const stats = getPlayerStats(pId);
                 if (stats) stats.pir = calculatePir(stats);
             });
-            
-            const finalUpdates: {[key:string]: any} = {
-                homeTeamScore: gameData.homeTeamScore,
-                awayTeamScore: gameData.awayTeamScore,
+
+            const finalUpdates = {
+                homeTeamScore: newHomeTeamScore,
+                awayTeamScore: newAwayTeamScore,
                 playerStats: newPlayerStats,
-                teamFoulsByPeriod: gameData.teamFoulsByPeriod,
-                homeTeamOnCourtPlayerIds: gameData.homeTeamOnCourtPlayerIds,
-                awayTeamOnCourtPlayerIds: gameData.awayTeamOnCourtPlayerIds,
+                teamFoulsByPeriod: newTeamFoulsByPeriod,
+                homeTeamOnCourtPlayerIds: newHomeOnCourt,
+                awayTeamOnCourtPlayerIds: newAwayOnCourt,
                 updatedAt: admin.firestore.FieldValue.serverTimestamp(),
             };
 
@@ -759,9 +767,10 @@ export async function substitutePlayer(
                     finalUpdates[`playerStats.${pId}.timePlayedSeconds`] = admin.firestore.FieldValue.increment(elapsedSeconds);
                 });
             }
-
-            const newTimeRemaining = (gameData.periodTimeRemainingSeconds || 0) - elapsedSeconds;
             
+            const timeRemainingAtStart = gameData.periodTimeRemainingSeconds || 0;
+            const newTimeRemaining = timeRemainingAtStart - elapsedSeconds;
+
             finalUpdates.periodTimeRemainingSeconds = Math.max(0, newTimeRemaining);
             finalUpdates.timerStartedAt = admin.firestore.FieldValue.serverTimestamp();
         }
