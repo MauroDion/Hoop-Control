@@ -676,18 +676,28 @@ export async function recordGameEvent(
             
             if (actionHandlers[action]) { actionHandlers[action]!(); }
 
+            // Recalculate PIR for the acting player
+            actingPlayerStats.pir = calculatePir(actingPlayerStats);
+
             if (action.startsWith('shot_made')) {
                 const points = parseInt(action.slice(10, 11), 10);
-                (gameData.homeTeamOnCourtPlayerIds || []).forEach((pId: string) => { getPlayerStats(pId).plusMinus += (teamId === 'home' ? points : -points); });
-                (gameData.awayTeamOnCourtPlayerIds || []).forEach((pId: string) => { getPlayerStats(pId).plusMinus += (teamId === 'away' ? points : -points); });
+                (gameData.homeTeamOnCourtPlayerIds || []).forEach((pId: string) => { 
+                    getPlayerStats(pId).plusMinus += (teamId === 'home' ? points : -points); 
+                });
+                (gameData.awayTeamOnCourtPlayerIds || []).forEach((pId: string) => { 
+                    getPlayerStats(pId).plusMinus += (teamId === 'away' ? points : -points); 
+                });
             }
             
-            // Recalculate PIR for all modified players
-            Object.keys(newPlayerStats).forEach(pId => {
-                if (gameData.playerStats?.[pId] !== newPlayerStats[pId]) {
+            // Recalculate PIR for all players who were on court during the scoring play, as their +/- changed.
+            if (action.startsWith('shot_made')) {
+                 const onCourtIds = [...(gameData.homeTeamOnCourtPlayerIds || []), ...(gameData.awayTeamOnCourtPlayerIds || [])];
+                 onCourtIds.forEach(pId => {
                     newPlayerStats[pId].pir = calculatePir(newPlayerStats[pId]);
-                }
-            });
+                 });
+            } else {
+                 // If not a scoring play, only the acting player's PIR needs recalculating (already done).
+            }
             
             finalUpdates['playerStats'] = newPlayerStats;
              
