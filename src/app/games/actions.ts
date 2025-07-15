@@ -59,12 +59,12 @@ export async function getGamesByClub(clubId: string): Promise<Game[]> {
         const homeGamesQuery = gamesRef.where('homeTeamClubId', '==', clubId).get();
         const awayGamesQuery = gamesRef.where('awayTeamClubId', '==', clubId).get();
 
-        const [homeGamesSnap, awayGamesQuery] = await Promise.all([homeGamesQuery, awayGamesQuery]);
+        const [homeGamesSnap, awayGamesSnap] = await Promise.all([homeGamesQuery, awayGamesQuery]);
         
         const gamesMap = new Map<string, Game>();
         
         homeGamesSnap.forEach(doc => gamesMap.set(doc.id, gameToSerializable(doc)));
-        awayGamesQuery.forEach(doc => gamesMap.set(doc.id, gameToSerializable(doc)));
+        awayGamesSnap.forEach(doc => gamesMap.set(doc.id, gameToSerializable(doc)));
 
         const games = Array.from(gamesMap.values());
         games.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -460,7 +460,7 @@ export async function updateLiveGameState(
           if (updates.isTimerRunning === true && !gameData.isTimerRunning) {
               finalUpdates.timerStartedAt = admin.firestore.FieldValue.serverTimestamp();
           } else if (updates.isTimerRunning === false && gameData.isTimerRunning) {
-              const timerStartedAtMs = (new Date(gameData.timerStartedAt as string)).getTime();
+              const timerStartedAtMs = (gameData.timerStartedAt as any)?.toMillis();
               if (timerStartedAtMs) {
                   const elapsedSeconds = Math.floor((Date.now() - timerStartedAtMs) / 1000);
                   const newTimeRemaining = Math.max(0, (gameData.periodTimeRemainingSeconds ?? 0) - elapsedSeconds);
@@ -499,17 +499,16 @@ export async function endCurrentPeriod(gameId: string, userId: string): Promise<
             const onCourtIds = [...(gameData.homeTeamOnCourtPlayerIds || []), ...(gameData.awayTeamOnCourtPlayerIds || [])];
             let timePlayedInPeriod = 0;
             
-            let timeRemaining = gameData.periodTimeRemainingSeconds ?? totalPeriodDuration;
+            const timeRemaining = typeof gameData.periodTimeRemainingSeconds === 'number' ? gameData.periodTimeRemainingSeconds : totalPeriodDuration;
 
             if (gameData.isTimerRunning && gameData.timerStartedAt) {
                  const serverStopTime = Date.now();
                  const serverStartTime = (new Date(gameData.timerStartedAt as string)).getTime();
                  const elapsedSeconds = Math.max(0, Math.floor((serverStopTime - serverStartTime) / 1000));
                  timePlayedInPeriod = elapsedSeconds;
-                 timeRemaining -= elapsedSeconds;
-            } else if (gameData.periodTimeRemainingSeconds === 0) {
-                // If timer is not running and time is zero, it means the full period was played before.
-                 timePlayedInPeriod = totalPeriodDuration;
+            } else if (!gameData.isTimerRunning && timeRemaining === 0) {
+                 // The timer is not running and time is zero, so the full period elapsed before
+                 timePlayedInPeriod = totalPeriodDuration - (gameData.periodTimeRemainingSeconds ?? 0);
             }
             
             if (timePlayedInPeriod > 0) {
@@ -791,3 +790,5 @@ export async function substitutePlayer(
     return { success: false, error: error.message };
   }
 }
+
+    
