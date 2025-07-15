@@ -12,7 +12,7 @@ import { getPlayersByTeamId } from '@/app/players/actions';
 import type { Game, GameFormat, Player, GameEventAction, PlayerGameStats, UserFirestoreProfile, ProfileType, StatCategory } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, AlertTriangle, ChevronLeft, Gamepad2, Minus, Plus, Play, Flag, Pause, TimerReset, FastForward, Timer as TimerIcon, CheckCircle, Ban, Users, Dribbble, UserCheck, RefreshCw, ShieldOff } from 'lucide-react';
+import { Loader2, AlertTriangle, ChevronLeft, Gamepad2, Minus, Plus, Play, Flag, Pause, TimerReset, FastForward, Timer as TimerIcon, CheckCircle, Ban, Users, Dribbble, UserCheck, RefreshCw, ShieldOff, UserPlus } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Separator } from '@/components/ui/separator';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -174,6 +174,7 @@ export default function LiveGamePage() {
     
     const [actionPlayerInfo, setActionPlayerInfo] = useState<{player: Player, teamType: 'home' | 'away'} | null>(null);
     const [subPlayerInfo, setSubPlayerInfo] = useState<{player: Player, teamType: 'home' | 'away'} | null>(null);
+    const [forcedSubInfo, setForcedSubInfo] = useState<{teamType: 'home' | 'away', teamName: string} | null>(null);
     const [isAssignmentDialogOpen, setIsAssignmentDialogOpen] = useState(false);
     const [isEndingPeriod, setIsEndingPeriod] = useState(false);
 
@@ -297,6 +298,17 @@ export default function LiveGamePage() {
         return () => clearInterval(timerId);
     }, [game?.isTimerRunning, game?.timerStartedAt, game?.periodTimeRemainingSeconds, handleEndPeriod, isEndingPeriod]);
 
+    // Effect to check for forced substitutions
+    useEffect(() => {
+        if (game && gameFormat && game.status === 'inprogress' && !forcedSubInfo) {
+            const requiredPlayers = gameFormat.name?.includes('3v3') ? 3 : 5;
+            if ((game.homeTeamOnCourtPlayerIds?.length || 0) < requiredPlayers) {
+                setForcedSubInfo({ teamType: 'home', teamName: game.homeTeamName });
+            } else if ((game.awayTeamOnCourtPlayerIds?.length || 0) < requiredPlayers) {
+                setForcedSubInfo({ teamType: 'away', teamName: game.awayTeamName });
+            }
+        }
+    }, [game, gameFormat, forcedSubInfo]);
 
     const handleGameEvent = async (teamType: 'home' | 'away', playerId: string, playerName: string, action: GameEventAction) => {
         if (!game || game.status !== 'inprogress' || !user) return;
@@ -320,6 +332,7 @@ export default function LiveGamePage() {
             await fetchGameData(false);
         }
         setSubPlayerInfo(null);
+        setForcedSubInfo(null);
     };
 
     const handleBenchPlayerClick = (player: Player, teamType: 'home' | 'away') => {
@@ -538,6 +551,29 @@ export default function LiveGamePage() {
                         </div>
                     </>
                     }
+                </DialogContent>
+            </Dialog>
+            
+            <Dialog open={!!forcedSubInfo} onOpenChange={(isOpen) => !isOpen && setForcedSubInfo(null)}>
+                <DialogContent className="max-w-4xl">
+                    {forcedSubInfo && <>
+                        <DialogHeader>
+                            <DialogTitle className="text-destructive flex items-center gap-2"><UserPlus className="h-6 w-6"/>Sustitución Obligatoria</DialogTitle>
+                            <DialogDescription>
+                                Un jugador de {forcedSubInfo.teamName} ha sido expulsado o el equipo tiene menos jugadores de los necesarios. Debes seleccionar un jugador del banquillo para que entre en la pista.
+                            </DialogDescription>
+                        </DialogHeader>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 pt-4">
+                            {(forcedSubInfo.teamType === 'home' ? homePlayers : awayPlayers)
+                                .filter(p => !(game[forcedSubInfo!.teamType === 'home' ? 'homeTeamOnCourtPlayerIds' : 'awayTeamOnCourtPlayerIds'] || []).includes(p.id))
+                                .map(player => {
+                                    const stats = game.playerStats?.[player.id] || { ...defaultStats, playerId: player.id, playerName: `${player.firstName} ${player.lastName}` };
+                                    const isChild = parentChildInfo.childIds.has(player.id);
+                                    return <PlayerStatCard key={player.id} player={player} stats={stats as PlayerGameStats} onClick={() => handleExecuteSubstitution(forcedSubInfo.teamType, player, null)} userProfileType={profile.profileTypeId} isChild={isChild}/>
+                                })
+                            }
+                        </div>
+                    </>}
                 </DialogContent>
             </Dialog>
 
