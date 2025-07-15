@@ -28,8 +28,8 @@ const gameToSerializable = (doc: admin.firestore.DocumentSnapshot): Game => {
         id: doc.id,
         ...data,
         date: (data.date as admin.firestore.Timestamp).toDate().toISOString(),
-        createdAt: data.createdAt ? (data.createdAt as admin.firestore.Timestamp).toDate().toISOString() : null,
-        updatedAt: data.updatedAt ? (data.updatedAt as admin.firestore.Timestamp).toDate().toISOString() : null,
+        createdAt: data.createdAt ? (data.createdAt as admin.firestore.Timestamp).toDate().toISOString() : 'N/A',
+        updatedAt: data.updatedAt ? (data.updatedAt as admin.firestore.Timestamp).toDate().toISOString() : 'N/A',
         timerStartedAt: data.timerStartedAt ? (data.timerStartedAt as admin.firestore.Timestamp).toDate().toISOString() : null,
     } as Game;
 }
@@ -476,17 +476,30 @@ export async function endCurrentPeriod(gameId: string, userId: string): Promise<
             
             const totalPeriodDuration = (format?.periodDurationMinutes ?? 10) * 60;
             const currentPeriod = gameData.currentPeriod ?? 1;
+            const finalUpdates: { [key: string]: any } = {};
             
-            const finalUpdates: { [key: string]: any } = {
-                isTimerRunning: false,
-                timerStartedAt: null,
-                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-                homeTeamOnCourtPlayerIds: [],
-                awayTeamOnCourtPlayerIds: [],
-            };
+            // --- TIME PLAYED CALCULATION ---
+            const onCourtIds = [...(gameData.homeTeamOnCourtPlayerIds || []), ...(gameData.awayTeamOnCourtPlayerIds || [])];
+            let timePlayedInPeriod = 0;
+            
+            if (gameData.isTimerRunning && gameData.timerStartedAt) {
+                 const serverStopTime = Date.now();
+                 const serverStartTime = (new Date(gameData.timerStartedAt as string)).getTime();
+                 const elapsedSeconds = Math.max(0, Math.floor((serverStopTime - serverStartTime) / 1000));
+                 timePlayedInPeriod = elapsedSeconds;
+            } else {
+                 const timeRemaining = typeof gameData.periodTimeRemainingSeconds === 'number' ? gameData.periodTimeRemainingSeconds : totalPeriodDuration;
+                 timePlayedInPeriod = totalPeriodDuration - timeRemaining;
+            }
 
+            if (timePlayedInPeriod > 0) {
+                 onCourtIds.forEach(pId => {
+                     finalUpdates[`playerStats.${pId}.timePlayedSeconds`] = admin.firestore.FieldValue.increment(timePlayedInPeriod);
+                 });
+            }
+            // --- END TIME PLAYED CALCULATION ---
+            
             const maxPeriods = format?.numPeriods ?? 4;
-
             if (currentPeriod < maxPeriods) {
                 finalUpdates.currentPeriod = currentPeriod + 1;
                 finalUpdates.periodTimeRemainingSeconds = totalPeriodDuration;
@@ -494,6 +507,12 @@ export async function endCurrentPeriod(gameId: string, userId: string): Promise<
                 finalUpdates.status = 'completed';
                 finalUpdates.periodTimeRemainingSeconds = 0;
             }
+            
+            finalUpdates.isTimerRunning = false;
+            finalUpdates.timerStartedAt = null;
+            finalUpdates.homeTeamOnCourtPlayerIds = [];
+            finalUpdates.awayTeamOnCourtPlayerIds = [];
+            finalUpdates.updatedAt = admin.firestore.FieldValue.serverTimestamp();
             
             transaction.update(gameRef, finalUpdates);
         });
@@ -646,6 +665,7 @@ export async function recordGameEvent(
             const newPir = calculatePir(finalPlayerStats);
             updatePlayerStat(pId, 'pir', newPir);
             
+            // This is the key change: Use dot notation for specific fields instead of overwriting the whole object
             for (const key in playerStatsUpdates[pId]) {
                  finalUpdates[`playerStats.${pId}.${key}`] = playerStatsUpdates[pId][key as keyof PlayerGameStats];
             }
@@ -720,6 +740,7 @@ export async function substitutePlayer(
             const eventInRef = gameRef.collection('events').doc();
             transaction.set(eventInRef, { ...baseEventPayload, action: 'substitution_in', playerId: playerIn.id, playerName: playerIn.name });
 
+            // Ensure player stats object exists
             if (!gameData.playerStats?.[playerIn.id]) {
                 finalUpdates[`playerStats.${playerIn.id}`] = { ...initialPlayerStats, playerId: playerIn.id, playerName: playerIn.name };
             }
@@ -728,7 +749,7 @@ export async function substitutePlayer(
             if (!currentPeriods.has(period)) {
                 currentPeriods.add(period);
                  finalUpdates[`playerStats.${playerIn.id}.periodsPlayedSet`] = Array.from(currentPeriods);
-                 finalUpdates[`playerStats.${playerIn.id}.periodsPlayed`] = currentPeriods.size;
+                 finalUpdates[`playerStats.${playerIn.id}.periodsPlayed`] = admin.firestore.FieldValue.increment(1);
             }
 
         } else {
@@ -746,3 +767,4 @@ export async function substitutePlayer(
   }
 }
 
+    
