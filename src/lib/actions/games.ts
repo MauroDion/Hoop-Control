@@ -176,9 +176,10 @@ export async function createGame(formData: GameFormData, userId: string): Promis
     if (!adminDb) return { success: false, error: "Database not initialized."};
 
     try {
-        const [homeTeamSnap, awayTeamSnap] = await Promise.all([
+        const [homeTeamSnap, awayTeamSnap, gameFormat] = await Promise.all([
             adminDb.collection('teams').doc(formData.homeTeamId).get(),
-            adminDb.collection('teams').doc(formData.awayTeamId).get()
+            adminDb.collection('teams').doc(formData.awayTeamId).get(),
+            formData.gameFormatId ? getFormat(formData.gameFormatId) : Promise.resolve(null),
         ]);
 
         if (!homeTeamSnap.exists || !awayTeamSnap.exists) {
@@ -197,6 +198,8 @@ export async function createGame(formData: GameFormData, userId: string): Promis
             reboundsDefensive: 0, assists: 0, steals: 0, blocks: 0,
             turnovers: 0, blocksAgainst: 0, foulsReceived: 0,
         };
+
+        const initialTime = (gameFormat?.periodDurationMinutes ?? 10) * 60;
 
         const newGameData: Omit<Game, 'id' | 'createdAt' | 'updatedAt' | 'date'> = {
             homeTeamId: formData.homeTeamId,
@@ -221,7 +224,7 @@ export async function createGame(formData: GameFormData, userId: string): Promis
             teamFoulsByPeriod: { home: {}, away: {} },
             currentPeriod: 1,
             isTimerRunning: false,
-            periodTimeRemainingSeconds: 0,
+            periodTimeRemainingSeconds: initialTime,
             homeTeamPlayerIds: [],
             awayTeamPlayerIds: [],
             homeTeamOnCourtPlayerIds: [],
@@ -505,13 +508,11 @@ export async function endCurrentPeriod(gameId: string, userId: string): Promise<
             const onCourtIds = [...(gameData.homeTeamOnCourtPlayerIds || []), ...(gameData.awayTeamOnCourtPlayerIds || [])];
             let timePlayedInPeriod = 0;
             
-            // If timer was running, calculate elapsed time since it started.
-            // If it was not running, time played is the difference between total duration and remaining time.
             if (gameData.isTimerRunning && gameData.timerStartedAt) {
                 const timerStartedAtMs = (new Date(gameData.timerStartedAt as string)).getTime();
                 timePlayedInPeriod = Math.floor((Date.now() - timerStartedAtMs) / 1000);
             } else {
-                timePlayedInPeriod = totalPeriodDuration - (gameData.periodTimeRemainingSeconds || 0);
+                 timePlayedInPeriod = totalPeriodDuration - (gameData.periodTimeRemainingSeconds || 0);
             }
             
             if (timePlayedInPeriod > 0) {
@@ -707,7 +708,7 @@ export async function recordGameEvent(
                 if (stats) stats.pir = calculatePir(stats);
             });
 
-            const finalUpdates = {
+            const finalUpdates: {[key:string]: any} = {
                 homeTeamScore: newHomeTeamScore,
                 awayTeamScore: newAwayTeamScore,
                 playerStats: newPlayerStats,
