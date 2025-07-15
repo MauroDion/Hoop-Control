@@ -644,7 +644,7 @@ export async function recordGameEvent(
                 updatePlayerStat(pId, field, currentVal + amount);
             }
             
-            if (action.includes('foul')) {
+            if (action === 'foul') {
                 const currentFouls = getPlayerStats(playerId).fouls;
                 if (currentFouls >= 5) {
                     throw new Error("El jugador ya tiene 5 faltas y está expulsado.");
@@ -663,7 +663,7 @@ export async function recordGameEvent(
                 assist: () => { incrementPlayerStat(playerId, 'assists', 1); finalUpdates[`${teamId}TeamStats.assists`]=admin.firestore.FieldValue.increment(1); },
                 steal: () => { incrementPlayerStat(playerId, 'steals', 1); finalUpdates[`${teamId}TeamStats.steals`]=admin.firestore.FieldValue.increment(1); },
                 block: () => { incrementPlayerStat(playerId, 'blocks', 1); finalUpdates[`${teamId}TeamStats.blocks`]=admin.firestore.FieldValue.increment(1); },
-                turnover: () => { incrementPlayerStat(playerId, 'turnover', 1); finalUpdates[`${teamId}TeamStats.turnovers`]=admin.firestore.FieldValue.increment(1); },
+                turnover: () => { incrementPlayerStat(playerId, 'turnovers', 1); finalUpdates[`${teamId}TeamStats.turnovers`]=admin.firestore.FieldValue.increment(1); },
                 foul: () => { 
                     incrementPlayerStat(playerId, 'fouls', 1); 
                     finalUpdates[`${teamId}TeamStats.fouls`]=admin.firestore.FieldValue.increment(1); 
@@ -690,14 +690,12 @@ export async function recordGameEvent(
                 (gameData.awayTeamOnCourtPlayerIds || []).forEach((pId: string) => { incrementPlayerStat(pId, 'plusMinus', teamId === 'away' ? points : -points); });
             }
             
-            // Recalculate PIR for all affected players
             Object.keys(playerStatsUpdates).forEach(pId => {
                 const finalPlayerStats = getPlayerStats(pId);
                 const newPir = calculatePir(finalPlayerStats);
                 updatePlayerStat(pId, 'pir', newPir);
             });
             
-            // Apply all individual player stat updates using dot notation
             Object.keys(playerStatsUpdates).forEach(pId => {
                 Object.keys(playerStatsUpdates[pId]).forEach(statKey => {
                     const key = statKey as keyof PlayerGameStats;
@@ -805,3 +803,5 @@ export async function substitutePlayer(
     return { success: false, error: error.message };
   }
 }
+
+    
