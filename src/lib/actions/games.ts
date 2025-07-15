@@ -90,14 +90,26 @@ export async function getGamesByCoach(userId: string): Promise<Game[]> {
         if (teamIds.length === 0) return [];
 
         const gamesRef = adminDb.collection('games');
-        const homeGamesQuery = gamesRef.where('homeTeamId', 'in', teamIds).get();
-        const awayGamesQuery = gamesRef.where('awayTeamId', 'in', teamIds).get();
+        // Firestore 'in' queries are limited to 30 values.
+        // We will need to chunk if a coach has more than 30 teams.
+        const teamIdChunks: string[][] = [];
+        for (let i = 0; i < teamIds.length; i += 30) {
+            teamIdChunks.push(teamIds.slice(i, i + 30));
+        }
 
-        const [homeGamesSnap, awayGamesSnap] = await Promise.all([homeGamesQuery, awayGamesQuery]);
+        const gamePromises: Promise<admin.firestore.QuerySnapshot<admin.firestore.DocumentData>>[] = [];
+        teamIdChunks.forEach(chunk => {
+            const homeQuery = gamesRef.where('homeTeamId', 'in', chunk).get();
+            const awayQuery = gamesRef.where('awayTeamId', 'in', chunk).get();
+            gamePromises.push(homeQuery, awayQuery);
+        });
 
+        const gameSnapshots = await Promise.all(gamePromises);
+        
         const gamesMap = new Map<string, Game>();
-        homeGamesSnap.forEach(doc => gamesMap.set(doc.id, gameToSerializable(doc)));
-        awayGamesSnap.forEach(doc => gamesMap.set(doc.id, gameToSerializable(doc)));
+        gameSnapshots.forEach(snapshot => {
+            snapshot.forEach(doc => gamesMap.set(doc.id, gameToSerializable(doc)));
+        });
 
         const games = Array.from(gamesMap.values());
         games.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -454,7 +466,7 @@ export async function updateLiveGameState(
               const timerStartedAtMs = (gameData.timerStartedAt as admin.firestore.Timestamp)?.toMillis();
               if (timerStartedAtMs) {
                   const elapsedSeconds = Math.floor((Date.now() - timerStartedAtMs) / 1000);
-                  const newTimeRemaining = Math.max(0, (gameData.periodTimeRemainingSeconds || 0) - elapsedSeconds);
+                  const newTimeRemaining = Math.max(0, (gameData.periodTimeRemainingSeconds ?? 0) - elapsedSeconds);
                   finalUpdates.periodTimeRemainingSeconds = newTimeRemaining;
               }
               finalUpdates.timerStartedAt = null;
@@ -628,16 +640,17 @@ export async function recordGameEvent(
             const finalUpdates: { [key: string]: any } = { updatedAt: admin.firestore.FieldValue.serverTimestamp() };
 
             // Create a deep copy of player stats to modify in memory
-            const newPlayerStats = JSON.parse(JSON.stringify(gameData.playerStats || {}));
+            const playerStatsUpdates = JSON.parse(JSON.stringify(gameData.playerStats || {}));
 
             const getPlayerStats = (pId: string): PlayerGameStats => {
-                if (!newPlayerStats[pId]) {
-                    newPlayerStats[pId] = { ...initialPlayerStats, playerId: pId };
+                if (!playerStatsUpdates[pId]) {
+                    playerStatsUpdates[pId] = { ...initialPlayerStats, playerId: pId, playerName: '' };
                 }
-                return newPlayerStats[pId];
+                return playerStatsUpdates[pId];
             };
 
             const actingPlayerStats = getPlayerStats(playerId);
+            actingPlayerStats.playerName = eventData.playerName;
 
             if (action === 'foul' && actingPlayerStats.fouls >= 5) {
                 throw new Error("El jugador ya tiene 5 faltas y está expulsado.");
@@ -689,17 +702,14 @@ export async function recordGameEvent(
                 });
             }
             
-            // Recalculate PIR for all players who were on court during the scoring play, as their +/- changed.
-            if (action.startsWith('shot_made')) {
-                 const onCourtIds = [...(gameData.homeTeamOnCourtPlayerIds || []), ...(gameData.awayTeamOnCourtPlayerIds || [])];
-                 onCourtIds.forEach(pId => {
-                    newPlayerStats[pId].pir = calculatePir(newPlayerStats[pId]);
-                 });
-            } else {
-                 // If not a scoring play, only the acting player's PIR needs recalculating (already done).
-            }
+            const onCourtIds = [...(gameData.homeTeamOnCourtPlayerIds || []), ...(gameData.awayTeamOnCourtPlayerIds || [])];
+            onCourtIds.forEach(pId => {
+                if (playerStatsUpdates[pId]) {
+                   playerStatsUpdates[pId].pir = calculatePir(playerStatsUpdates[pId]);
+                }
+            });
             
-            finalUpdates['playerStats'] = newPlayerStats;
+            finalUpdates['playerStats'] = playerStatsUpdates;
              
             transaction.update(gameRef, finalUpdates);
             transaction.set(eventRef, { ...eventData, gameId, createdAt: admin.firestore.FieldValue.serverTimestamp(), createdBy: userId });
