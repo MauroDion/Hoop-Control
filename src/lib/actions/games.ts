@@ -504,13 +504,15 @@ export async function endCurrentPeriod(gameId: string, userId: string): Promise<
             
             const timeRemaining = typeof gameData.periodTimeRemainingSeconds === 'number' ? gameData.periodTimeRemainingSeconds : totalPeriodDuration;
 
+            // Only calculate elapsed time if the timer was running.
+            // If it's not running, it means it was paused or it reached zero.
             if (gameData.isTimerRunning && gameData.timerStartedAt) {
                  const serverStopTime = Date.now();
                  const serverStartTime = (new Date(gameData.timerStartedAt as string)).getTime();
                  const elapsedSeconds = Math.max(0, Math.floor((serverStopTime - serverStartTime) / 1000));
                  timePlayedInPeriod = elapsedSeconds;
             } else if (!gameData.isTimerRunning && timeRemaining < totalPeriodDuration) {
-                 // Timer was paused or has reached zero
+                 // Timer was paused, so time played is the difference from the total.
                  timePlayedInPeriod = totalPeriodDuration - timeRemaining;
             }
             
@@ -638,16 +640,14 @@ export async function recordGameEvent(
             }
             
             // --- Start of Refactored Logic ---
+            const gameDataCopy = JSON.parse(JSON.stringify(gameData));
+            const newPlayerStats: {[key: string]: PlayerGameStats} = gameDataCopy.playerStats || {};
 
-            // 1. Create a deep copy of the game data to manipulate in memory.
-            const gameDataCopy: Game = JSON.parse(JSON.stringify(gameData));
-            if (!gameDataCopy.playerStats) gameDataCopy.playerStats = {};
-            
             const getPlayerStats = (pId: string): PlayerGameStats => {
-                 if (!gameDataCopy.playerStats[pId]) {
-                    gameDataCopy.playerStats[pId] = { ...initialPlayerStats, playerId: pId, playerName: '' };
+                 if (!newPlayerStats[pId]) {
+                    newPlayerStats[pId] = { ...initialPlayerStats, playerId: pId, playerName: '' };
                 }
-                return gameDataCopy.playerStats[pId] as PlayerGameStats;
+                return newPlayerStats[pId];
             };
 
             const actingPlayerStats = getPlayerStats(playerId);
@@ -657,7 +657,6 @@ export async function recordGameEvent(
                 throw new Error("El jugador ya tiene 5 faltas y está expulsado.");
             }
 
-            // 2. Apply stat changes to the in-memory copy
             let pointsScored = 0;
             switch(action) {
                 case 'shot_made_1p': actingPlayerStats.points += 1; actingPlayerStats.shots_made_1p += 1; actingPlayerStats.shots_attempted_1p += 1; pointsScored = 1; break;
@@ -677,7 +676,6 @@ export async function recordGameEvent(
                 case 'foul_received': actingPlayerStats.fouls_received += 1; break;
             }
             
-            // 3. Update scores and other game-level stats on the copy
             if (pointsScored > 0) {
                 if (teamId === 'home') gameDataCopy.homeTeamScore += pointsScored;
                 else gameDataCopy.awayTeamScore += pointsScored;
@@ -698,22 +696,25 @@ export async function recordGameEvent(
                 }
             }
             
-            // 4. Recalculate PIR for all affected players
-            const affectedPlayerIds = new Set([playerId, ...gameDataCopy.homeTeamOnCourtPlayerIds, ...gameDataCopy.awayTeamOnCourtPlayerIds]);
+            const affectedPlayerIds = new Set<string>([playerId]);
+            if(pointsScored > 0) {
+                (gameDataCopy.homeTeamOnCourtPlayerIds || []).forEach(pId => affectedPlayerIds.add(pId));
+                (gameDataCopy.awayTeamOnCourtPlayerIds || []).forEach(pId => affectedPlayerIds.add(pId));
+            }
+
             affectedPlayerIds.forEach(pId => {
                 const stats = getPlayerStats(pId);
                 if (stats) stats.pir = calculatePir(stats);
             });
             
-            // 5. Build final update object and commit transaction
-            const finalUpdates = {
-                homeTeamScore: gameDataCopy.homeTeamScore,
-                awayTeamScore: gameDataCopy.awayTeamScore,
-                playerStats: gameDataCopy.playerStats,
-                teamFoulsByPeriod: gameDataCopy.teamFoulsByPeriod,
-                homeTeamOnCourtPlayerIds: gameDataCopy.homeTeamOnCourtPlayerIds,
-                awayTeamOnCourtPlayerIds: gameDataCopy.awayTeamOnCourtPlayerIds,
-                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            const finalUpdates: {[key:string]: any} = {
+                'homeTeamScore': gameDataCopy.homeTeamScore,
+                'awayTeamScore': gameDataCopy.awayTeamScore,
+                'playerStats': newPlayerStats,
+                'teamFoulsByPeriod': gameDataCopy.teamFoulsByPeriod,
+                'homeTeamOnCourtPlayerIds': gameDataCopy.homeTeamOnCourtPlayerIds,
+                'awayTeamOnCourtPlayerIds': gameDataCopy.awayTeamOnCourtPlayerIds,
+                'updatedAt': admin.firestore.FieldValue.serverTimestamp(),
             };
 
             transaction.update(gameRef, finalUpdates);
@@ -744,6 +745,7 @@ export async function substitutePlayer(
         if (!gameDoc.exists) throw new Error("Game not found.");
         
         const gameData = gameDoc.data() as Game;
+        const finalUpdates: { [key: string]: any } = { updatedAt: admin.firestore.FieldValue.serverTimestamp() };
 
         if ((gameData.playerStats?.[playerIn.id]?.fouls || 0) >= 5) {
             throw new Error(`El jugador ${playerIn.name} está expulsado y no puede entrar.`);
@@ -753,7 +755,6 @@ export async function substitutePlayer(
         let onCourtIds = (gameData[onCourtField] as string[] || []);
         
         const baseEventPayload = { gameId, teamId: teamType, period, gameTimeSeconds, createdAt: admin.firestore.FieldValue.serverTimestamp(), createdBy: userId };
-        const finalUpdates: { [key: string]: any } = { updatedAt: admin.firestore.FieldValue.serverTimestamp() };
 
         if (gameData.isTimerRunning && gameData.timerStartedAt) {
             const serverStopTime = Date.now();
