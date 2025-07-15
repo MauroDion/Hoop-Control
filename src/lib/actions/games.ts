@@ -503,23 +503,22 @@ export async function endCurrentPeriod(gameId: string, userId: string): Promise<
             const totalPeriodDuration = (format?.periodDurationMinutes ?? 10) * 60;
             const currentPeriod = gameData.currentPeriod ?? 1;
             const finalUpdates: { [key: string]: any } = {};
-            
+            const playerStatsCopy = JSON.parse(JSON.stringify(gameData.playerStats || {}));
+
             // --- TIME PLAYED CALCULATION ---
             const onCourtIds = [...(gameData.homeTeamOnCourtPlayerIds || []), ...(gameData.awayTeamOnCourtPlayerIds || [])];
-            let timePlayedInPeriod = 0;
             
-            if (gameData.isTimerRunning && gameData.timerStartedAt) {
-                const timerStartedAtMs = (new Date(gameData.timerStartedAt as string)).getTime();
-                timePlayedInPeriod = Math.floor((Date.now() - timerStartedAtMs) / 1000);
-            } else {
-                 timePlayedInPeriod = totalPeriodDuration - (gameData.periodTimeRemainingSeconds || 0);
-            }
-            
+            // Calculate time played this period. It's the total duration minus whatever was left.
+            const timeRemaining = gameData.periodTimeRemainingSeconds ?? 0;
+            const timePlayedInPeriod = totalPeriodDuration - timeRemaining;
+
             if (timePlayedInPeriod > 0) {
                  onCourtIds.forEach(pId => {
-                     finalUpdates[`playerStats.${pId}.timePlayedSeconds`] = admin.firestore.FieldValue.increment(timePlayedInPeriod);
+                    if (!playerStatsCopy[pId]) playerStatsCopy[pId] = { ...initialPlayerStats };
+                    playerStatsCopy[pId].timePlayedSeconds = (playerStatsCopy[pId].timePlayedSeconds || 0) + timePlayedInPeriod;
                  });
             }
+            finalUpdates.playerStats = playerStatsCopy;
             // --- END TIME PLAYED CALCULATION ---
             
             const maxPeriods = format?.numPeriods ?? 4;
@@ -637,14 +636,11 @@ export async function recordGameEvent(
             if (!hasPermission) {
                 throw new Error("Acción no permitida. No tienes asignada esta categoría de estadísticas.");
             }
-
-            const newPlayerStats: {[key: string]: PlayerGameStats} = JSON.parse(JSON.stringify(gameData.playerStats || {}));
-            let newHomeTeamScore = gameData.homeTeamScore || 0;
-            let newAwayTeamScore = gameData.awayTeamScore || 0;
-            let newTeamFoulsByPeriod = JSON.parse(JSON.stringify(gameData.teamFoulsByPeriod || { home: {}, away: {} }));
-            let newHomeOnCourt = [...(gameData.homeTeamOnCourtPlayerIds || [])];
-            let newAwayOnCourt = [...(gameData.awayTeamOnCourtPlayerIds || [])];
             
+            // Create a deep copy of the game data to modify in memory
+            const newGameData = JSON.parse(JSON.stringify(gameData));
+            const newPlayerStats: { [key: string]: PlayerGameStats } = newGameData.playerStats || {};
+
             const getPlayerStats = (pId: string): PlayerGameStats => {
                  if (!newPlayerStats[pId]) {
                     newPlayerStats[pId] = { ...initialPlayerStats, playerId: pId, playerName: '' };
@@ -679,42 +675,42 @@ export async function recordGameEvent(
             }
             
             if (pointsScored > 0) {
-                if (teamId === 'home') newHomeTeamScore += pointsScored;
-                else newAwayTeamScore += pointsScored;
+                if (teamId === 'home') newGameData.homeTeamScore += pointsScored;
+                else newGameData.awayTeamScore += pointsScored;
                 
-                newHomeOnCourt.forEach(pId => { getPlayerStats(pId).plusMinus += (teamId === 'home' ? pointsScored : -pointsScored) });
-                newAwayOnCourt.forEach(pId => { getPlayerStats(pId).plusMinus += (teamId === 'away' ? pointsScored : -pointsScored) });
-            }
-            
-            if (action === 'foul') {
-                const currentFouls = newTeamFoulsByPeriod[teamId]?.[gameData.currentPeriod] || 0;
-                if (!newTeamFoulsByPeriod[teamId]) newTeamFoulsByPeriod[teamId] = {};
-                newTeamFoulsByPeriod[teamId][gameData.currentPeriod] = currentFouls + 1;
-                
-                if (actingPlayerStats.fouls >= 5) {
-                   if (teamId === 'home') newHomeOnCourt = newHomeOnCourt.filter(id => id !== playerId);
-                   else newAwayOnCourt = newAwayOnCourt.filter(id => id !== playerId);
-                }
+                (newGameData.homeTeamOnCourtPlayerIds || []).forEach((pId: string) => { getPlayerStats(pId).plusMinus += (teamId === 'home' ? pointsScored : -pointsScored) });
+                (newGameData.awayTeamOnCourtPlayerIds || []).forEach((pId: string) => { getPlayerStats(pId).plusMinus += (teamId === 'away' ? pointsScored : -pointsScored) });
             }
             
             const affectedPlayerIds = new Set<string>([playerId]);
             if(pointsScored > 0) {
-                newHomeOnCourt.forEach(pId => affectedPlayerIds.add(pId));
-                newAwayOnCourt.forEach(pId => affectedPlayerIds.add(pId));
+                (newGameData.homeTeamOnCourtPlayerIds || []).forEach((pId: string) => affectedPlayerIds.add(pId));
+                (newGameData.awayTeamOnCourtPlayerIds || []).forEach((pId: string) => affectedPlayerIds.add(pId));
             }
-
+            
             affectedPlayerIds.forEach(pId => {
                 const stats = getPlayerStats(pId);
                 if (stats) stats.pir = calculatePir(stats);
             });
-
+            
+            if (action === 'foul') {
+                const teamFouls = newGameData.teamFoulsByPeriod[teamId]?.[gameData.currentPeriod] || 0;
+                if (!newGameData.teamFoulsByPeriod[teamId]) newGameData.teamFoulsByPeriod[teamId] = {};
+                newGameData.teamFoulsByPeriod[teamId][gameData.currentPeriod] = teamFouls + 1;
+                
+                if (actingPlayerStats.fouls >= 5) {
+                   const onCourtField = teamId === 'home' ? 'homeTeamOnCourtPlayerIds' : 'awayTeamOnCourtPlayerIds';
+                   newGameData[onCourtField] = (newGameData[onCourtField] || []).filter((id: string) => id !== playerId);
+                }
+            }
+            
             const finalUpdates: {[key:string]: any} = {
-                homeTeamScore: newHomeTeamScore,
-                awayTeamScore: newAwayTeamScore,
+                homeTeamScore: newGameData.homeTeamScore,
+                awayTeamScore: newGameData.awayTeamScore,
                 playerStats: newPlayerStats,
-                teamFoulsByPeriod: newTeamFoulsByPeriod,
-                homeTeamOnCourtPlayerIds: newHomeOnCourt,
-                awayTeamOnCourtPlayerIds: newAwayOnCourt,
+                teamFoulsByPeriod: newGameData.teamFoulsByPeriod,
+                homeTeamOnCourtPlayerIds: newGameData.homeTeamOnCourtPlayerIds,
+                awayTeamOnCourtPlayerIds: newGameData.awayTeamOnCourtPlayerIds,
                 updatedAt: admin.firestore.FieldValue.serverTimestamp(),
             };
 
@@ -753,43 +749,25 @@ export async function substitutePlayer(
         }
         
         const onCourtField = teamType === 'home' ? 'homeTeamOnCourtPlayerIds' : 'awayTeamOnCourtPlayerIds';
-        let onCourtIds = (gameData[onCourtField] as string[] || []);
+        let onCourtIds = [...(gameData[onCourtField] as string[] || [])];
         
         const baseEventPayload = { gameId, teamId: teamType, period, gameTimeSeconds, createdAt: admin.firestore.FieldValue.serverTimestamp(), createdBy: userId };
-
-        if (gameData.isTimerRunning && gameData.timerStartedAt) {
-            const serverStopTime = Date.now();
-            const serverStartTime = (new Date(gameData.timerStartedAt as string)).getTime();
-            const elapsedSeconds = Math.max(0, Math.floor((serverStopTime - serverStartTime) / 1000));
-            
-            if (elapsedSeconds > 0) {
-                const currentOnCourtIds = [...(gameData.homeTeamOnCourtPlayerIds || []), ...(gameData.awayTeamOnCourtPlayerIds || [])];
-                currentOnCourtIds.forEach(pId => {
-                    finalUpdates[`playerStats.${pId}.timePlayedSeconds`] = admin.firestore.FieldValue.increment(elapsedSeconds);
-                });
-            }
-            
-            const timeRemainingAtStart = gameData.periodTimeRemainingSeconds || 0;
-            const newTimeRemaining = timeRemainingAtStart - elapsedSeconds;
-
-            finalUpdates.periodTimeRemainingSeconds = Math.max(0, newTimeRemaining);
-            finalUpdates.timerStartedAt = admin.firestore.FieldValue.serverTimestamp();
-        }
 
         if (playerOut) {
             onCourtIds = onCourtIds.filter(id => id !== playerOut.id);
             const eventOutRef = gameRef.collection('events').doc();
             transaction.set(eventOutRef, { ...baseEventPayload, action: 'substitution_out', playerId: playerOut.id, playerName: playerOut.name });
         }
+        
+        const gameFormatDoc = gameData.gameFormatId ? await adminDb.collection('gameFormats').doc(gameData.gameFormatId).get() : null;
+        if(!gameFormatDoc || !gameFormatDoc.exists) throw new Error("Game format not found for substitution logic.");
+        const requiredPlayers = gameFormatDoc.data()?.name?.includes('3v3') ? 3 : 5;
+
+        if (onCourtIds.length >= requiredPlayers && !playerOut) {
+             throw new Error(`La pista está llena (${requiredPlayers} jugadores). Debes seleccionar a un jugador para sustituir.`);
+        }
 
         if (!onCourtIds.includes(playerIn.id)) {
-            const gameFormatDoc = gameData.gameFormatId ? await adminDb.collection('gameFormats').doc(gameData.gameFormatId).get() : null;
-            if(!gameFormatDoc || !gameFormatDoc.exists) throw new Error("Game format not found for substitution logic.");
-            
-            const requiredPlayers = gameFormatDoc.data()?.name?.includes('3v3') ? 3 : 5;
-            if (onCourtIds.length >= requiredPlayers) {
-                if (!playerOut) throw new Error(`La pista está llena (${requiredPlayers} jugadores). Debes seleccionar a un jugador para sustituir.`);
-            }
             onCourtIds.push(playerIn.id);
             
             const eventInRef = gameRef.collection('events').doc();
@@ -821,5 +799,3 @@ export async function substitutePlayer(
     return { success: false, error: error.message };
   }
 }
-
-    
