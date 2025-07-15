@@ -445,10 +445,15 @@ export async function updateLiveGameState(
               updatedAt: admin.firestore.FieldValue.serverTimestamp(),
           };
 
-          if (updates.isTimerRunning === true && gameData.isTimerRunning === false) {
+          if (updates.isTimerRunning === true && !gameData.isTimerRunning) {
               finalUpdates.timerStartedAt = admin.firestore.FieldValue.serverTimestamp();
-          } 
-          else if (updates.isTimerRunning === false && gameData.isTimerRunning === true) {
+          } else if (updates.isTimerRunning === false && gameData.isTimerRunning) {
+              const timerStartedAtMs = (gameData.timerStartedAt as admin.firestore.Timestamp)?.toMillis();
+              if (timerStartedAtMs) {
+                  const elapsedSeconds = Math.floor((Date.now() - timerStartedAtMs) / 1000);
+                  const newTimeRemaining = Math.max(0, (gameData.periodTimeRemainingSeconds || 0) - elapsedSeconds);
+                  finalUpdates.periodTimeRemainingSeconds = newTimeRemaining;
+              }
               finalUpdates.timerStartedAt = null;
           }
           

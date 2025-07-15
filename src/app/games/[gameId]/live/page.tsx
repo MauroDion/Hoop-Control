@@ -240,19 +240,18 @@ export default function LiveGamePage() {
 
 
     useEffect(() => {
-      if (game) {
-        setDisplayTime(game.periodTimeRemainingSeconds || 0);
-      }
-    }, [game]);
-    
+        setDisplayTime(game?.periodTimeRemainingSeconds ?? 0);
+    }, [game?.periodTimeRemainingSeconds]);
+
     useEffect(() => {
         let timerId: NodeJS.Timeout | undefined;
         if (game?.isTimerRunning && game.timerStartedAt) {
             const serverStartTimeMs = new Date(game.timerStartedAt).getTime();
+            const initialRemainingSeconds = game.periodTimeRemainingSeconds ?? 0;
             
             const updateDisplay = () => {
-                const elapsedMs = Date.now() - serverStartTimeMs;
-                const newDisplayTime = (game.periodTimeRemainingSeconds || 0) - Math.floor(elapsedMs / 1000);
+                const elapsedSeconds = Math.floor((Date.now() - serverStartTimeMs) / 1000);
+                const newDisplayTime = initialRemainingSeconds - elapsedSeconds;
                 setDisplayTime(Math.max(0, newDisplayTime));
             };
             
@@ -319,10 +318,10 @@ export default function LiveGamePage() {
         if (!game || !user) return;
         const newIsTimerRunning = !game.isTimerRunning;
         
-        const updates: Partial<Game> = { isTimerRunning: newIsTimerRunning };
-        if (!newIsTimerRunning) {
-             updates.periodTimeRemainingSeconds = displayTime;
-        }
+        const updates: Partial<Game> = { 
+            isTimerRunning: newIsTimerRunning,
+            periodTimeRemainingSeconds: displayTime 
+        };
 
         handleUpdate(updates);
     }, [game, user, displayTime, handleUpdate]);
@@ -564,3 +563,4 @@ export default function LiveGamePage() {
         </div>
     )
 }
+
