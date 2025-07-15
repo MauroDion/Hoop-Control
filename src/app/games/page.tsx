@@ -4,7 +4,7 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
-import { getGamesByCoach, getAllGames, getGamesByClub, getGamesByParent } from '@/app/games/actions';
+import { getGamesByCoach, getAllGames, getGamesByClub, getGamesByParent } from '@/lib/actions/games';
 import type { Game } from '@/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';

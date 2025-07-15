@@ -9,9 +9,9 @@ import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 
 // Actions
-import { getGameById, updateGameRoster } from '@/app/games/actions';
+import { getGameById, updateGameRoster } from '@/lib/actions/games';
 import { getPlayersByTeamId } from '@/app/players/actions';
-import { getTeamsByCoach, getTeamById } from '@/app/teams/actions';
+import { getTeamsByCoach } from '@/app/teams/actions';
 import { getUserProfileById } from '@/lib/actions/users/get-user-profile';
 
 
@@ -340,5 +340,3 @@ export default function ManageGamePage() {
         </div>
     );
 }
-
-    

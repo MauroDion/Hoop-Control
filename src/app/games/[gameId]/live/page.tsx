@@ -6,7 +6,7 @@ import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import Link from 'next/link';
-import { getGameById, updateLiveGameState, endCurrentPeriod, substitutePlayer, assignScorer, recordGameEvent } from '@/app/games/actions';
+import { getGameById, updateLiveGameState, endCurrentPeriod, substitutePlayer, assignScorer, recordGameEvent } from '@/lib/actions/games';
 import { getGameFormatById } from '@/lib/actions/game-formats';
 import { getPlayersByTeamId } from '@/app/players/actions';
 import type { Game, GameFormat, Player, GameEventAction, PlayerGameStats, UserFirestoreProfile, ProfileType, StatCategory } from '@/types';
@@ -396,7 +396,7 @@ export default function LiveGamePage() {
         if (status === 'inprogress') {
             let format = gameFormat;
             if (!format && game.gameFormatId) {
-                format = await getFormat(game.gameFormatId);
+                format = await getGameFormatById(game.gameFormatId);
                 if (format) setGameFormat(format);
             }
             updates.periodTimeRemainingSeconds = (format?.periodDurationMinutes || 10) * 60;

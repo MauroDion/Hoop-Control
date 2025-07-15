@@ -8,7 +8,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from "next/navigation";
 import React, { useEffect, useState } from "react";
 import type { Team, GameFormat, CompetitionCategory, UserFirestoreProfile, Season } from "@/types";
-import { getTeamsByCoach, getAllTeams } from "@/lib/actions/teams";
+import { getTeamsByCoach, getAllTeams } from "@/app/teams/actions";
 import { getGameFormats } from "@/lib/actions/game-formats";
 import { getCompetitionCategories } from "@/lib/actions/competition-categories";
 import { getUserProfileById } from "@/lib/actions/users";
