@@ -1,3 +1,4 @@
+
 import type { Metadata } from 'next';
 import './globals.css';
 import { AuthProvider } from '@/contexts/AuthContext';
@@ -25,6 +26,11 @@ const playfairDisplay = Playfair_Display({
 export const metadata: Metadata = {
   title: 'Hoop Control',
   description: 'Basketball Game Tracker for team, player, and live game management.',
+  viewport: {
+    width: 'device-width',
+    initialScale: 1,
+    maximumScale: 1,
+  },
 };
 
 export default function RootLayout({

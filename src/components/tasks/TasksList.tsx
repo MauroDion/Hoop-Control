@@ -1,3 +1,4 @@
+
 "use client";
 
 import type { Task } from "@/types";
@@ -98,7 +99,7 @@ export function TasksList({ tasks }: TasksListProps) {
       <Card className="shadow-md">
         <CardHeader className="border-b">
           <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-            <CardTitle className="text-2xl font-headline">Filtros de Tareas</CardTitle>
+            <CardTitle className="text-xl font-headline">Filtros de Tareas</CardTitle>
             <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
               <Input 
                 placeholder="Buscar tareas..." 
@@ -144,7 +145,7 @@ export function TasksList({ tasks }: TasksListProps) {
           {filteredTasks.map((task) => (
             <Card key={task.id} className={`shadow-lg hover:shadow-xl transition-shadow duration-300 flex flex-col justify-between ${statusColors[task.status]}`}>
               <CardHeader>
-                <div className="flex justify-between items-start">
+                <div className="flex justify-between items-start gap-2">
                   <CardTitle className="text-xl font-semibold mb-1 text-primary-foreground group-hover:text-primary transition-colors">
                      <Link href={`/tasks/${task.id}`} className="hover:underline">{task.title}</Link>
                   </CardTitle>

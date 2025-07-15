@@ -67,7 +67,7 @@ export default function TasksPage() {
   
   return (
     <div className="space-y-8">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
         <h1 className="text-4xl font-headline font-bold text-primary">Mis Tareas</h1>
         <Button asChild>
           <Link href="/tasks/new">

@@ -18,7 +18,9 @@ import {
     Dribbble,
     Settings,
     UserCircle,
-    LogOut
+    LogOut,
+    Menu,
+    Users
 } from 'lucide-react';
 import Image from 'next/image';
 import {
@@ -29,12 +31,15 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { useState } from 'react';
 
 
 export default function Header() {
   const { user, profile, branding, logout } = useAuth();
   const { appName, logoHeaderUrl } = branding || {};
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const showAdminTools = profile && ['super_admin'].includes(profile.profileTypeId);
   const showGameTools = profile && ['super_admin', 'club_admin', 'coordinator', 'coach', 'parent_guardian'].includes(profile.profileTypeId);
@@ -49,65 +54,67 @@ export default function Header() {
     return names[0].substring(0, 2).toUpperCase();
   };
 
+  const navLinks = (
+    <>
+      <Link href="/dashboard" className="transition-colors hover:text-primary flex items-center" onClick={() => setIsMobileMenuOpen(false)}>
+        <LayoutDashboard className="mr-2 h-4 w-4" /> Panel
+      </Link>
+      {showGameTools && (
+        <Link href="/games" className="transition-colors hover:text-primary flex items-center" onClick={() => setIsMobileMenuOpen(false)}>
+          <CalendarClock className="mr-2 h-4 w-4" /> Partidos
+        </Link>
+      )}
+       {showAnalysisTools && (
+        <Link href="/analysis" className="transition-colors hover:text-primary flex items-center" onClick={() => setIsMobileMenuOpen(false)}>
+          <BarChart3 className="mr-2 h-4 w-4" /> Análisis
+        </Link>
+      )}
+      {showAdminTools && (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" className="transition-colors hover:text-primary flex items-center px-3 -ml-3 md:ml-0 md:px-3">
+              Admin
+              <ChevronDown className="ml-1 h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuLabel>Gestión</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem asChild><Link href="/admin/user-management" className="w-full cursor-pointer flex items-center"><UserCog className="mr-2 h-4 w-4" /><span>Usuarios</span></Link></DropdownMenuItem>
+             <DropdownMenuItem asChild><Link href="/clubs" className="w-full cursor-pointer flex items-center"><Building className="mr-2 h-4 w-4" /><span>Clubs</span></Link></DropdownMenuItem>
+            <DropdownMenuItem asChild><Link href="/seasons" className="w-full cursor-pointer flex items-center"><CalendarCheck className="mr-2 h-4 w-4" /><span>Temporadas</span></Link></DropdownMenuItem>
+             <DropdownMenuItem asChild><Link href="/admin/competition-categories" className="w-full cursor-pointer flex items-center"><Tag className="mr-2 h-4 w-4" /><span>Categorías</span></Link></DropdownMenuItem>
+             <DropdownMenuItem asChild><Link href="/admin/game-formats" className="w-full cursor-pointer flex items-center"><ListOrdered className="mr-2 h-4 w-4" /><span>Formatos Partido</span></Link></DropdownMenuItem>
+            <DropdownMenuSeparator />
+             <DropdownMenuItem asChild><Link href="/admin/settings" className="w-full cursor-pointer flex items-center"><Settings className="mr-2 h-4 w-4" /><span>Ajustes Generales</span></Link></DropdownMenuItem>
+             <DropdownMenuItem asChild><Link href="/admin/seeder" className="w-full cursor-pointer flex items-center"><Database className="mr-2 h-4 w-4" /><span>Poblar Datos (Dev)</span></Link></DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
+    </>
+  );
+
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 shadow-sm">
-      <div className="container flex h-20 items-center">
-        <Link href="/dashboard" className="mr-8 flex items-center space-x-2">
+      <div className="container flex h-16 items-center">
+        <Link href="/dashboard" className="mr-4 flex items-center space-x-2">
             {logoHeaderUrl ? (
-                <div className="relative h-12 w-40">
+                <div className="relative h-10 w-32 sm:h-12 sm:w-40">
                     <Image src={logoHeaderUrl} alt={appName || "Hoop Control Logo"} fill style={{objectFit: 'contain'}} />
                 </div>
             ) : (
                 <>
-                 <Dribbble className="h-8 w-8 text-primary" />
-                 <span className="font-headline text-2xl font-bold text-primary">{appName || "Hoop Control"}</span>
+                 <Dribbble className="h-6 w-6 sm:h-8 sm:w-8 text-primary" />
+                 <span className="hidden sm:inline-block font-headline text-xl sm:text-2xl font-bold text-primary">{appName || "Hoop Control"}</span>
                 </>
             )}
         </Link>
         
-        <nav className="hidden md:flex items-center space-x-6 text-sm font-medium">
-          {user && (
-            <>
-              <Link href="/dashboard" className="transition-colors hover:text-primary flex items-center">
-                <LayoutDashboard className="mr-2 h-4 w-4" /> Panel
-              </Link>
-              {showGameTools && (
-                <Link href="/games" className="transition-colors hover:text-primary flex items-center">
-                  <CalendarClock className="mr-2 h-4 w-4" /> Partidos
-                </Link>
-              )}
-               {showAnalysisTools && (
-                <Link href="/analysis" className="transition-colors hover:text-primary flex items-center">
-                  <BarChart3 className="mr-2 h-4 w-4" /> Análisis
-                </Link>
-              )}
-              {showAdminTools && (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" className="transition-colors hover:text-primary flex items-center px-3">
-                      Admin
-                      <ChevronDown className="ml-1 h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuLabel>Gestión</DropdownMenuLabel>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem asChild><Link href="/admin/user-management" className="w-full cursor-pointer flex items-center"><UserCog className="mr-2 h-4 w-4" /><span>Usuarios</span></Link></DropdownMenuItem>
-                     <DropdownMenuItem asChild><Link href="/clubs" className="w-full cursor-pointer flex items-center"><Building className="mr-2 h-4 w-4" /><span>Clubs</span></Link></DropdownMenuItem>
-                    <DropdownMenuItem asChild><Link href="/seasons" className="w-full cursor-pointer flex items-center"><CalendarCheck className="mr-2 h-4 w-4" /><span>Temporadas</span></Link></DropdownMenuItem>
-                     <DropdownMenuItem asChild><Link href="/admin/competition-categories" className="w-full cursor-pointer flex items-center"><Tag className="mr-2 h-4 w-4" /><span>Categorías</span></Link></DropdownMenuItem>
-                     <DropdownMenuItem asChild><Link href="/admin/game-formats" className="w-full cursor-pointer flex items-center"><ListOrdered className="mr-2 h-4 w-4" /><span>Formatos Partido</span></Link></DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                     <DropdownMenuItem asChild><Link href="/admin/settings" className="w-full cursor-pointer flex items-center"><Settings className="mr-2 h-4 w-4" /><span>Ajustes Generales</span></Link></DropdownMenuItem>
-                     <DropdownMenuItem asChild><Link href="/admin/seeder" className="w-full cursor-pointer flex items-center"><Database className="mr-2 h-4 w-4" /><span>Poblar Datos (Dev)</span></Link></DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              )}
-            </>
-          )}
+        <nav className="hidden md:flex flex-grow items-center space-x-6 text-sm font-medium">
+          {user && navLinks}
         </nav>
 
-        <div className="ml-auto flex items-center space-x-4">
+        <div className="ml-auto flex items-center space-x-2 md:space-x-4">
            {user && (
              <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -118,7 +125,7 @@ export default function Header() {
                         </Avatar>
                     </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
+                <DropdownMenuContent align="end" className="w-56">
                     <DropdownMenuLabel>
                         <div className="flex flex-col space-y-1">
                             <p className="text-sm font-medium leading-none">{user.displayName}</p>
@@ -148,6 +155,21 @@ export default function Header() {
                 </DropdownMenuContent>
             </DropdownMenu>
            )}
+           <div className="md:hidden">
+              <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
+                <SheetTrigger asChild>
+                  <Button variant="ghost" size="icon">
+                    <Menu className="h-6 w-6" />
+                    <span className="sr-only">Abrir menú</span>
+                  </Button>
+                </SheetTrigger>
+                <SheetContent side="left">
+                    <nav className="flex flex-col space-y-4 pt-6 text-lg">
+                        {user && navLinks}
+                    </nav>
+                </SheetContent>
+              </Sheet>
+            </div>
         </div>
       </div>
     </header>

@@ -141,7 +141,7 @@ export default function DashboardPage() {
     <div className="space-y-8">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 p-6 bg-card rounded-lg shadow-lg">
         <div>
-          <h1 className="text-4xl font-headline font-bold text-primary">¡Bienvenido, {user.displayName || user.email}!</h1>
+          <h1 className="text-3xl sm:text-4xl font-headline font-bold text-primary">¡Bienvenido, {user.displayName || user.email}!</h1>
           <p className="text-lg text-muted-foreground mt-1">Este es un resumen de tu espacio de trabajo en Hoop Control.</p>
         </div>
         <Image 
@@ -160,7 +160,7 @@ export default function DashboardPage() {
                 <CardTitle>Acciones de Desarrollo</CardTitle>
                 <CardDescription>Botones para facilitar las pruebas durante el desarrollo.</CardDescription>
              </CardHeader>
-              <CardContent className="flex gap-4">
+              <CardContent className="flex flex-col sm:flex-row gap-4">
                 <Button onClick={handleCreateTestGame} disabled={isCreatingGame}>
                     {isCreatingGame && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
                     Crear Partido de Prueba
@@ -249,7 +249,7 @@ export default function DashboardPage() {
                 alt="Gráfico de ejemplo" 
                 width={300} 
                 height={150} 
-                className="rounded shadow"
+                className="rounded shadow object-contain"
                 data-ai-hint="data chart"
               />
            </div>
