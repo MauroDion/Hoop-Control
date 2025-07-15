@@ -56,6 +56,7 @@ export default function GamesPage() {
         }
         
         const activeGames = fetchedGames.filter(game => game.status === 'scheduled' || game.status === 'inprogress');
+        // Correctly sort games using dates that are now strings
         activeGames.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
         setGames(activeGames);
 
