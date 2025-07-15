@@ -487,16 +487,18 @@ export async function endCurrentPeriod(gameId: string, userId: string): Promise<
             const onCourtIds = [...(gameData.homeTeamOnCourtPlayerIds || []), ...(gameData.awayTeamOnCourtPlayerIds || [])];
             let timePlayedInPeriod = 0;
             
+            const timeRemaining = typeof gameData.periodTimeRemainingSeconds === 'number' ? gameData.periodTimeRemainingSeconds : totalPeriodDuration;
+
             if (gameData.isTimerRunning && gameData.timerStartedAt) {
                  const serverStopTime = Date.now();
                  const serverStartTime = (new Date(gameData.timerStartedAt as string)).getTime();
                  const elapsedSeconds = Math.max(0, Math.floor((serverStopTime - serverStartTime) / 1000));
                  timePlayedInPeriod = elapsedSeconds;
-            } else {
-                 const timeRemaining = typeof gameData.periodTimeRemainingSeconds === 'number' ? gameData.periodTimeRemainingSeconds : totalPeriodDuration;
+            } else if (!gameData.isTimerRunning && timeRemaining < totalPeriodDuration) {
+                 // Timer was paused, calculate based on remaining time
                  timePlayedInPeriod = totalPeriodDuration - timeRemaining;
             }
-
+            
             if (timePlayedInPeriod > 0) {
                  onCourtIds.forEach(pId => {
                      finalUpdates[`playerStats.${pId}.timePlayedSeconds`] = admin.firestore.FieldValue.increment(timePlayedInPeriod);
@@ -771,5 +773,3 @@ export async function substitutePlayer(
     return { success: false, error: error.message };
   }
 }
-
-    

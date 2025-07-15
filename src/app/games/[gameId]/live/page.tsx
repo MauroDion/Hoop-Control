@@ -6,7 +6,7 @@ import { useParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import Link from 'next/link';
 import { getGameById, updateLiveGameState, endCurrentPeriod, substitutePlayer, assignScorer, recordGameEvent } from '@/app/games/actions';
-import { getGameFormatById } from '@/game-formats/actions';
+import { getGameFormatById } from '@/lib/actions/game-formats';
 import { getPlayersByTeamId } from '@/app/players/actions';
 import type { Game, GameFormat, Player, GameEventAction, PlayerGameStats, UserFirestoreProfile, ProfileType, StatCategory } from '@/types';
 import { Button } from '@/components/ui/button';
@@ -158,6 +158,7 @@ export default function LiveGamePage() {
     const [actionPlayerInfo, setActionPlayerInfo] = useState<{player: Player, teamType: 'home' | 'away'} | null>(null);
     const [subPlayerInfo, setSubPlayerInfo] = useState<{player: Player, teamType: 'home' | 'away'} | null>(null);
     const [isAssignmentDialogOpen, setIsAssignmentDialogOpen] = useState(false);
+    const [isEndingPeriod, setIsEndingPeriod] = useState(false);
 
     const myAssignments = useMemo(() => {
         const assignments = new Set<StatCategory>();
@@ -182,23 +183,15 @@ export default function LiveGamePage() {
         pir: 0, plusMinus: 0
     };
 
-    const handleUpdate = useCallback(async (updates: Partial<Game>) => {
-        if (!user) return;
-        const result = await updateLiveGameState(gameId, user.uid, updates);
-        if (result.success) {
-            await fetchGameData();
-        } else {
-            toast({ variant: 'destructive', title: 'Error al Actualizar', description: result.error });
-        }
-    }, [gameId, toast, user]);
-
-    const fetchGameData = useCallback(async () => {
+    const fetchGameData = useCallback(async (showLoading = true) => {
         if (!user || !profile) {
           setError("Debes iniciar sesión para ver esta página.");
           setLoading(false);
           return;
         }
-    
+        
+        if (showLoading) setLoading(true);
+
         try {
           const gameData = await getGameById(gameId);
           if (!gameData) {
@@ -213,8 +206,8 @@ export default function LiveGamePage() {
             (gameData.homeTeamPlayerIds || []).includes(child.playerId) || 
             (gameData.awayTeamPlayerIds || []).includes(child.playerId)
           );
-          const isCoachOfGame = false; // Replace with actual check
-    
+          const isCoachOfGame = (gameData.homeTeamId && (profile.teamsAsCoach?.some(t => t.id === gameData.homeTeamId))) || (gameData.awayTeamId && (profile.teamsAsCoach?.some(t => t.id === gameData.awayTeamId)));
+
           if (isSuperAdmin || isClubAdmin || isCoachOfGame || isParentOfPlayerInGame) {
             setHasPermission(true);
           } else {
@@ -228,7 +221,7 @@ export default function LiveGamePage() {
         } catch (err: any) {
           setError(err.message);
         } finally {
-          setLoading(false);
+          if (showLoading) setLoading(false);
         }
       }, [gameId, user, profile, gameFormat, homePlayers.length, awayPlayers.length]);
     
@@ -237,6 +230,28 @@ export default function LiveGamePage() {
           fetchGameData();
         }
       }, [authLoading, fetchGameData]);
+
+    const handleUpdate = useCallback(async (updates: Partial<Game>) => {
+        if (!user) return;
+        const result = await updateLiveGameState(gameId, user.uid, updates);
+        if (result.success) {
+            await fetchGameData(false);
+        } else {
+            toast({ variant: 'destructive', title: 'Error al Actualizar', description: result.error });
+        }
+    }, [gameId, toast, user, fetchGameData]);
+
+    const handleEndPeriod = useCallback(async () => {
+        if (!game || !user || isEndingPeriod) return;
+        setIsEndingPeriod(true);
+        const result = await endCurrentPeriod(game.id, user.uid);
+        if (result.success) {
+            await fetchGameData(false);
+        } else {
+            toast({ variant: 'destructive', title: 'Error', description: result.error });
+        }
+        setIsEndingPeriod(false);
+    }, [game, user, toast, fetchGameData, isEndingPeriod]);
 
 
     useEffect(() => {
@@ -251,15 +266,19 @@ export default function LiveGamePage() {
             
             const updateDisplay = () => {
                 const elapsedSeconds = Math.floor((Date.now() - serverStartTimeMs) / 1000);
-                const newDisplayTime = initialRemainingSeconds - elapsedSeconds;
-                setDisplayTime(Math.max(0, newDisplayTime));
+                const newDisplayTime = Math.max(0, initialRemainingSeconds - elapsedSeconds);
+                setDisplayTime(newDisplayTime);
+                if (newDisplayTime <= 0) {
+                    clearInterval(timerId);
+                    handleEndPeriod();
+                }
             };
             
             updateDisplay();
             timerId = setInterval(updateDisplay, 1000);
         }
         return () => clearInterval(timerId);
-    }, [game?.isTimerRunning, game?.timerStartedAt, game?.periodTimeRemainingSeconds]);
+    }, [game?.isTimerRunning, game?.timerStartedAt, game?.periodTimeRemainingSeconds, handleEndPeriod]);
 
     const handleGameEvent = async (teamType: 'home' | 'away', playerId: string, playerName: string, action: GameEventAction) => {
         if (!game || game.status !== 'inprogress' || !user) return;
@@ -267,7 +286,7 @@ export default function LiveGamePage() {
         if(!result.success){
             toast({ variant: 'destructive', title: 'Acción no permitida', description: result.error });
         } else {
-            await fetchGameData();
+            await fetchGameData(false);
         }
         setActionPlayerInfo(null);
     };
@@ -280,7 +299,7 @@ export default function LiveGamePage() {
         if (!result.success) {
             toast({ variant: 'destructive', title: 'Error de Sustitución', description: result.error });
         } else {
-            await fetchGameData();
+            await fetchGameData(false);
         }
         setSubPlayerInfo(null);
     };
@@ -320,22 +339,11 @@ export default function LiveGamePage() {
         
         const updates: Partial<Game> = { 
             isTimerRunning: newIsTimerRunning,
-            periodTimeRemainingSeconds: displayTime 
         };
 
         handleUpdate(updates);
-    }, [game, user, displayTime, handleUpdate]);
+    }, [game, user, handleUpdate]);
     
-    const handleEndPeriod = useCallback(async () => {
-        if (!game || !user) return;
-        const result = await endCurrentPeriod(game.id, user.uid);
-        if (result.success) {
-            await fetchGameData();
-        } else {
-            toast({ variant: 'destructive', title: 'Error', description: result.error });
-        }
-    }, [game, user, toast, fetchGameData]);
-
     const handleResetTimer = useCallback(() => {
         if (!game || !gameFormat || !user) return;
         handleUpdate({
@@ -360,7 +368,7 @@ export default function LiveGamePage() {
             updates.isTimerRunning = false;
         }
         await updateLiveGameState(gameId, user.uid, updates);
-        await fetchGameData();
+        await fetchGameData(false);
     }
 
     const handleAssignScorer = async (category: StatCategory) => {
@@ -369,7 +377,7 @@ export default function LiveGamePage() {
         if (!result.success) {
             toast({ variant: 'destructive', title: 'Error al asignar', description: result.error });
         } else {
-            await fetchGameData();
+            await fetchGameData(false);
         }
     };
 
@@ -379,7 +387,7 @@ export default function LiveGamePage() {
         if (!result.success) {
             toast({ variant: 'destructive', title: 'Error al liberar', description: result.error });
         } else {
-            await fetchGameData();
+            await fetchGameData(false);
         }
     };
 
@@ -417,7 +425,7 @@ export default function LiveGamePage() {
     if (!game || !profile) return null;
 
     const isSuperAdmin = profile.profileTypeId === 'super_admin';
-    const canManageControls = profile && ['super_admin', 'club_admin', 'coordinator', 'coach'].includes(profile.profileTypeId);
+    const canManageControls = profile && ['super_admin', 'club_admin', 'coordinator', 'coach'].includes(profile.profileTypeId || "");
     
     const canRecordAnyStat = myAssignments.size > 0 || isSuperAdmin;
     const canRecordShots = myAssignments.has('shots') || isSuperAdmin;
@@ -497,7 +505,7 @@ export default function LiveGamePage() {
 
              <div className="flex justify-between items-center">
                 <Button variant="outline" size="sm" asChild><Link href={`/games`}><ChevronLeft className="mr-2 h-4 w-4" />Volver a la Lista de Partidos</Link></Button>
-                <Button variant="secondary" size="sm" onClick={fetchGameData}>
+                <Button variant="secondary" size="sm" onClick={() => fetchGameData(true)}>
                     <RefreshCw className="mr-2 h-4 w-4" /> Actualizar Datos
                 </Button>
             </div>
@@ -547,8 +555,9 @@ export default function LiveGamePage() {
                                     {game.isTimerRunning ? <Pause className="mr-2"/> : <Play className="mr-2"/>}
                                     {game.isTimerRunning ? 'Pausar' : 'Iniciar'}
                                 </Button>
-                                <Button onClick={handleEndPeriod} disabled={game.status !== 'inprogress'} variant="outline" size="lg">
-                                    <FastForward className="mr-2"/> Finalizar Período
+                                <Button onClick={handleEndPeriod} disabled={game.status !== 'inprogress' || isEndingPeriod} variant="outline" size="lg">
+                                    {isEndingPeriod ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <FastForward className="mr-2"/>}
+                                    {isEndingPeriod ? 'Finalizando...' : 'Finalizar Período'}
                                 </Button>
                                 <Button onClick={handleResetTimer} disabled={game.status !== 'inprogress'} variant="secondary" size="icon" aria-label="Reiniciar cronómetro"><TimerReset/></Button>
                             </div>
@@ -563,4 +572,3 @@ export default function LiveGamePage() {
         </div>
     )
 }
-
